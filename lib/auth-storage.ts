@@ -46,6 +46,18 @@ export type StoredCustomerAddress = {
   addressSummary: string;
 };
 
+export type StoredWorkspace = {
+  id: number;
+  workspaceType: string;
+  name: string;
+  slug: string | null;
+  status: string;
+  membershipRole: string;
+  isPrimary: boolean;
+  primaryRestaurantId: number | null;
+  primaryRestaurantName: string | null;
+};
+
 export type StoredUser = {
   id: number;
   fullName: string;
@@ -59,6 +71,10 @@ export type StoredUser = {
   defaultAddressId: number | null;
   savedAddressesCount: number;
   defaultAddress: StoredCustomerAddress | null;
+  activeRestaurantId: number | null;
+  activeWorkspaceId: number | null;
+  activeWorkspace: StoredWorkspace | null;
+  workspaces: StoredWorkspace[];
 };
 
 export type StoredAuth = {

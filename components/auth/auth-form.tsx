@@ -82,9 +82,42 @@ function extractApiErrorMessage(payload: any) {
   return "Authentication failed.";
 }
 
+function validateAuthForm(params: {
+  mode: AuthMode;
+  identifier: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  password: string;
+}) {
+  const { mode, identifier, fullName, email, phone, password } = params;
+
+  if (mode === "login") {
+    if (identifier.trim().length < 3) {
+      return "Email or phone must be at least 3 characters.";
+    }
+    if (password.length < 8) {
+      return "Password must be at least 8 characters.";
+    }
+    return null;
+  }
+
+  if (fullName.trim().length < 2) {
+    return "Full name must be at least 2 characters.";
+  }
+  if (!email.trim() && !phone.trim()) {
+    return "Either email or phone is required.";
+  }
+  if (password.length < 8) {
+    return "Password must be at least 8 characters.";
+  }
+  return null;
+}
+
 export function AuthForm({ mode }: AuthFormProps) {
   const router = useRouter();
   const setAuth = useAuthStore((state) => state.setAuth);
+  const [accountType, setAccountType] = useState<"customer" | "restaurant">("customer");
   const [fullName, setFullName] = useState("");
   const [identifier, setIdentifier] = useState("");
   const [email, setEmail] = useState("");
@@ -98,6 +131,21 @@ export function AuthForm({ mode }: AuthFormProps) {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+
+    const validationError = validateAuthForm({
+      mode,
+      identifier,
+      fullName,
+      email,
+      phone,
+      password,
+    });
+
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -125,7 +173,12 @@ export function AuthForm({ mode }: AuthFormProps) {
 
       const data = mapStoredAuth(payload.data);
       setAuth(data);
-      router.replace("/");
+      
+      if (mode === "signup" && accountType === "restaurant") {
+        router.replace("/merchant/onboarding");
+      } else {
+        router.replace("/");
+      }
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Authentication failed.");
     } finally {
@@ -157,16 +210,45 @@ export function AuthForm({ mode }: AuthFormProps) {
 
         <form className="space-y-4" onSubmit={handleSubmit}>
           {mode === "signup" ? (
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Full name</label>
-              <Input
-                value={fullName}
-                onChange={(event) => setFullName(event.target.value)}
-                placeholder="Ram Bahadur"
-                autoComplete="name"
-                required
-              />
-            </div>
+            <>
+              <div className="space-y-2 mb-4">
+                <label className="text-sm font-medium text-foreground">Account type</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setAccountType("customer")}
+                    className={`flex items-center justify-center rounded-xl border py-2.5 text-sm font-medium transition-colors ${
+                      accountType === "customer"
+                        ? "border-primary bg-primary/5 text-primary"
+                        : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50"
+                    }`}
+                  >
+                    Customer
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAccountType("restaurant")}
+                    className={`flex items-center justify-center rounded-xl border py-2.5 text-sm font-medium transition-colors ${
+                      accountType === "restaurant"
+                        ? "border-primary bg-primary/5 text-primary"
+                        : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50"
+                    }`}
+                  >
+                    Restaurant
+                  </button>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Full name</label>
+                <Input
+                  value={fullName}
+                  onChange={(event) => setFullName(event.target.value)}
+                  placeholder={accountType === "restaurant" ? "Owner Name" : "Ram Bahadur"}
+                  autoComplete="name"
+                  required
+                />
+              </div>
+            </>
           ) : null}
 
           {mode === "login" ? (

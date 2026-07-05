@@ -3,6 +3,7 @@ import type {
   StoredAuth,
   StoredCustomerAddress,
   StoredUser,
+  StoredWorkspace,
 } from "@/lib/auth-storage";
 
 function mapPosLinkStatus(payload: any): PosLinkStatus {
@@ -33,6 +34,20 @@ function mapPosLinkStatus(payload: any): PosLinkStatus {
   };
 }
 
+function mapStoredWorkspace(payload: any): StoredWorkspace {
+  return {
+    id: Number(payload.id),
+    workspaceType: payload.workspace_type ?? "customer",
+    name: payload.name ?? "Workspace",
+    slug: payload.slug ?? null,
+    status: payload.status ?? "unknown",
+    membershipRole: payload.membership_role ?? "member",
+    isPrimary: Boolean(payload.is_primary),
+    primaryRestaurantId: payload.primary_restaurant_id ?? null,
+    primaryRestaurantName: payload.primary_restaurant_name ?? null,
+  };
+}
+
 export function mapStoredAddress(payload: any): StoredCustomerAddress {
   return {
     id: payload.id,
@@ -60,6 +75,10 @@ export function mapStoredAddress(payload: any): StoredCustomerAddress {
 }
 
 export function mapStoredUser(data: any): StoredUser {
+  const workspaces = Array.isArray(data.workspaces) ? data.workspaces.map(mapStoredWorkspace) : [];
+  const activeWorkspace =
+    data.active_workspace ? mapStoredWorkspace(data.active_workspace) : null;
+
   return {
     id: data.id,
     fullName: data.full_name,
@@ -73,6 +92,10 @@ export function mapStoredUser(data: any): StoredUser {
     defaultAddressId: data.default_address_id ?? null,
     savedAddressesCount: data.saved_addresses_count ?? 0,
     defaultAddress: data.default_address ? mapStoredAddress(data.default_address) : null,
+    activeRestaurantId: data.active_restaurant_id ?? null,
+    activeWorkspaceId: data.active_workspace_id ?? null,
+    activeWorkspace,
+    workspaces,
   };
 }
 
@@ -100,5 +123,13 @@ export function mergeStoredUserWithProfile(
     defaultAddressId: payload.default_address_id ?? null,
     savedAddressesCount: payload.saved_addresses_count ?? 0,
     defaultAddress: payload.default_address ? mapStoredAddress(payload.default_address) : null,
+    activeRestaurantId: payload.active_restaurant_id ?? user.activeRestaurantId,
+    activeWorkspaceId: payload.active_workspace_id ?? user.activeWorkspaceId,
+    activeWorkspace: payload.active_workspace
+      ? mapStoredWorkspace(payload.active_workspace)
+      : user.activeWorkspace,
+    workspaces: Array.isArray(payload.workspaces)
+      ? payload.workspaces.map(mapStoredWorkspace)
+      : user.workspaces,
   };
 }

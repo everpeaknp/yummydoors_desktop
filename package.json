@@ -3,12 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "clean": "node scripts/clean-next.js",
+    "predev": "npm run clean",
     "dev": "next dev",
+    "prebuild": "npm run clean",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
   },
   "dependencies": {
+    "@react-google-maps/api": "^2.20.8",
     "clsx": "^2.1.1",
     "lucide-react": "^0.539.0",
     "next": "14.2.35",

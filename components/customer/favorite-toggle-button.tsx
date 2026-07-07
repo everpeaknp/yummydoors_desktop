@@ -46,23 +46,36 @@ export function FavoriteToggleButton({
 
     setLoading(true);
     setError(null);
-    const response = await apiFetch(buildPath(entityType, entityId), {
-      method: active ? "DELETE" : "POST",
-      auth: true,
-    });
-    const payload = await readJsonSafely(response);
-    if (!response.ok) {
-      setLoading(false);
+    try {
+      const response = await apiFetch(buildPath(entityType, entityId), {
+        method: active ? "DELETE" : "POST",
+        auth: true,
+      });
+      const payload = await readJsonSafely(response);
+      if (!response.ok) {
+        setError(
+          extractApiErrorMessage(
+            payload,
+            active ? "Failed to remove favorite." : "Failed to save favorite.",
+          ),
+        );
+        return;
+      }
+      onChange(!active);
+    } catch (requestError) {
+      const message = requestError instanceof Error ? requestError.message : "";
       setError(
-        extractApiErrorMessage(
-          payload,
-          active ? "Failed to remove favorite." : "Failed to save favorite.",
-        ),
+        message === "Failed to fetch"
+          ? "Could not reach the YummyDoors API. Check backend deployment or CORS."
+          : message
+            ? message
+          : active
+            ? "Failed to remove favorite."
+            : "Failed to save favorite.",
       );
-      return;
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
-    onChange(!active);
   }
 
   return (

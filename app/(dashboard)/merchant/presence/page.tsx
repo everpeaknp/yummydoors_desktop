@@ -54,7 +54,6 @@ type MerchantRestaurantProfile = {
 
 type ProfileForm = {
   name: string;
-  slug: string;
   short_description: string;
   primary_cuisine_label: string;
   city: string;
@@ -76,12 +75,10 @@ type ProfileForm = {
   has_free_delivery: boolean;
   supports_pickup: boolean;
   supports_table_booking: boolean;
-  is_featured: boolean;
 };
 
 const emptyForm: ProfileForm = {
   name: "",
-  slug: "",
   short_description: "",
   primary_cuisine_label: "",
   city: "",
@@ -103,7 +100,6 @@ const emptyForm: ProfileForm = {
   has_free_delivery: false,
   supports_pickup: false,
   supports_table_booking: false,
-  is_featured: false,
 };
 
 function extractErrorMessage(payload: any) {
@@ -125,7 +121,6 @@ function extractErrorMessage(payload: any) {
 function toForm(profile: MerchantRestaurantProfile): ProfileForm {
   return {
     name: profile.name,
-    slug: profile.slug,
     short_description: profile.short_description ?? "",
     primary_cuisine_label: profile.primary_cuisine_label ?? "",
     city: profile.city ?? "",
@@ -149,7 +144,6 @@ function toForm(profile: MerchantRestaurantProfile): ProfileForm {
     has_free_delivery: profile.has_free_delivery,
     supports_pickup: profile.supports_pickup,
     supports_table_booking: profile.supports_table_booking,
-    is_featured: profile.is_featured,
   };
 }
 
@@ -235,7 +229,6 @@ export default function MerchantPresencePage() {
         auth: true,
         body: JSON.stringify({
           name: form.name.trim(),
-          slug: form.slug.trim() || null,
           short_description: form.short_description.trim() || null,
           primary_cuisine_label: form.primary_cuisine_label.trim() || null,
           city: form.city.trim() || null,
@@ -257,7 +250,6 @@ export default function MerchantPresencePage() {
           has_free_delivery: form.has_free_delivery,
           supports_pickup: form.supports_pickup,
           supports_table_booking: form.supports_table_booking,
-          is_featured: form.is_featured,
         }),
       });
 
@@ -376,11 +368,6 @@ export default function MerchantPresencePage() {
                     </label>
 
                     <label className="space-y-2">
-                      <span className="text-sm font-medium text-[#1f2937]">Slug</span>
-                      <Input value={form.slug} onChange={(event) => setForm((current) => ({ ...current, slug: event.target.value }))} />
-                    </label>
-
-                    <label className="space-y-2">
                       <span className="text-sm font-medium text-[#1f2937]">Primary cuisine</span>
                       <Input value={form.primary_cuisine_label} onChange={(event) => setForm((current) => ({ ...current, primary_cuisine_label: event.target.value }))} />
                     </label>
@@ -478,7 +465,6 @@ export default function MerchantPresencePage() {
                       ["has_free_delivery", "Free delivery"],
                       ["supports_pickup", "Pickup"],
                       ["supports_table_booking", "Table booking"],
-                      ["is_featured", "Featured in discovery"],
                     ].map(([key, label]) => (
                       <label
                         key={key}
@@ -486,7 +472,7 @@ export default function MerchantPresencePage() {
                       >
                         <input
                           type="checkbox"
-                          checked={form[key as keyof Pick<ProfileForm, "supports_delivery" | "has_free_delivery" | "supports_pickup" | "supports_table_booking" | "is_featured">]}
+                          checked={form[key as keyof Pick<ProfileForm, "supports_delivery" | "has_free_delivery" | "supports_pickup" | "supports_table_booking">]}
                           onChange={(event) =>
                             setForm((current) => ({
                               ...current,

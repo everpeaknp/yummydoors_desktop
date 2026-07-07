@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { KeyboardEvent, useEffect, useState, useCallback, useRef } from "react";
 import { MapPin, Search } from "lucide-react";
 import { GoogleMap, MarkerF } from "@react-google-maps/api";
 
@@ -212,18 +212,16 @@ export default function MapPicker({
     return () => window.clearTimeout(timer);
   }, [searchQuery, showSearch]);
 
-  const handleSearch = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
+  const runSearch = useCallback(() => {
     if (predictions.length > 0) {
       const prediction =
         activePredictionIndex >= 0 ? predictions[activePredictionIndex] : predictions[0];
       handlePredictionSelect(prediction);
-      return;
+      return true;
     }
 
     if (!searchQuery.trim() || typeof google === "undefined") {
-      return;
+      return false;
     }
 
     setSearching(true);
@@ -242,7 +240,14 @@ export default function MapPicker({
       const lng = results[0].geometry.location.lng();
       applyResolvedPlace(lat, lng, results[0].formatted_address || searchQuery.trim());
     });
-  };
+    return true;
+  }, [
+    activePredictionIndex,
+    applyResolvedPlace,
+    handlePredictionSelect,
+    predictions,
+    searchQuery,
+  ]);
 
   if (!isLoaded) {
     return (
@@ -256,7 +261,7 @@ export default function MapPicker({
     <div className={`z-0 w-full overflow-hidden rounded-[16px] border border-black/6 bg-white shadow-[0_10px_32px_rgba(15,23,42,0.05)] ${heightClassName}`}>
       {showSearch ? (
         <div className="border-b border-black/5 bg-[#fcfcfa] px-4 py-4">
-          <form className="space-y-3" onSubmit={handleSearch}>
+          <div className="space-y-3">
             <div className="flex flex-col gap-3">
               <div className="relative flex-1" ref={searchWrapRef}>
                 <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
@@ -271,7 +276,13 @@ export default function MapPicker({
                       setDropdownOpen(true);
                     }
                   }}
-                  onKeyDown={(event) => {
+                  onKeyDown={(event: KeyboardEvent<HTMLInputElement>) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      void runSearch();
+                      return;
+                    }
+
                     if (!predictions.length) {
                       return;
                     }
@@ -332,7 +343,10 @@ export default function MapPicker({
               </div>
             </div>
             {searchError ? <p className="text-sm text-[#9a3412]">{searchError}</p> : null}
-          </form>
+            <div className="sr-only" aria-live="polite">
+              {searching ? "Searching location" : ""}
+            </div>
+          </div>
         </div>
       ) : null}
 

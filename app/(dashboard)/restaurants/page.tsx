@@ -455,10 +455,8 @@ export default function RestaurantsPage() {
                           <FavoriteToggleButton
                             entityType="restaurant"
                             entityId={restaurant.id}
-                            active={favourites[restaurant.id] || false}
-                            onChange={(next) =>
-                              setFavourites((curr) => ({ ...curr, [restaurant.id]: next }))
-                            }
+                            active={restaurant.is_favorited}
+                            onChange={(next) => handleRestaurantFavoriteChange(restaurant.id, next)}
                             compact
                             className="relative z-30 h-9 w-9 rounded-full border-white/40 bg-white/92 p-0 shadow-none hover:bg-white"
                           />

@@ -22,6 +22,9 @@ export function getSiteNavItems(user: StoredUser | null): NavItem[] {
     return items;
   }
 
+  items.push({ href: "/reservations", label: "Reservations" });
+  items.push({ href: "/wishlist", label: "Wishlist" });
+  items.push({ href: "/cart", label: "Cart" });
   items.push({ href: "/merchant", label: "Merchant" });
   items.push({ href: "/profile", label: "Profile" });
   return items;

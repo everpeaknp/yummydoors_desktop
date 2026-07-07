@@ -5,9 +5,13 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  CalendarDays,
   ChevronDown,
+  Heart,
   LayoutDashboard,
   LogOut,
+  ReceiptText,
+  ShoppingCart,
   Store,
   UserCircle2,
 } from "lucide-react";
@@ -169,6 +173,40 @@ export function SiteNavbar({ className, variant = "light" }: SiteNavbarProps) {
                       >
                         <LayoutDashboard className="h-5 w-5 text-[#444]" />
                         Dashboard
+                      </Link>
+                      {merchantReady ? (
+                        <Link
+                          href="/merchant/reservations"
+                          onClick={() => setMenuOpen(false)}
+                          className="flex items-center gap-3 rounded-[8px] px-4 py-3 text-[15px] font-medium text-[#2f3137] transition hover:bg-[#fff5ef]"
+                        >
+                          <CalendarDays className="h-5 w-5 text-[#444]" />
+                          Reservations
+                        </Link>
+                      ) : null}
+                      <Link
+                        href="/reservations"
+                        onClick={() => setMenuOpen(false)}
+                        className="flex items-center gap-3 rounded-[8px] px-4 py-3 text-[15px] font-medium text-[#2f3137] transition hover:bg-[#fff5ef]"
+                      >
+                        <ReceiptText className="h-5 w-5 text-[#444]" />
+                        My reservations
+                      </Link>
+                      <Link
+                        href="/wishlist"
+                        onClick={() => setMenuOpen(false)}
+                        className="flex items-center gap-3 rounded-[8px] px-4 py-3 text-[15px] font-medium text-[#2f3137] transition hover:bg-[#fff5ef]"
+                      >
+                        <Heart className="h-5 w-5 text-[#444]" />
+                        Wishlist
+                      </Link>
+                      <Link
+                        href="/cart"
+                        onClick={() => setMenuOpen(false)}
+                        className="flex items-center gap-3 rounded-[8px] px-4 py-3 text-[15px] font-medium text-[#2f3137] transition hover:bg-[#fff5ef]"
+                      >
+                        <ShoppingCart className="h-5 w-5 text-[#444]" />
+                        Cart
                       </Link>
                       <Link
                         href="/merchant"

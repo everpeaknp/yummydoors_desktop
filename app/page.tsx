@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 import { Star, ArrowRight, Instagram, Twitter, Facebook, ChevronLeft, ChevronRight, MapPin } from "lucide-react";
 import { apiFetch } from "@/lib/http";
 import { SiteNavbar } from "@/components/layout/site-navbar";
+import { useGoogleMaps } from "@/hooks/use-google-maps";
 import { mapStoredAddress, mergeStoredUserWithProfile } from "@/lib/auth-mappers";
 import {
   loadStoredAuth,
@@ -243,6 +244,7 @@ const heroSlides = [
 ];
 
 export default function LandingPage() {
+  useGoogleMaps();
   const [hydrated, setHydrated] = useState(false);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [sessionUser, setSessionUser] = useState<StoredUser | null>(null);
@@ -1139,20 +1141,25 @@ export default function LandingPage() {
                     : FALLBACK_MENU_ITEM_IMAGE;
 
                   return (
-                  <div key={`${cat.slug}-${i}`} className="relative h-[280px] w-[195px] rounded-[4px] overflow-hidden shrink-0 pointer-events-none">
-                    <img src={categoryImage} alt={cat.name} className="h-full w-full object-cover" />
-                    <div className="absolute inset-x-0 bottom-0 h-[120px] bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
-                    <div className="absolute top-[12px] right-[12px] bg-white text-[#333333] text-[11px] font-semibold w-[30px] h-[30px] rounded-full flex items-center justify-center shadow">
-                      {categoryRestaurants.length || 1}
-                    </div>
-                    <div className="absolute bottom-[16px] left-[14px] right-[14px]">
-                      <h3 className="text-[16px] font-semibold text-white leading-none mb-1">{cat.name}</h3>
-                      <p className="text-[12px] text-[#cccccc] font-normal">
-                        {startingPrice ? `From ${formatPrice(startingPrice)}` : "Fresh picks available"}
-                      </p>
-                    </div>
-                  </div>
-                )})}
+                    <Link
+                      key={`${cat.slug}-${i}`}
+                      href={`/restaurants?category=${encodeURIComponent(cat.slug)}`}
+                      className="relative block h-[280px] w-[195px] shrink-0 overflow-hidden rounded-[4px]"
+                    >
+                      <img src={categoryImage} alt={cat.name} className="h-full w-full object-cover" />
+                      <div className="absolute inset-x-0 bottom-0 h-[120px] bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
+                      <div className="absolute top-[12px] right-[12px] bg-white text-[#333333] text-[11px] font-semibold w-[30px] h-[30px] rounded-full flex items-center justify-center shadow">
+                        {categoryRestaurants.length || 1}
+                      </div>
+                      <div className="absolute bottom-[16px] left-[14px] right-[14px]">
+                        <h3 className="text-[16px] font-semibold text-white leading-none mb-1">{cat.name}</h3>
+                        <p className="text-[12px] text-[#cccccc] font-normal">
+                          {startingPrice ? `From ${formatPrice(startingPrice)}` : "Fresh picks available"}
+                        </p>
+                      </div>
+                    </Link>
+                  );
+                })}
               </div>
               
               <button 

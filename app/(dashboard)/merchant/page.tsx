@@ -1,17 +1,20 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight,
   ArrowRightLeft,
   Building2,
+  CalendarDays,
   CircleAlert,
   Layers3,
   Link2,
   PanelTop,
   Store,
+  Table2,
 } from "lucide-react";
 
 import { SiteNavbar } from "@/components/layout/site-navbar";
@@ -611,13 +614,13 @@ export default function MerchantPage() {
                       </div>
                     </div>
                   </div>
-                  <div className="grid gap-px bg-[#f2e8de] md:grid-cols-2 lg:grid-cols-4">
+                  <div className="grid gap-px bg-[#f2e8de] md:grid-cols-2 xl:grid-cols-3">
                     {[
                       {
-                        href: "/restaurants",
+                        href: "/merchant/presence",
                         icon: Store,
                         title: "Restaurant presence",
-                        description: "Review what is live in the customer-facing restaurant feed.",
+                        description: "Edit the restaurant profile, location, service settings, and public business details.",
                       },
                       {
                         href: "/categories",
@@ -630,6 +633,18 @@ export default function MerchantPage() {
                         icon: PanelTop,
                         title: "Menu catalog",
                         description: "Use the current catalog area as the starting point for merchant controls.",
+                      },
+                      {
+                        href: "/merchant/reservations",
+                        icon: CalendarDays,
+                        title: "Reservation queue",
+                        description: "Review incoming table bookings, confirm arrivals, and close the service loop.",
+                      },
+                      {
+                        href: "/merchant/tables",
+                        icon: Table2,
+                        title: "Reservation tables",
+                        description: "Maintain the real table inventory that feeds booking availability and assignment.",
                       },
                       {
                         href: "/promos",
@@ -666,10 +681,11 @@ export default function MerchantPage() {
         <>
           <section className="relative isolate overflow-hidden">
             <div className="absolute inset-0">
-              <img
+              <Image
                 src="https://images.unsplash.com/photo-1552566626-52f8b828add9?q=80&w=1800&auto=format&fit=crop"
                 alt="Restaurant operations"
-                className="h-full w-full object-cover"
+                fill
+                className="object-cover"
               />
               <div className="absolute inset-0 bg-[#0f172acc]" />
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(249,115,22,0.3),transparent_35%)]" />

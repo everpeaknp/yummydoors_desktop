@@ -2,7 +2,9 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { MapPin, Search } from "lucide-react";
-import { GoogleMap, useJsApiLoader, MarkerF } from "@react-google-maps/api";
+import { GoogleMap, MarkerF } from "@react-google-maps/api";
+
+import { useGoogleMaps } from "@/hooks/use-google-maps";
 
 interface MapPickerProps {
   latitude: number | null;
@@ -28,8 +30,6 @@ const containerStyle = {
   height: "100%",
 };
 
-const libraries: ("places")[] = ["places"];
-
 export default function MapPicker({
   latitude,
   longitude,
@@ -39,11 +39,7 @@ export default function MapPicker({
   heightClassName = "h-[450px]",
   onResolvedAddress,
 }: MapPickerProps) {
-  const { isLoaded } = useJsApiLoader({
-    id: "google-map-script",
-    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY as string,
-    libraries,
-  });
+  const { isLoaded } = useGoogleMaps();
 
   const [position, setPosition] = useState<google.maps.LatLngLiteral | null>(
     latitude && longitude ? { lat: latitude, lng: longitude } : null

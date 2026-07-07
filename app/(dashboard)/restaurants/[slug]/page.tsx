@@ -2,15 +2,17 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ArrowLeft,
   BadgeCheck,
   Clock3,
   Flame,
-  ImageIcon,
+  Mail,
   MapPin,
   MessageSquareText,
+  Phone,
+  ShoppingCart,
   Sparkles,
   Star,
   Store,
@@ -19,12 +21,17 @@ import {
 } from "lucide-react";
 
 import { SiteNavbar } from "@/components/layout/site-navbar";
+import { AddToCartButton } from "@/components/customer/add-to-cart-button";
+import { FavoriteToggleButton } from "@/components/customer/favorite-toggle-button";
+import { ReviewEditor, type ReviewPayload } from "@/components/customer/review-editor";
 import { apiFetch } from "@/lib/http";
+import { extractApiErrorMessage, readJsonSafely, unwrapApiData } from "@/lib/api-utils";
 import {
   FALLBACK_MENU_ITEM_IMAGE,
   FALLBACK_RESTAURANT_COVER,
   isUsableImageUrl,
 } from "@/lib/restaurant-media";
+import { CustomerBookingPanel } from "@/components/reservations/customer-booking-panel";
 import { Card, CardContent } from "@/components/ui/card";
 
 type CategorySummary = {
@@ -47,10 +54,19 @@ type RestaurantCardSummary = {
   review_count: number;
   supports_delivery: boolean;
   has_free_delivery: boolean;
+  supports_pickup: boolean;
+  supports_table_booking: boolean;
   offer_text: string | null;
+  contact_phone: string | null;
+  contact_email: string | null;
   delivery_eta_min_minutes: number | null;
   delivery_eta_max_minutes: number | null;
+  opening_time: string | null;
+  closing_time: string | null;
+  is_open_now: boolean | null;
+  distance_km: number | null;
   is_featured: boolean;
+  is_favorited: boolean;
   categories: CategorySummary[];
 };
 
@@ -72,6 +88,7 @@ type MenuItemSummary = {
   popularity_score: number;
   rating_average: number;
   rating_count: number;
+  is_favorited: boolean;
 };
 
 type RestaurantMenuSection = {
@@ -87,7 +104,34 @@ type RestaurantDetail = {
   featured_items: MenuItemSummary[];
   popular_items: MenuItemSummary[];
   related_restaurants: RestaurantCardSummary[];
+  about_text: string | null;
+  facilities: string[];
+  reviews_summary: {
+    average_rating: number;
+    total_reviews: number;
+    highlights: string[];
+  } | null;
+  reviews: Array<{
+    id: number;
+    user_id: number | null;
+    author_name: string;
+    rating: number;
+    comment: string | null;
+    source: string;
+    created_at: string;
+    is_mine: boolean;
+    can_edit: boolean;
+  }>;
+  viewer_review: ReviewPayload | null;
+  review_eligibility: {
+    can_create_review: boolean;
+    requires_delivered_order: boolean;
+    existing_review_id: number | null;
+    reason: string | null;
+  } | null;
 };
+
+const LOCATION_STORAGE_KEY = "yummydoors.selectedLocation";
 
 function formatPrice(item: MenuItemSummary) {
   return `${item.currency_code} ${item.price}`;
@@ -118,58 +162,86 @@ function collectGalleryImages(detail: RestaurantDetail) {
   return Array.from(new Set(images)).slice(0, 5);
 }
 
-function extractErrorMessage(payload: any) {
-  if (typeof payload?.detail === "string" && payload.detail.trim()) {
-    return payload.detail;
-  }
-  if (typeof payload?.message === "string" && payload.message.trim()) {
-    return payload.message;
-  }
-  return "Failed to load restaurant.";
-}
-
 export default function RestaurantDetailPage() {
   const params = useParams<{ slug: string }>();
   const slug = typeof params?.slug === "string" ? params.slug : "";
 
   const [detail, setDetail] = useState<RestaurantDetail | null>(null);
+  const [selectedCoords, setSelectedCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!slug) return;
-
-    let cancelled = false;
-
-    async function loadRestaurant() {
-      setLoading(true);
-      setError(null);
-      try {
-        const response = await apiFetch(`/restaurants/${slug}`);
-        const payload = await response.json();
-        if (!response.ok) {
-          throw new Error(extractErrorMessage(payload));
-        }
-        if (!cancelled) {
-          setDetail(payload.data);
-        }
-      } catch (caught) {
-        if (!cancelled) {
-          setError(caught instanceof Error ? caught.message : "Failed to load restaurant.");
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
+    if (typeof window === "undefined") {
+      return;
     }
 
-    void loadRestaurant();
+    try {
+      const raw = window.localStorage.getItem(LOCATION_STORAGE_KEY);
+      if (!raw) {
+        return;
+      }
+      const parsed = JSON.parse(raw) as { coords?: { lat?: number; lng?: number } };
+      if (
+        parsed?.coords &&
+        Number.isFinite(parsed.coords.lat) &&
+        Number.isFinite(parsed.coords.lng)
+      ) {
+        setSelectedCoords({
+          lat: Number(parsed.coords.lat),
+          lng: Number(parsed.coords.lng),
+        });
+      }
+    } catch {
+      window.localStorage.removeItem(LOCATION_STORAGE_KEY);
+    }
+  }, []);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [slug]);
+  const loadRestaurant = useCallback(async (signal?: AbortSignal) => {
+    if (!slug) {
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    try {
+      const query = new URLSearchParams();
+      if (selectedCoords) {
+        query.set("latitude", String(selectedCoords.lat));
+        query.set("longitude", String(selectedCoords.lng));
+      }
+      const response = await apiFetch(
+        `/restaurants/${slug}${query.size ? `?${query.toString()}` : ""}`,
+        { signal },
+      );
+      const payload = await readJsonSafely<RestaurantDetail | { data: RestaurantDetail }>(response);
+      if (!response.ok) {
+        throw new Error(extractApiErrorMessage(payload, "Failed to load restaurant."));
+      }
+
+      const data = unwrapApiData<RestaurantDetail>(payload);
+      if (data) {
+        setDetail(data);
+      }
+    } catch (caught) {
+      if (signal?.aborted) {
+        return;
+      }
+      setError(caught instanceof Error ? caught.message : "Failed to load restaurant.");
+    } finally {
+      if (!signal?.aborted) {
+        setLoading(false);
+      }
+    }
+  }, [selectedCoords, slug]);
+
+  useEffect(() => {
+    if (!slug) return;
+
+    const controller = new AbortController();
+    void loadRestaurant(controller.signal);
+    return () => controller.abort();
+  }, [loadRestaurant, slug]);
 
   const restaurant = detail?.restaurant ?? null;
   const coverUrl =
@@ -186,6 +258,44 @@ export default function RestaurantDetailPage() {
     restaurant?.offer_text ? restaurant.offer_text : null,
     restaurant?.has_free_delivery ? "Free delivery on selected orders" : null,
   ].filter(Boolean) as string[];
+
+  const handleRestaurantFavoriteChange = (next: boolean) => {
+    setDetail((current) =>
+      current
+        ? {
+            ...current,
+            restaurant: { ...current.restaurant, is_favorited: next },
+            related_restaurants: current.related_restaurants.map((restaurantItem) =>
+              restaurantItem.id === current.restaurant.id
+                ? { ...restaurantItem, is_favorited: next }
+                : restaurantItem,
+            ),
+          }
+        : current,
+    );
+  };
+
+  const handleMenuItemFavoriteChange = (menuItemId: number, next: boolean) => {
+    setDetail((current) =>
+      current
+        ? {
+            ...current,
+            featured_items: current.featured_items.map((item) =>
+              item.id === menuItemId ? { ...item, is_favorited: next } : item,
+            ),
+            popular_items: current.popular_items.map((item) =>
+              item.id === menuItemId ? { ...item, is_favorited: next } : item,
+            ),
+            menu_sections: current.menu_sections.map((section) => ({
+              ...section,
+              items: section.items.map((item) =>
+                item.id === menuItemId ? { ...item, is_favorited: next } : item,
+              ),
+            })),
+          }
+        : current,
+    );
+  };
 
   return (
     <div className="min-h-screen bg-[#fcfcfd]">
@@ -251,9 +361,18 @@ export default function RestaurantDetailPage() {
                       <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#ffb085]">
                         Restaurant
                       </p>
-                      <h1 className="mt-2 text-4xl font-semibold tracking-tight text-white md:text-5xl">
-                        {restaurant.name}
-                      </h1>
+                      <div className="mt-2 flex flex-wrap items-center gap-3">
+                        <h1 className="text-4xl font-semibold tracking-tight text-white md:text-5xl">
+                          {restaurant.name}
+                        </h1>
+                        <FavoriteToggleButton
+                          entityType="restaurant"
+                          entityId={restaurant.id}
+                          active={restaurant.is_favorited}
+                          onChange={handleRestaurantFavoriteChange}
+                          className="h-11 rounded-full border-white/20 bg-white/12 px-4 text-white hover:bg-white/18"
+                        />
+                      </div>
                     </div>
                   </div>
 
@@ -281,6 +400,12 @@ export default function RestaurantDetailPage() {
                         Delivery enabled
                       </span>
                     ) : null}
+                    {restaurant.supports_table_booking ? (
+                      <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white">
+                        <BadgeCheck className="h-4 w-4" />
+                        Table booking
+                      </span>
+                    ) : null}
                   </div>
 
                   <div className="mt-8 flex flex-wrap gap-3">
@@ -290,6 +415,13 @@ export default function RestaurantDetailPage() {
                     >
                       <UtensilsCrossed className="h-4 w-4" />
                       Browse menu
+                    </a>
+                    <a
+                      href="/cart"
+                      className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-white/15"
+                    >
+                      <ShoppingCart className="h-4 w-4" />
+                      Open cart
                     </a>
                     <a
                       href="#about"
@@ -321,34 +453,34 @@ export default function RestaurantDetailPage() {
                     <div className="grid gap-3 sm:grid-cols-2">
                       <div className="rounded-2xl border border-border bg-[#fcfcfd] px-4 py-4">
                         <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                          Cuisine
+                          Status
                         </p>
                         <p className="mt-2 text-sm font-medium text-foreground">
-                          {restaurant.primary_cuisine_label ?? "Not set"}
+                          {restaurant.is_open_now === null
+                            ? "Hours not set"
+                            : restaurant.is_open_now
+                              ? "Open now"
+                              : "Closed now"}
                         </p>
                       </div>
                       <div className="rounded-2xl border border-border bg-[#fcfcfd] px-4 py-4">
                         <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                          Offer
+                          Hours
                         </p>
                         <p className="mt-2 text-sm font-medium text-foreground">
-                          {restaurant.offer_text ?? "No current offer"}
+                          {restaurant.opening_time && restaurant.closing_time
+                            ? `${restaurant.opening_time} - ${restaurant.closing_time}`
+                            : "Not set"}
                         </p>
                       </div>
                       <div className="rounded-2xl border border-border bg-[#fcfcfd] px-4 py-4">
                         <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                          Free delivery
+                          Distance
                         </p>
                         <p className="mt-2 text-sm font-medium text-foreground">
-                          {restaurant.has_free_delivery ? "Available" : "Not available"}
-                        </p>
-                      </div>
-                      <div className="rounded-2xl border border-border bg-[#fcfcfd] px-4 py-4">
-                        <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                          Menu sections
-                        </p>
-                        <p className="mt-2 text-sm font-medium text-foreground">
-                          {detail.menu_sections.length}
+                          {restaurant.distance_km !== null
+                            ? `${restaurant.distance_km.toFixed(1)} km away`
+                            : "Select a location to measure"}
                         </p>
                       </div>
                     </div>
@@ -426,6 +558,16 @@ export default function RestaurantDetailPage() {
                                       ? `${item.rating_average.toFixed(1)} from ${item.rating_count} reviews`
                                       : "New on the menu"}
                                   </p>
+                                </div>
+                                <div className="flex items-center justify-between gap-3">
+                                  <FavoriteToggleButton
+                                    entityType="menu-item"
+                                    entityId={item.id}
+                                    active={item.is_favorited}
+                                    onChange={(next) => handleMenuItemFavoriteChange(item.id, next)}
+                                    className="h-10 rounded-full px-3"
+                                  />
+                                  <AddToCartButton restaurantId={restaurant.id} menuItemId={item.id} />
                                 </div>
                               </div>
                             </div>
@@ -514,9 +656,24 @@ export default function RestaurantDetailPage() {
                                               : "Fresh item with no reviews yet"}
                                           </p>
                                         </div>
-                                        <span className="rounded-full border border-border bg-white px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                                          {item.food_type ?? "standard"}
-                                        </span>
+                                        <div className="flex items-center gap-2">
+                                          <span className="rounded-full border border-border bg-white px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+                                            {item.food_type ?? "standard"}
+                                          </span>
+                                          <FavoriteToggleButton
+                                            entityType="menu-item"
+                                            entityId={item.id}
+                                            active={item.is_favorited}
+                                            onChange={(next) => handleMenuItemFavoriteChange(item.id, next)}
+                                            compact
+                                            className="h-10 rounded-full px-3"
+                                          />
+                                          <AddToCartButton
+                                            restaurantId={restaurant.id}
+                                            menuItemId={item.id}
+                                            className="h-10 rounded-full px-4"
+                                          />
+                                        </div>
                                       </div>
                                     </div>
                                   </div>
@@ -532,6 +689,12 @@ export default function RestaurantDetailPage() {
               </div>
 
               <div className="space-y-8">
+                <CustomerBookingPanel
+                  restaurantSlug={restaurant.slug}
+                  restaurantName={restaurant.name}
+                  supportsTableBooking={restaurant.supports_table_booking}
+                />
+
                 <Card id="about">
                   <CardContent className="space-y-5">
                     <div>
@@ -543,7 +706,8 @@ export default function RestaurantDetailPage() {
                       </h2>
                     </div>
                     <p className="text-sm leading-7 text-muted-foreground">
-                      {restaurant.short_description ??
+                      {detail.about_text ??
+                        restaurant.short_description ??
                         `${restaurant.name} serves ${restaurant.primary_cuisine_label ?? "fresh food"} around ${formatLocation(restaurant)} with a simple delivery-first experience.`}
                     </p>
                     <div className="grid gap-3">
@@ -560,6 +724,68 @@ export default function RestaurantDetailPage() {
                         <div className="rounded-2xl border border-border bg-[#fcfcfd] px-4 py-4 text-sm text-muted-foreground">
                           More restaurant details will show here as merchant setup expands.
                         </div>
+                      )}
+                    </div>
+
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div className="rounded-2xl border border-border bg-[#fcfcfd] px-4 py-4">
+                        <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                          Service modes
+                        </p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {restaurant.supports_delivery ? (
+                            <span className="rounded-full bg-[#fff4ec] px-3 py-1 text-xs font-semibold text-primary">
+                              Delivery
+                            </span>
+                          ) : null}
+                          {restaurant.supports_pickup ? (
+                            <span className="rounded-full bg-[#eef6ff] px-3 py-1 text-xs font-semibold text-[#2563eb]">
+                              Pickup
+                            </span>
+                          ) : null}
+                          {restaurant.supports_table_booking ? (
+                            <span className="rounded-full bg-[#eefbf2] px-3 py-1 text-xs font-semibold text-[#15803d]">
+                              Table booking
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+                      <div className="rounded-2xl border border-border bg-[#fcfcfd] px-4 py-4">
+                        <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                          Contact
+                        </p>
+                        <div className="mt-3 space-y-2 text-sm text-foreground">
+                          <p className="flex items-center gap-2">
+                            <Phone className="h-4 w-4 text-primary" />
+                            {restaurant.contact_phone ?? "Phone not listed"}
+                          </p>
+                          <p className="flex items-center gap-2">
+                            <Mail className="h-4 w-4 text-primary" />
+                            {restaurant.contact_email ?? "Email not listed"}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-border bg-[#fcfcfd] px-4 py-4">
+                      <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+                        Facilities
+                      </p>
+                      {detail.facilities.length > 0 ? (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {detail.facilities.map((facility) => (
+                            <span
+                              key={facility}
+                              className="rounded-full border border-border bg-white px-3 py-1 text-xs font-medium text-foreground"
+                            >
+                              {facility}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="mt-3 text-sm text-muted-foreground">
+                          Facilities have not been listed yet.
+                        </p>
                       )}
                     </div>
                   </CardContent>
@@ -642,16 +868,71 @@ export default function RestaurantDetailPage() {
                         </span>
                         <div>
                           <p className="text-lg font-semibold text-foreground">
-                            {restaurant.rating_average.toFixed(1)} overall rating
+                            {(detail.reviews_summary?.average_rating ?? restaurant.rating_average).toFixed(1)} overall rating
                           </p>
                           <p className="text-sm text-muted-foreground">
-                            {restaurant.review_count > 0
-                              ? `${restaurant.review_count} customer reviews recorded so far.`
+                            {(detail.reviews_summary?.total_reviews ?? restaurant.review_count) > 0
+                              ? `${detail.reviews_summary?.total_reviews ?? restaurant.review_count} customer reviews recorded so far.`
                               : "This restaurant is still waiting for its first public reviews."}
                           </p>
                         </div>
                       </div>
+
+                      {detail.reviews_summary?.highlights?.length ? (
+                        <div className="mt-5 grid gap-3">
+                          {detail.reviews_summary.highlights.map((highlight, index) => (
+                            <div
+                              key={`${highlight}-${index}`}
+                              className="rounded-2xl border border-border bg-white px-4 py-4 text-sm leading-7 text-muted-foreground"
+                            >
+                              “{highlight}”
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
+
+                    <ReviewEditor
+                      restaurantSlug={restaurant.slug}
+                      viewerReview={detail.viewer_review}
+                      eligibility={detail.review_eligibility}
+                      onSaved={async () => {
+                        await loadRestaurant();
+                      }}
+                    />
+
+                    {detail.reviews.length > 0 ? (
+                      <div className="grid gap-3">
+                        {detail.reviews.map((review) => (
+                          <div
+                            key={review.id}
+                            className="rounded-2xl border border-border bg-[#fcfcfd] px-4 py-4"
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                              <div>
+                                <p className="text-sm font-semibold text-foreground">
+                                  {review.author_name}
+                                </p>
+                                <p className="mt-1 text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                                  {review.source}{review.is_mine ? " • Your review" : ""}
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-sm font-semibold text-foreground">
+                                  {review.rating.toFixed(1)} / 5
+                                </p>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                  {new Date(review.created_at).toLocaleDateString()}
+                                </p>
+                              </div>
+                            </div>
+                            <p className="mt-3 text-sm leading-7 text-muted-foreground">
+                              {review.comment ?? "No written note left for this review."}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
                   </CardContent>
                 </Card>
 

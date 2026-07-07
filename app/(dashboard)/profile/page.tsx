@@ -14,14 +14,38 @@ import type { StoredCustomerAddress } from "@/lib/auth-storage";
 import { useAuth } from "@/hooks/use-auth";
 import { useAuthStore } from "@/stores/auth-store";
 
+function extractApiErrorMessage(payload: unknown, fallback: string) {
+  if (typeof payload === "object" && payload !== null) {
+    const maybeDetail = (payload as { detail?: unknown }).detail;
+    if (typeof maybeDetail === "string" && maybeDetail.trim()) {
+      return maybeDetail;
+    }
+    const maybeMessage = (payload as { message?: unknown }).message;
+    if (typeof maybeMessage === "string" && maybeMessage.trim()) {
+      return maybeMessage;
+    }
+  }
+  return fallback;
+}
+
+async function readJsonSafely(response: Response) {
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
 export default function ProfilePage() {
   const router = useRouter();
   const { hydrated, accessToken } = useAuth();
   const user = useAuthStore((state) => state.user);
   const setUser = useAuthStore((state) => state.setUser);
-  const [loading, setLoading] = useState(true);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [addressesLoading, setAddressesLoading] = useState(true);
   const [addresses, setAddresses] = useState<StoredCustomerAddress[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [addressesError, setAddressesError] = useState<string | null>(null);
   const hasLoadedRef = useRef(false);
 
   useEffect(() => {
@@ -42,30 +66,22 @@ export default function ProfilePage() {
     let cancelled = false;
 
     async function loadProfile() {
-      setLoading(true);
+      setProfileLoading(true);
+      setAddressesLoading(true);
       setError(null);
+      setAddressesError(null);
       try {
-        const [profileResponse, addressesResponse] = await Promise.all([
-          apiFetch("/me/profile", { auth: true }),
-          apiFetch("/me/addresses", { auth: true }),
-        ]);
+        const profileResponse = await apiFetch("/me/profile", { auth: true });
+        const profilePayload = await readJsonSafely(profileResponse);
 
         if (!profileResponse.ok) {
-          throw new Error("Failed to load your profile.");
+          throw new Error(extractApiErrorMessage(profilePayload, "Failed to load your profile."));
         }
 
-        const profilePayload = await profileResponse.json();
         if (!cancelled) {
           const storedUser = useAuthStore.getState().user;
           if (storedUser) {
             setUser(mergeStoredUserWithProfile(storedUser, profilePayload));
-          }
-        }
-
-        if (addressesResponse.ok) {
-          const addressesPayload = await addressesResponse.json();
-          if (!cancelled && Array.isArray(addressesPayload)) {
-            setAddresses(addressesPayload.map(mapStoredAddress));
           }
         }
       } catch (caught) {
@@ -74,12 +90,49 @@ export default function ProfilePage() {
         }
       } finally {
         if (!cancelled) {
-          setLoading(false);
+          setProfileLoading(false);
         }
       }
     }
 
-    void loadProfile();
+    async function loadAddresses() {
+      setAddressesLoading(true);
+      setAddressesError(null);
+
+      try {
+        const addressesResponse = await apiFetch("/me/addresses", { auth: true });
+        const addressesPayload = await readJsonSafely(addressesResponse);
+
+        if (!addressesResponse.ok) {
+          throw new Error(
+            extractApiErrorMessage(addressesPayload, "Failed to load saved addresses."),
+          );
+        }
+
+        const rawAddresses = Array.isArray(addressesPayload)
+          ? addressesPayload
+          : Array.isArray((addressesPayload as { data?: unknown } | null)?.data)
+            ? ((addressesPayload as { data: unknown[] }).data ?? [])
+            : [];
+
+        if (!cancelled) {
+          setAddresses(rawAddresses.map(mapStoredAddress));
+        }
+      } catch (caught) {
+        if (!cancelled) {
+          setAddresses([]);
+          setAddressesError(
+            caught instanceof Error ? caught.message : "Failed to load saved addresses.",
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setAddressesLoading(false);
+        }
+      }
+    }
+
+    void Promise.allSettled([loadProfile(), loadAddresses()]);
 
     return () => {
       cancelled = true;
@@ -171,7 +224,7 @@ export default function ProfilePage() {
                     <p className="text-sm font-medium text-foreground">Saved addresses</p>
                   </div>
                   <p className="mt-3 text-sm text-muted-foreground">
-                    {loading ? "Loading..." : String(user?.savedAddressesCount ?? 0)}
+                    {addressesLoading ? "Loading..." : String(addresses.length)}
                   </p>
                 </div>
               </div>
@@ -227,8 +280,12 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            {loading ? (
+            {addressesLoading ? (
               <p className="text-sm text-muted-foreground">Loading addresses...</p>
+            ) : addressesError ? (
+              <div className="rounded-2xl border border-[#ffd8cc] bg-[#fff4ef] px-4 py-3 text-sm text-[#9a3412]">
+                {addressesError}
+              </div>
             ) : addresses.length === 0 ? (
               <p className="text-sm text-muted-foreground">No saved addresses yet.</p>
             ) : (

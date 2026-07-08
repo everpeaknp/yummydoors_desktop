@@ -235,51 +235,45 @@ export function CustomerBookingPanel({
 
   if (!supportsTableBooking) {
     return (
-      <Card className="border-[#efe4d8] bg-white">
-        <CardContent className="space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-            Reservations
-          </p>
-          <h3 className="text-xl font-semibold text-foreground">Table booking is not active here yet</h3>
-          <p className="text-sm leading-7 text-muted-foreground">
+      <div className="overflow-hidden rounded-[4px] border border-gray-100 bg-white shadow-sm">
+        <div className="bg-[#4a4a4a] px-6 py-4">
+          <h3 className="text-[16px] font-bold text-white">Reserve a table</h3>
+        </div>
+        <div className="p-6">
+          <h3 className="text-[15px] font-bold text-[#111]">Table booking is not active</h3>
+          <p className="mt-2 text-[14px] text-gray-500">
             {restaurantName} is live for ordering, but merchant booking slots have not been enabled yet.
           </p>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     );
   }
 
   return (
-    <Card className="border-[#efe4d8] bg-white">
-      <CardContent className="space-y-6">
-        <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-            Reserve a table
-          </p>
-          <h3 className="text-2xl font-semibold text-foreground">Book this restaurant without leaving the menu</h3>
-          <p className="text-sm leading-7 text-muted-foreground">
-            Choose a date, guest count, and an open slot. If the merchant manages tables, we will let the customer pick one too.
-          </p>
-        </div>
+    <div className="overflow-hidden rounded-[4px] border border-gray-100 bg-white shadow-sm">
+      <div className="bg-[#4a4a4a] px-6 py-4">
+        <h3 className="text-[16px] font-bold text-white">Reserve a table</h3>
+      </div>
+      <div className="p-6 space-y-6">
 
         {!hydrated ? (
-          <div className="rounded-2xl border border-border bg-[#fcfcfd] px-4 py-4 text-sm text-muted-foreground">
+          <div className="rounded-[4px] border border-gray-100 bg-gray-50 px-4 py-4 text-sm text-gray-500">
             Preparing booking flow...
           </div>
         ) : !accessToken ? (
-          <div className="rounded-2xl border border-[#efe4d8] bg-[#fcfaf7] px-5 py-5">
+          <div className="rounded-[4px] border border-gray-100 bg-gray-50 px-5 py-5">
             <div className="flex items-start gap-3">
-              <Lock className="mt-0.5 h-4 w-4 text-primary" />
+              <Lock className="mt-0.5 h-4 w-4 text-[#111]" />
               <div className="space-y-3">
-                <p className="text-sm font-medium text-foreground">
-                  Sign in first to keep reservations attached to your YummyDoors account.
+                <p className="text-[14px] font-semibold text-[#111]">
+                  Sign in first to keep reservations attached to your account.
                 </p>
                 <div className="flex gap-3">
                   <Link href="/login">
-                    <Button>Sign in</Button>
+                    <Button className="h-9 rounded-[4px] px-4 text-xs font-bold">Sign in</Button>
                   </Link>
                   <Link href="/signup">
-                    <Button variant="secondary">Create account</Button>
+                    <Button variant="secondary" className="h-9 rounded-[4px] border-gray-200 bg-white px-4 text-xs font-bold shadow-sm">Create account</Button>
                   </Link>
                 </div>
               </div>
@@ -289,12 +283,10 @@ export function CustomerBookingPanel({
           <form className="space-y-5" onSubmit={handleSubmit}>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-                  <CalendarDays className="h-4 w-4 text-primary" />
-                  Reservation date
-                </label>
+                <label className="text-[13px] font-bold text-[#111]">Date</label>
                 <Input
                   type="date"
+                  className="rounded-[4px] border-gray-200 shadow-sm"
                   min={new Date().toISOString().slice(0, 10)}
                   value={reservationDate}
                   onChange={(event) => setReservationDate(event.target.value)}
@@ -302,12 +294,10 @@ export function CustomerBookingPanel({
                 />
               </div>
               <div className="space-y-2">
-                <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-                  <UsersRound className="h-4 w-4 text-primary" />
-                  Guests
-                </label>
+                <label className="text-[13px] font-bold text-[#111]">Guests</label>
                 <Input
                   type="number"
+                  className="rounded-[4px] border-gray-200 shadow-sm"
                   min={1}
                   max={50}
                   value={guestCount}
@@ -318,32 +308,29 @@ export function CustomerBookingPanel({
             </div>
 
             <div className="space-y-3">
-              <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-                <Clock3 className="h-4 w-4 text-primary" />
-                Time slot
-              </label>
+              <label className="text-[13px] font-bold text-[#111]">Time slot</label>
               {loadingSlots ? (
-                <div className="rounded-2xl border border-border bg-[#fcfcfd] px-4 py-4 text-sm text-muted-foreground">
+                <div className="rounded-[4px] border border-gray-100 bg-gray-50 px-4 py-4 text-[13px] text-gray-500">
                   Loading available slots...
                 </div>
               ) : slots.length === 0 ? (
-                <div className="rounded-2xl border border-[#efe4d8] bg-[#fcfaf7] px-4 py-4 text-sm text-muted-foreground">
+                <div className="rounded-[4px] border border-gray-100 bg-gray-50 px-4 py-4 text-[13px] text-gray-500">
                   No bookable slots are available for {formatReservationDate(reservationDate)}.
                 </div>
               ) : (
-                <div className="flex flex-wrap gap-2.5">
+                <div className="flex flex-wrap gap-2">
                   {slots.map((slot) => (
                     <button
                       key={slot.time}
                       type="button"
                       disabled={!slot.is_available}
                       onClick={() => setSelectedTime(slot.time)}
-                      className={`rounded-full border px-3 py-2 text-sm font-medium transition ${
+                      className={`rounded-[4px] border px-3 py-1.5 text-[13px] font-bold transition ${
                         selectedTime === slot.time
-                          ? "border-primary bg-[#fff4ec] text-primary"
+                          ? "border-[#111] bg-[#111] text-white"
                           : slot.is_available
-                            ? "border-border bg-white text-foreground hover:border-primary/35"
-                            : "cursor-not-allowed border-[#eceef3] bg-[#f8fafc] text-[#a0a8b5]"
+                            ? "border-gray-200 bg-white text-gray-600 hover:border-gray-400"
+                            : "cursor-not-allowed border-gray-100 bg-gray-50 text-gray-300"
                       }`}
                     >
                       {formatReservationTime(slot.time)}
@@ -351,26 +338,17 @@ export function CustomerBookingPanel({
                   ))}
                 </div>
               )}
-              {selectedSlotMeta ? (
-                <p className="text-xs text-muted-foreground">
-                  {selectedSlotMeta.remaining_tables > 0
-                    ? `${selectedSlotMeta.remaining_tables} table option${
-                        selectedSlotMeta.remaining_tables === 1 ? "" : "s"
-                      } still open for this slot.`
-                    : "This slot has no free tables left."}
-                </p>
-              ) : null}
             </div>
 
             {selectedTime ? (
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Preferred table</label>
+                <label className="text-[13px] font-bold text-[#111]">Preferred table</label>
                 <select
                   value={selectedTableId}
                   onChange={(event) => setSelectedTableId(event.target.value)}
-                  className="flex h-12 w-full rounded-xl border border-input bg-white px-4 text-sm text-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/15"
+                  className="flex h-10 w-full rounded-[4px] border border-gray-200 bg-white px-3 text-[14px] text-[#111] outline-none transition-colors focus:border-[#111] shadow-sm"
                 >
-                  <option value="">Let the restaurant assign the table</option>
+                  <option value="">Any available table</option>
                   {availableTables.map((table) => (
                     <option key={table.id} value={table.id}>
                       {table.label}
@@ -380,84 +358,68 @@ export function CustomerBookingPanel({
                   ))}
                 </select>
                 {loadingTables ? (
-                  <p className="text-xs text-muted-foreground">Loading matching tables...</p>
+                  <p className="text-[12px] text-gray-500">Loading matching tables...</p>
                 ) : null}
               </div>
             ) : null}
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Contact name</label>
-                <Input value={contactName} onChange={(event) => setContactName(event.target.value)} required />
+                <label className="text-[13px] font-bold text-[#111]">Name</label>
+                <Input className="rounded-[4px] border-gray-200 shadow-sm" value={contactName} onChange={(event) => setContactName(event.target.value)} required />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Phone number</label>
-                <Input value={contactPhone} onChange={(event) => setContactPhone(event.target.value)} required />
+                <label className="text-[13px] font-bold text-[#111]">Phone</label>
+                <Input className="rounded-[4px] border-gray-200 shadow-sm" value={contactPhone} onChange={(event) => setContactPhone(event.target.value)} required />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Email</label>
+                <label className="text-[13px] font-bold text-[#111]">Email</label>
                 <Input
                   type="email"
+                  className="rounded-[4px] border-gray-200 shadow-sm"
                   value={contactEmail}
                   onChange={(event) => setContactEmail(event.target.value)}
                 />
               </div>
               <div className="space-y-2">
-                <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-                  <PartyPopper className="h-4 w-4 text-primary" />
-                  Occasion
-                </label>
+                <label className="text-[13px] font-bold text-[#111]">Occasion</label>
                 <Input
+                  className="rounded-[4px] border-gray-200 shadow-sm"
                   value={occasion}
                   onChange={(event) => setOccasion(event.target.value)}
-                  placeholder="Birthday, team dinner, anniversary..."
+                  placeholder="Birthday..."
                 />
               </div>
             </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Special request</label>
-              <textarea
-                value={specialRequest}
-                onChange={(event) => setSpecialRequest(event.target.value)}
-                rows={4}
-                className="w-full rounded-2xl border border-input bg-white px-4 py-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/15"
-                placeholder="Add notes for seating, celebration setup, or any restaurant instruction."
-              />
-            </div>
-
             {error ? (
-              <div className="rounded-2xl border border-[#ffd8cc] bg-[#fff4ef] px-4 py-3 text-sm text-[#9a3412]">
+              <div className="rounded-[4px] border border-red-200 bg-red-50 px-4 py-3 text-[13px] font-medium text-red-600">
                 {error}
               </div>
             ) : null}
 
             {success ? (
-              <div className="rounded-2xl border border-[#d4f3db] bg-[#f3fff6] px-4 py-3 text-sm text-[#166534]">
+              <div className="rounded-[4px] border border-green-200 bg-green-50 px-4 py-3 text-[13px] font-medium text-green-700">
                 {success}
               </div>
             ) : null}
 
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="text-xs leading-6 text-muted-foreground">
-                Your booking stays attached to your account and will appear inside My Reservations.
-              </p>
-              <Button
-                type="submit"
-                disabled={
-                  submitting ||
-                  loadingSlots ||
-                  !selectedTime ||
-                  !contactName.trim() ||
-                  !contactPhone.trim()
-                }
-              >
-                {submitting ? "Confirming..." : "Reserve table"}
-              </Button>
-            </div>
+            <Button
+              type="submit"
+              className="w-full h-11 rounded-[4px] font-bold text-[14px]"
+              disabled={
+                submitting ||
+                loadingSlots ||
+                !selectedTime ||
+                !contactName.trim() ||
+                !contactPhone.trim()
+              }
+            >
+              {submitting ? "Confirming..." : "Reserve table"}
+            </Button>
           </form>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

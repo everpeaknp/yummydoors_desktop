@@ -4,7 +4,7 @@ import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Clock3, Mail, MapPin, Phone, Store } from "lucide-react";
 
-import { SiteNavbar } from "@/components/layout/site-navbar";
+import { MerchantDashboardLayout } from "@/components/merchant/merchant-dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -167,6 +167,7 @@ export default function MerchantPresencePage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [hasDraft, setHasDraft] = useState(false);
 
   const facilitiesPreview = useMemo(
     () =>
@@ -182,6 +183,7 @@ export default function MerchantPresencePage() {
       setProfile(null);
       setForm(emptyForm);
       setLoading(false);
+      setHasDraft(false);
       return;
     }
 
@@ -196,9 +198,27 @@ export default function MerchantPresencePage() {
 
       const nextProfile = payload?.data as MerchantRestaurantProfile;
       setProfile(nextProfile);
-      setForm(toForm(nextProfile));
+      
+      let appliedForm = toForm(nextProfile);
+      const draftRaw = localStorage.getItem(`merchant_profile_draft_${restaurantId}`);
+      
+      if (draftRaw) {
+        try {
+          const draft = JSON.parse(draftRaw) as ProfileForm;
+          if (JSON.stringify(draft) !== JSON.stringify(appliedForm)) {
+            appliedForm = draft;
+            setHasDraft(true);
+          } else {
+            localStorage.removeItem(`merchant_profile_draft_${restaurantId}`);
+          }
+        } catch {
+          localStorage.removeItem(`merchant_profile_draft_${restaurantId}`);
+        }
+      }
+
+      setForm(appliedForm);
       setResolvedLocationLabel(
-        [nextProfile.area, nextProfile.city].filter(Boolean).join(", ") || "No exact map label yet",
+        [appliedForm.area, appliedForm.city].filter(Boolean).join(", ") || "No exact map label yet",
       );
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Failed to load restaurant profile.");
@@ -213,6 +233,24 @@ export default function MerchantPresencePage() {
     }
     void loadProfile();
   }, [accessToken, hydrated, loadProfile]);
+
+  useEffect(() => {
+    if (!profile || !restaurantId || form === emptyForm) return;
+    
+    // Use setTimeout to avoid blocking render while stringifying
+    const timer = setTimeout(() => {
+      const isDifferent = JSON.stringify(form) !== JSON.stringify(toForm(profile));
+      if (isDifferent) {
+        localStorage.setItem(`merchant_profile_draft_${restaurantId}`, JSON.stringify(form));
+        setHasDraft(true);
+      } else {
+        localStorage.removeItem(`merchant_profile_draft_${restaurantId}`);
+        setHasDraft(false);
+      }
+    }, 500);
+    
+    return () => clearTimeout(timer);
+  }, [form, profile, restaurantId]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -262,6 +300,8 @@ export default function MerchantPresencePage() {
       setProfile(nextProfile);
       setForm(toForm(nextProfile));
       setSuccess("Restaurant profile updated.");
+      localStorage.removeItem(`merchant_profile_draft_${restaurantId}`);
+      setHasDraft(false);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Failed to update restaurant profile.");
     } finally {
@@ -275,47 +315,45 @@ export default function MerchantPresencePage() {
 
   if (!accessToken) {
     return (
-      <main className="min-h-screen bg-[#faf7f2] text-[#1f2937]">
-        <SiteNavbar />
+      <MerchantDashboardLayout>
         <div className="mx-auto max-w-4xl px-6 py-16 lg:px-10">
-          <Card className="border-[#efe4d8]">
+          <Card className="border-[#e9ecef] shadow-sm">
             <CardContent className="space-y-4">
-              <p className="text-sm text-[#6b7280]">Sign in first to edit your merchant restaurant profile.</p>
-              <div className="flex gap-3">
-                <Link href="/login">
-                  <Button>Sign in</Button>
+              <p className="text-[14px] text-[#495057]">Sign in first to edit your merchant restaurant profile.</p>
+              <div className="flex gap-3 mt-4">
+                <Link href="/login" className="rounded bg-[#e53e4f] px-4 py-2 text-[14px] font-semibold text-white hover:bg-[#d63a4a]">
+                  Sign in
                 </Link>
-                <Link href="/merchant">
-                  <Button variant="secondary">Back to merchant</Button>
+                <Link href="/merchant" className="rounded bg-[#e9ecef] px-4 py-2 text-[14px] font-semibold text-[#495057] hover:bg-[#dee2e6]">
+                  Back to merchant
                 </Link>
               </div>
             </CardContent>
           </Card>
         </div>
-      </main>
+      </MerchantDashboardLayout>
     );
   }
 
   return (
-    <main className="min-h-screen bg-[#faf7f2] text-[#1f2937]">
-      <SiteNavbar />
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-6 py-10 lg:px-10">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-primary">Merchant Presence</p>
-            <h1 className="mt-3 text-4xl font-semibold tracking-tight text-[#1f2937]">
-              Restaurant details and operating profile
-            </h1>
-            <p className="mt-3 max-w-3xl text-sm leading-7 text-[#6b7280]">
-              This is where merchants should manage the live public identity of a restaurant:
-              location, hours, contact details, delivery flags, and customer-facing copy.
-            </p>
-          </div>
-          <Link href="/merchant" className="inline-flex items-center gap-2 text-sm font-semibold text-[#6b7280] hover:text-[#1f2937]">
-            <ArrowLeft className="h-4 w-4" />
-            Back to merchant dashboard
-          </Link>
+    <MerchantDashboardLayout>
+      <div className="mb-6 flex items-center text-[13px] text-[#868e96] font-medium">
+        <span className="text-[#e53e4f]">Management</span>
+        <span className="mx-2">/</span>
+        <span>Restaurant presence</span>
+      </div>
+
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-8">
+        <div>
+          <h2 className="text-[16px] font-semibold text-[#495057]">
+            Restaurant details and operating profile
+          </h2>
+          <p className="mt-1 max-w-3xl text-[14px] text-[#868e96]">
+            This is where merchants should manage the live public identity of a restaurant:
+            location, hours, contact details, delivery flags, and customer-facing copy.
+          </p>
         </div>
+      </div>
 
         {error ? (
           <div className="rounded-[18px] border border-[#ffd8cc] bg-[#fff4ef] px-5 py-4 text-sm text-[#9a3412]">
@@ -524,7 +562,16 @@ export default function MerchantPresencePage() {
                         longitude: lng,
                       }))
                     }
-                    onResolvedAddress={(label) => setResolvedLocationLabel(label)}
+                    onResolvedAddress={(label, city, area) => {
+                      setResolvedLocationLabel(label);
+                      if (city || area) {
+                        setForm((current) => ({
+                          ...current,
+                          ...(city && { city }),
+                          ...(area && { area }),
+                        }));
+                      }
+                    }}
                   />
                 </CardContent>
               </Card>
@@ -581,20 +628,34 @@ export default function MerchantPresencePage() {
                     </div>
                   ) : null}
 
-                  <div className="flex gap-3 pt-2">
+                  <div className="flex items-center gap-3 pt-2">
                     <Button type="submit" disabled={saving}>
                       {saving ? "Saving..." : "Save details"}
                     </Button>
-                    <Button type="button" variant="secondary" onClick={() => profile && setForm(toForm(profile))}>
+                    <Button 
+                      type="button" 
+                      variant="secondary" 
+                      onClick={() => {
+                        if (profile) {
+                          setForm(toForm(profile));
+                          localStorage.removeItem(`merchant_profile_draft_${restaurantId}`);
+                          setHasDraft(false);
+                        }
+                      }}
+                    >
                       Reset form
                     </Button>
+                    {hasDraft && (
+                      <span className="text-sm font-medium text-amber-600">
+                        You have unsaved changes
+                      </span>
+                    )}
                   </div>
                 </CardContent>
               </Card>
             </div>
           </form>
         )}
-      </div>
-    </main>
+    </MerchantDashboardLayout>
   );
 }

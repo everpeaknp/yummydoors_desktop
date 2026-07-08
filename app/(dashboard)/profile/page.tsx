@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Mail, MapPin, Phone, UserCircle2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { SiteNavbar } from "@/components/layout/site-navbar";
@@ -46,7 +46,18 @@ export default function ProfilePage() {
   const [addresses, setAddresses] = useState<StoredCustomerAddress[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [addressesError, setAddressesError] = useState<string | null>(null);
-  const hasLoadedRef = useRef(false);
+
+  // Address Action State
+  const [actionInProgress, setActionInProgress] = useState<number | null>(null);
+  
+  // Edit Modal State
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingAddress, setEditingAddress] = useState<StoredCustomerAddress | null>(null);
+  const [editFormState, setEditFormState] = useState({
+    recipient_name: "",
+    phone_number: "",
+    address_line_1: "",
+  });
 
   useEffect(() => {
     if (!hydrated) {
@@ -57,11 +68,6 @@ export default function ProfilePage() {
       router.replace("/login");
       return;
     }
-
-    if (hasLoadedRef.current) {
-      return;
-    }
-    hasLoadedRef.current = true;
 
     let cancelled = false;
 
@@ -138,6 +144,93 @@ export default function ProfilePage() {
       cancelled = true;
     };
   }, [hydrated, accessToken, router, setUser]);
+
+  async function reloadAddressesAndProfile() {
+    try {
+      const [profileRes, addrRes] = await Promise.all([
+        apiFetch("/me/profile", { auth: true }),
+        apiFetch("/me/addresses", { auth: true })
+      ]);
+      const profileData = await readJsonSafely(profileRes);
+      const addrData = await readJsonSafely(addrRes);
+      
+      const storedUser = useAuthStore.getState().user;
+      if (storedUser && profileRes.ok) {
+        setUser(mergeStoredUserWithProfile(storedUser, profileData));
+      }
+      
+      if (addrRes.ok) {
+        const rawAddresses = Array.isArray(addrData)
+          ? addrData
+          : Array.isArray((addrData as { data?: unknown } | null)?.data)
+            ? ((addrData as { data: unknown[] }).data ?? [])
+            : [];
+        setAddresses(rawAddresses.map(mapStoredAddress));
+      }
+    } catch {
+      // Ignore background refresh errors
+    }
+  }
+
+  async function handleSetDefault(id: number) {
+    if (actionInProgress) return;
+    setActionInProgress(id);
+    try {
+      await apiFetch(`/me/addresses/${id}/default`, { method: "POST", auth: true });
+      await reloadAddressesAndProfile();
+    } catch (e) {
+      alert("Failed to set default address.");
+    } finally {
+      setActionInProgress(null);
+    }
+  }
+
+  async function handleDeleteAddress(id: number) {
+    if (actionInProgress || !confirm("Are you sure you want to delete this address?")) return;
+    setActionInProgress(id);
+    try {
+      await apiFetch(`/me/addresses/${id}`, { method: "DELETE", auth: true });
+      await reloadAddressesAndProfile();
+    } catch (e) {
+      alert("Failed to delete address.");
+    } finally {
+      setActionInProgress(null);
+    }
+  }
+
+  function openEditModal(address: StoredCustomerAddress) {
+    setEditingAddress(address);
+    setEditFormState({
+      recipient_name: address.recipientName || "",
+      phone_number: address.phoneNumber || "",
+      address_line_1: address.addressSummary || address.locationTitle || "",
+    });
+    setIsEditModalOpen(true);
+  }
+
+  async function handleEditSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingAddress) return;
+    
+    setActionInProgress(editingAddress.id);
+    try {
+      await apiFetch(`/me/addresses/${editingAddress.id}`, {
+        method: "PATCH",
+        auth: true,
+        body: JSON.stringify({
+          recipient_name: editFormState.recipient_name,
+          phone_number: editFormState.phone_number,
+          address_line_1: editFormState.address_line_1,
+        }),
+      });
+      setIsEditModalOpen(false);
+      await reloadAddressesAndProfile();
+    } catch (e) {
+      alert("Failed to update address.");
+    } finally {
+      setActionInProgress(null);
+    }
+  }
 
   if (!hydrated) {
     return <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">Preparing profile...</div>;
@@ -315,6 +408,35 @@ export default function ProfilePage() {
                       </p>
                       <p>Email: {address.email ?? "Not set"}</p>
                     </div>
+                    <div className="mt-5 flex flex-wrap items-center gap-3 pt-4 border-t border-gray-100">
+                      {!address.isDefault && (
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          disabled={actionInProgress === address.id}
+                          onClick={() => handleSetDefault(address.id)}
+                        >
+                          {actionInProgress === address.id ? "Working..." : "Set Default"}
+                        </Button>
+                      )}
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        disabled={actionInProgress === address.id}
+                        onClick={() => openEditModal(address)}
+                      >
+                        Edit
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        disabled={actionInProgress === address.id}
+                        onClick={() => handleDeleteAddress(address.id)}
+                      >
+                        Delete
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -322,6 +444,65 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
       </main>
+      
+      {/* Edit Address Modal Overlay */}
+      {isEditModalOpen && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+          <div className="w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden p-6 animate-in fade-in zoom-in-95 duration-200">
+            <h3 className="text-xl font-bold text-[#111827] mb-2">Edit Address</h3>
+            <p className="text-sm text-gray-500 mb-6">Update the details for this saved location.</p>
+            <form onSubmit={handleEditSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Recipient Name</label>
+                <input 
+                  type="text" 
+                  required
+                  value={editFormState.recipient_name}
+                  onChange={(e) => setEditFormState(prev => ({ ...prev, recipient_name: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-md px-4 py-2 focus:ring-primary focus:border-primary outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+                <input 
+                  type="text" 
+                  required
+                  value={editFormState.phone_number}
+                  onChange={(e) => setEditFormState(prev => ({ ...prev, phone_number: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-md px-4 py-2 focus:ring-primary focus:border-primary outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Street Address / Landmark</label>
+                <input 
+                  type="text" 
+                  required
+                  value={editFormState.address_line_1}
+                  onChange={(e) => setEditFormState(prev => ({ ...prev, address_line_1: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-md px-4 py-2 focus:ring-primary focus:border-primary outline-none"
+                />
+              </div>
+              <div className="pt-4 flex items-center justify-end gap-3">
+                <button 
+                  type="button" 
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="px-5 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition"
+                  disabled={actionInProgress !== null}
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={actionInProgress !== null}
+                  className="px-6 py-2 bg-primary text-white text-sm font-medium rounded-md hover:bg-primary/90 transition disabled:opacity-50"
+                >
+                  {actionInProgress !== null ? "Saving..." : "Save Changes"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

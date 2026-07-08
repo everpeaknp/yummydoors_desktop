@@ -15,8 +15,23 @@ import {
   PanelTop,
   Store,
   Table2,
+  Mail,
+  Star,
+  ShoppingCart,
+  Heart,
+  ChevronRight,
 } from "lucide-react";
 
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { MerchantDashboardLayout } from "@/components/merchant/merchant-dashboard-layout";
 import { SiteNavbar } from "@/components/layout/site-navbar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -518,209 +533,92 @@ export default function MerchantPage() {
 
   const selectedRequestMeta = requestTypeMeta(requestType);
 
+  const chartData = [
+    { name: "Mar 1", value: 10000 },
+    { name: "Mar 2", value: 30000 },
+    { name: "Mar 3", value: 26000 },
+    { name: "Mar 4", value: 18000 },
+    { name: "Mar 5", value: 18000 },
+    { name: "Mar 6", value: 28000 },
+    { name: "Mar 7", value: 31000 },
+    { name: "Mar 8", value: 33000 },
+    { name: "Mar 9", value: 26000 },
+    { name: "Mar 10", value: 24000 },
+    { name: "Mar 11", value: 32000 },
+    { name: "Mar 12", value: 31000 },
+    { name: "Mar 13", value: 38000 },
+  ];
+
+  if (hasApprovedMerchant) {
+    return (
+      <MerchantDashboardLayout>
+        {activeRestaurant ? (
+          <div>
+            <div className="mb-6 flex items-center text-[13px] text-[#868e96] font-medium">
+              <span className="text-[#e53e4f]">Dashboard</span>
+              <span className="mx-2">/</span>
+              <span>My Dashboard</span>
+            </div>
+            
+            {/* 4 Stat Cards */}
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-8">
+              {[
+                { label: "26 New Messages!", bgColor: "bg-[#0d84ff]", icon: Mail, link: "/merchant/messages" },
+                { label: "11 New Reviews!", bgColor: "bg-[#f5b800]", icon: Star, link: "/merchant/reviews" },
+                { label: "10 New Orders!", bgColor: "bg-[#25b546]", icon: ShoppingCart, link: "/merchant/orders" },
+                { label: "10 New Bookmarks!", bgColor: "bg-[#e53e4f]", icon: Heart, link: "/merchant/bookmarks" },
+              ].map((stat, i) => {
+                const Icon = stat.icon;
+                return (
+                  <div key={i} className={`flex flex-col justify-between overflow-hidden rounded text-white shadow-sm transition hover:-translate-y-1 ${stat.bgColor}`}>
+                    <div className="p-6 flex items-center justify-between">
+                      <h3 className="text-[20px] font-bold tracking-tight">{stat.label}</h3>
+                      <Icon className="h-10 w-10 opacity-30" strokeWidth={2} />
+                    </div>
+                    <div className="bg-black/10 px-6 py-3 hover:bg-black/20 transition cursor-pointer flex items-center justify-between text-[13px] font-medium">
+                      <span>View Details</span>
+                      <ChevronRight className="h-4 w-4" />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            
+            {/* Statistic Graph */}
+            <div className="bg-white rounded shadow-sm border border-[#e9ecef] overflow-hidden">
+               <div className="border-b border-[#e9ecef] px-6 py-4 flex items-center gap-3">
+                 <Store className="w-5 h-5 text-[#868e96]" />
+                 <h3 className="text-[18px] font-semibold text-[#495057]">Statistic</h3>
+               </div>
+               <div className="p-6 h-[400px]">
+                 <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={chartData}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f8f9fa" />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#868e96' }} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#868e96' }} />
+                      <Tooltip />
+                      <Area type="monotone" dataKey="value" stroke="#0d84ff" strokeWidth={2} fill="#0d84ff" fillOpacity={0.2} />
+                    </AreaChart>
+                 </ResponsiveContainer>
+               </div>
+            </div>
+          </div>
+        ) : (
+          <div className="flex h-[60vh] flex-col items-center justify-center text-center">
+            <Store className="mb-4 h-16 w-16 text-gray-300" />
+            <h2 className="text-2xl font-bold text-gray-800">Select a restaurant</h2>
+            <p className="mt-2 text-gray-500">Use the Operating Context menu in the sidebar to enter a restaurant dashboard.</p>
+          </div>
+        )}
+      </MerchantDashboardLayout>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#faf7f2] text-gray-800 antialiased pb-20">
       <SiteNavbar className="sticky top-0 z-50 bg-white/85 backdrop-blur-xl" />
 
-      {hasApprovedMerchant ? (
-        <main>
-          {/* Dashboard Header */}
-          <section className="bg-white border-b border-[#efe4d8] py-12 lg:py-16">
-            <div className="mx-auto w-full max-w-7xl px-6 lg:px-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.32em] text-primary mb-3">Merchant Dashboard</p>
-                <h1 className="text-3xl font-semibold tracking-tight text-[#1f2937] md:text-4xl">
-                  Welcome back, {contactName || "Partner"}
-                </h1>
-                <p className="mt-2 text-sm text-[#6b7280]">
-                  Manage your restaurant presence, menus, and promotions.
-                </p>
-              </div>
-              
-              {/* Active Restaurant Selector */}
-              {merchantRestaurants.items.length > 0 && (
-                <div className="md:min-w-[280px]">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#6b7280] mb-2">Operating Context</p>
-                  <select
-                    value={activeRestaurant?.id || ""}
-                    onChange={(e) => handleRestaurantSwitch(Number(e.target.value))}
-                    disabled={switchingRestaurantId !== null}
-                    className="w-full rounded-xl border border-[#efe4d8] bg-[#fcfaf7] px-4 py-3 text-sm font-semibold text-[#1f2937] outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/15 disabled:opacity-50"
-                  >
-                    <option value="" disabled>Select a restaurant</option>
-                    {merchantRestaurants.items.map((restaurant) => (
-                      <option key={restaurant.id} value={restaurant.id}>
-                        {restaurant.name} {restaurant.city ? `• ${restaurant.city}` : ""}
-                      </option>
-                    ))}
-                  </select>
-                  {switchingRestaurantId && <p className="text-xs text-primary mt-2">Switching context...</p>}
-                  <button 
-                    onClick={handleExitMerchantMode} 
-                    disabled={loading}
-                    className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl border border-[#efe4d8] bg-white px-4 py-3 text-sm font-medium text-[#6b7280] transition hover:border-[#ffd5bf] hover:text-primary disabled:opacity-50"
-                  >
-                    <ArrowRightLeft className="h-4 w-4" />
-                    Exit to Customer App
-                  </button>
-                </div>
-              )}
-            </div>
-          </section>
-
-          <div className="mx-auto w-full max-w-7xl px-6 py-12 lg:px-10 space-y-8">
-            {error ? (
-              <div className="rounded-[18px] border border-[#ffd8cc] bg-[#fff4ef] px-5 py-4 text-sm text-[#9a3412]">
-                {error}
-              </div>
-            ) : null}
-
-            {success ? (
-              <div className="rounded-[18px] border border-[#d4f3db] bg-[#f3fff6] px-5 py-4 text-sm text-[#166534]">
-                {success}
-              </div>
-            ) : null}
-
-            {loading ? (
-              <div className="rounded-[24px] border border-[#f0e7dd] bg-white px-6 py-8 text-sm text-[#7a7a7a] shadow-[0_20px_60px_rgba(15,23,42,0.06)]">
-                Loading merchant context...
-              </div>
-            ) : null}
-
-            {!activeRestaurant && merchantRestaurants.items.length > 0 ? (
-              <div className="rounded-[28px] border border-primary/20 bg-[#fff4ec] p-10 text-center">
-                <Store className="w-12 h-12 text-primary/40 mx-auto mb-4" />
-                <h3 className="text-xl font-bold text-[#1f2937]">Select a restaurant to manage</h3>
-                <p className="mt-2 text-[#ea580c]">Use the dropdown in the header to enter a restaurant context.</p>
-              </div>
-            ) : !activeRestaurant && merchantRestaurants.items.length === 0 ? (
-              <div className="rounded-[28px] border border-[#efe4d8] bg-white p-10 text-center shadow-sm">
-                <h3 className="text-xl font-bold text-[#1f2937]">Pending Restaurant Creation</h3>
-                <p className="mt-2 text-[#6b7280]">Your application is approved, but the restaurant hasn&apos;t been fully linked yet. Contact support.</p>
-              </div>
-            ) : (
-              <Card className="rounded-[28px] border border-[#efe4d8] bg-white shadow-[0_24px_70px_rgba(15,23,42,0.06)] overflow-hidden">
-                <CardContent className="p-0">
-                  <div className="border-b border-[#f2e8de] px-7 py-6 bg-[#fcfaf7]">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 bg-white border border-[#efe4d8] rounded-2xl flex items-center justify-center">
-                        <Store className="w-6 h-6 text-primary" />
-                      </div>
-                      <div>
-                        <h2 className="text-2xl font-bold text-[#1f2937]">{activeRestaurant?.name}</h2>
-                        <p className="text-sm text-[#6b7280]">
-                          {[activeRestaurant?.city, activeRestaurant?.area].filter(Boolean).join(" • ")}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="grid gap-px bg-[#f2e8de] md:grid-cols-2 xl:grid-cols-3">
-                    {[
-                      {
-                        href: "/merchant/presence",
-                        icon: Store,
-                        title: "Restaurant presence",
-                        description: "Edit the restaurant profile, location, service settings, and public business details.",
-                      },
-                      {
-                        href: "/categories",
-                        icon: Layers3,
-                        title: "Category structure",
-                        description: "Shape how menus and discovery are grouped across restaurants.",
-                      },
-                      {
-                        href: "/menu-items",
-                        icon: PanelTop,
-                        title: "Menu catalog",
-                        description: "Use the current catalog area as the starting point for merchant controls.",
-                      },
-                      {
-                        href: "/merchant/reservations",
-                        icon: CalendarDays,
-                        title: "Reservation queue",
-                        description: "Review incoming table bookings, confirm arrivals, and close the service loop.",
-                      },
-                      {
-                        href: "/merchant/tables",
-                        icon: Table2,
-                        title: "Reservation tables",
-                        description: "Maintain the real table inventory that feeds booking availability and assignment.",
-                      },
-                      {
-                        href: "/promos",
-                        icon: Link2,
-                        title: "Promos and merchandising",
-                        description: "Push offers, banners, and featured placements that reach the homepage.",
-                      },
-                    ].map((item) => {
-                      const Icon = item.icon;
-                      return (
-                        <Link
-                          key={item.href}
-                          href={item.href}
-                          className="group bg-white p-7 transition hover:bg-[#fcfaf7]"
-                        >
-                          <div className="flex items-center justify-between mb-4">
-                            <div className="w-10 h-10 rounded-xl bg-[#fff4ec] flex items-center justify-center">
-                              <Icon className="h-5 w-5 text-primary" />
-                            </div>
-                            <ArrowRight className="h-4 w-4 text-[#c58f6d] transition group-hover:translate-x-1" />
-                          </div>
-                          <h3 className="text-lg font-semibold text-[#1f2937]">{item.title}</h3>
-                          <p className="mt-2 text-sm leading-6 text-[#6b7280]">{item.description}</p>
-                        </Link>
-                      );
-                    })}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-        </main>
-      ) : (
-        <>
-          <section className="relative isolate overflow-hidden">
-            <div className="absolute inset-0">
-              <Image
-                src="https://images.unsplash.com/photo-1552566626-52f8b828add9?q=80&w=1800&auto=format&fit=crop"
-                alt="Restaurant operations"
-                fill
-                className="object-cover"
-              />
-              <div className="absolute inset-0 bg-[#0f172acc]" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(249,115,22,0.3),transparent_35%)]" />
-            </div>
-
-            <div className="relative mx-auto flex w-full max-w-7xl flex-col gap-10 px-6 py-20 lg:px-10 lg:py-24">
-              <div className="max-w-3xl">
-                <p className="mb-4 text-xs font-bold uppercase tracking-[0.32em] text-[#ffb085]">
-                  Merchant Mode
-                </p>
-                <h1 className="max-w-2xl text-4xl font-semibold tracking-tight text-white md:text-5xl">
-                  One YummyDoors account. Customer first, merchant when you are ready.
-                </h1>
-                <p className="mt-5 max-w-2xl text-base leading-8 text-white/80 md:text-lg">
-                  This is the shared business surface inside the same YummyDoors identity. Start a
-                  restaurant, claim one that already exists, or request POS-linked access without leaving
-                  the product ecosystem.
-                </p>
-              </div>
-
-              <div className="grid gap-4 lg:grid-cols-2 max-w-2xl">
-                <div className="rounded-[20px] border border-white/10 bg-white/10 px-5 py-5 text-white backdrop-blur">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-[#ffb085]">Merchant workspace</p>
-                  <h2 className="mt-3 text-2xl font-semibold">
-                    {merchantWorkspace?.name ?? "Not created yet"}
-                  </h2>
-                  <p className="mt-2 text-sm text-white/70">
-                    {merchantWorkspace ? formatStatus(merchantWorkspace.status) : "Open your first business request"}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <main className="bg-[#faf7f2] pb-20">
+      <main className="bg-[#faf7f2] pb-20">
             <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-6 py-12 lg:px-10">
               {error ? (
                 <div className="rounded-[18px] border border-[#ffd8cc] bg-[#fff4ef] px-5 py-4 text-sm text-[#9a3412]">
@@ -1002,8 +900,6 @@ export default function MerchantPage() {
               )}
             </div>
           </main>
-        </>
-      )}
     </div>
   );
 }

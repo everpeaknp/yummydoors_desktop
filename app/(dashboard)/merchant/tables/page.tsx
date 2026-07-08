@@ -4,7 +4,7 @@ import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Edit2, Plus, Table2, Trash2 } from "lucide-react";
 
-import { SiteNavbar } from "@/components/layout/site-navbar";
+import { MerchantDashboardLayout } from "@/components/merchant/merchant-dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -169,28 +169,29 @@ export default function MerchantTablesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#faf7f2] pb-16">
-      <SiteNavbar className="sticky top-0 z-50 bg-white/85 backdrop-blur-xl" />
-      <main className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-6 py-12 lg:px-10">
-        <section className="flex flex-col gap-5 rounded-[28px] border border-[#efe4d8] bg-white px-7 py-8 shadow-[0_24px_70px_rgba(15,23,42,0.06)] lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-primary">Merchant Table Inventory</p>
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-[#1f2937]">Define exactly which tables the booking flow can assign.</h1>
-            <p className="mt-3 max-w-3xl text-sm leading-7 text-[#6b7280]">
-              This inventory is what the mobile select-table screen and merchant reservation queue should stay in sync with.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <Link href="/merchant/reservations">
-              <Button variant="secondary">Open Reservations</Button>
-            </Link>
-            <Button onClick={openCreateModal}>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Table
-            </Button>
-          </div>
-        </section>
+    <MerchantDashboardLayout>
+      <div className="mb-6 flex items-center text-[13px] text-[#868e96] font-medium">
+        <span className="text-[#e53e4f]">Management</span>
+        <span className="mx-2">/</span>
+        <span>Reservation tables</span>
+      </div>
 
+      <div className="bg-white rounded shadow-sm border border-[#e9ecef] overflow-hidden">
+        <div className="border-b border-[#e9ecef] px-6 py-4 flex items-center justify-between text-[#495057]">
+          <h2 className="text-[16px] font-semibold">Reservation Tables</h2>
+          <div className="flex gap-2">
+            <Link href="/merchant/reservations">
+              <button className="inline-flex items-center justify-center gap-2 rounded bg-[#e9ecef] px-4 py-2 text-[14px] font-semibold text-[#495057] transition-colors hover:bg-[#dee2e6]">
+                Queue
+              </button>
+            </Link>
+            <button onClick={openCreateModal} className="inline-flex items-center justify-center gap-2 rounded bg-[#e53e4f] px-4 py-2 text-[14px] font-semibold text-white transition-colors hover:bg-[#d63a4a]">
+              Add Table
+            </button>
+          </div>
+        </div>
+
+        <div className="p-6">
         {!restaurantId ? (
           <Card className="border-[#efe4d8]">
             <CardContent className="space-y-3">
@@ -296,8 +297,6 @@ export default function MerchantTablesPage() {
             )}
           </>
         )}
-      </main>
-
       {isModalOpen ? (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40 px-4 py-8 backdrop-blur-sm">
           <div className="w-full max-w-2xl rounded-[28px] border border-[#efe4d8] bg-white shadow-[0_28px_90px_rgba(15,23,42,0.16)]">
@@ -376,6 +375,8 @@ export default function MerchantTablesPage() {
           </div>
         </div>
       ) : null}
-    </div>
+        </div>
+      </div>
+    </MerchantDashboardLayout>
   );
 }

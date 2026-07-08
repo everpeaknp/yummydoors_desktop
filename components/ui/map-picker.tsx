@@ -13,7 +13,7 @@ interface MapPickerProps {
   defaultCenter?: [number, number];
   showSearch?: boolean;
   heightClassName?: string;
-  onResolvedAddress?: (label: string) => void;
+  onResolvedAddress?: (label: string, city?: string, area?: string) => void;
 }
 
 type PlacePrediction = {
@@ -105,7 +105,18 @@ export default function MapPicker({
       const geocoder = new google.maps.Geocoder();
       geocoder.geocode({ location: { lat, lng } }, (results, status) => {
         if (status === "OK" && results?.[0]?.formatted_address) {
-          onResolvedAddress(results[0].formatted_address);
+          const components = results[0].address_components || [];
+          let city = "";
+          let area = "";
+          for (const comp of components) {
+            if (comp.types.includes("locality") || comp.types.includes("administrative_area_level_3")) {
+              city = city || comp.long_name;
+            }
+            if (comp.types.includes("sublocality") || comp.types.includes("route") || comp.types.includes("neighborhood")) {
+              area = area || comp.long_name;
+            }
+          }
+          onResolvedAddress(results[0].formatted_address, city, area);
         }
       });
     },

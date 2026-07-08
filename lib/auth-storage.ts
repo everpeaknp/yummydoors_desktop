@@ -63,6 +63,17 @@ export type StoredUser = {
   fullName: string;
   email: string | null;
   phone: string | null;
+  phoneCountryCode: string | null;
+  phoneNationalNumber: string | null;
+  phoneDisplay: string | null;
+  phoneIsPresent: boolean;
+  phoneCanEdit: boolean;
+  phoneCountry: {
+    iso2: string;
+    name: string;
+    dialCode: string;
+    flagEmoji: string;
+  } | null;
   avatarUrl: string | null;
   status: string;
   isVerified: boolean;

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { apiFetch } from "@/lib/http";
 import { useAuth } from "@/hooks/use-auth";
 import { Plus, Edit2, Trash2 } from "lucide-react";
+import { MerchantDashboardLayout } from "@/components/merchant/merchant-dashboard-layout";
 
 export default function MenuItemsPage() {
   const { user } = useAuth();
@@ -127,24 +128,34 @@ export default function MenuItemsPage() {
   }
 
   if (!restaurantId) {
-    return <div className="text-sm text-muted-foreground p-6">Please select a restaurant to manage menu items.</div>;
+    return (
+      <MerchantDashboardLayout>
+        <div className="text-[14px] text-[#868e96] p-6">Please select a restaurant to manage this page.</div>
+      </MerchantDashboardLayout>
+    );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight text-[#1f2937]">Menu Catalog</h2>
-          <p className="text-sm text-[#6b7280] mt-1">Manage all food items across your restaurant.</p>
-        </div>
-        <button 
+    <MerchantDashboardLayout>
+      <div className="mb-6 flex items-center text-[13px] text-[#868e96] font-medium">
+        <span className="text-[#e53e4f]">Management</span>
+        <span className="mx-2">/</span>
+        <span>Menu catalog</span>
+      </div>
+
+      <div className="bg-white rounded shadow-sm border border-[#e9ecef] overflow-hidden">
+        <div className="border-b border-[#e9ecef] px-6 py-4 flex items-center justify-between text-[#495057]">
+      <h2 className="text-[16px] font-semibold">Menu Catalog</h2>
+          <button 
           onClick={openCreateModal}
           className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary/90"
-        >
+         className="inline-flex items-center justify-center gap-2 rounded bg-[#e53e4f] px-4 py-2 text-[14px] font-semibold text-white transition-colors hover:bg-[#d63a4a]">
           <Plus className="w-4 h-4" />
           Add Item
         </button>
-      </div>
+        </div>
+
+        <div className="p-6">
 
       {loading ? (
         <div className="text-sm text-muted-foreground">Loading...</div>
@@ -250,5 +261,7 @@ export default function MenuItemsPage() {
         </div>
       )}
     </div>
+      </div>
+    </MerchantDashboardLayout>
   );
 }

@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Edit2, Plus, Trash2 } from "lucide-react";
+import { MerchantDashboardLayout } from "@/components/merchant/merchant-dashboard-layout";
 
 import { apiFetch } from "@/lib/http";
 import { useAuth } from "@/hooks/use-auth";
@@ -209,7 +210,15 @@ export default function PromosPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <MerchantDashboardLayout>
+      <div className="mb-6 flex items-center text-[13px] text-[#868e96] font-medium">
+        <span className="text-[#e53e4f]">Management</span>
+        <span className="mx-2">/</span>
+        <span>Promos and merchandising</span>
+      </div>
+
+      <div className="bg-white rounded shadow-sm border border-[#e9ecef] overflow-hidden">
+        <div className="border-b border-[#e9ecef] px-6 py-4 flex items-center justify-between text-[#495057]">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-2xl font-bold tracking-tight text-[#1f2937]">Promos and Merchandising</h2>
@@ -440,5 +449,7 @@ export default function PromosPage() {
         </div>
       ) : null}
     </div>
+      </div>
+    </MerchantDashboardLayout>
   );
 }

@@ -14,6 +14,7 @@ async function refreshAccessToken(stored: StoredAuth): Promise<StoredAuth | null
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ refresh_token: stored.refreshToken }),
+    cache: "no-store",
   });
 
   if (!response.ok) {
@@ -35,7 +36,10 @@ async function refreshAccessToken(stored: StoredAuth): Promise<StoredAuth | null
 export async function apiFetch(path: string, options: RequestOptions = {}) {
   const { auth, timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS, signal: externalSignal, ...requestOptions } = options;
   const headers = new Headers(options.headers);
-  headers.set("Content-Type", "application/json");
+  const isFormData = requestOptions.body instanceof FormData;
+  if (!isFormData && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
 
   let stored = auth ? loadStoredAuth() : null;
   if (stored?.accessToken) {
@@ -49,6 +53,7 @@ export async function apiFetch(path: string, options: RequestOptions = {}) {
 
   try {
     let response = await fetch(`${config.apiBaseUrl}${config.apiPrefix}${path}`, {
+      cache: "no-store",
       ...requestOptions,
       headers,
       signal: controller.signal,
@@ -59,6 +64,7 @@ export async function apiFetch(path: string, options: RequestOptions = {}) {
       if (stored?.accessToken) {
         headers.set("Authorization", `Bearer ${stored.accessToken}`);
         response = await fetch(`${config.apiBaseUrl}${config.apiPrefix}${path}`, {
+          cache: "no-store",
           ...requestOptions,
           headers,
           signal: controller.signal,

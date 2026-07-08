@@ -11,7 +11,7 @@ import {
   UsersRound,
 } from "lucide-react";
 
-import { SiteNavbar } from "@/components/layout/site-navbar";
+import { MerchantDashboardLayout } from "@/components/merchant/merchant-dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -223,26 +223,26 @@ export default function MerchantReservationsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#faf7f2] pb-16">
-      <SiteNavbar className="sticky top-0 z-50 bg-white/85 backdrop-blur-xl" />
-      <main className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-6 py-12 lg:px-10">
-        <section className="flex flex-col gap-5 rounded-[28px] border border-[#efe4d8] bg-white px-7 py-8 shadow-[0_24px_70px_rgba(15,23,42,0.06)] lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-primary">Merchant Reservations</p>
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-[#1f2937]">Run the table-booking queue with the same YummyDoors workspace.</h1>
-            <p className="mt-3 max-w-3xl text-sm leading-7 text-[#6b7280]">
-              Review incoming bookings, assign the right table, and keep service status aligned with the live customer booking flow now running from restaurant detail pages.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <Link href="/merchant">
-              <Button variant="secondary">Back to Merchant</Button>
-            </Link>
+    <MerchantDashboardLayout>
+      <div className="mb-6 flex items-center text-[13px] text-[#868e96] font-medium">
+        <span className="text-[#e53e4f]">Management</span>
+        <span className="mx-2">/</span>
+        <span>Reservation queue</span>
+      </div>
+
+      <div className="bg-white rounded shadow-sm border border-[#e9ecef] overflow-hidden">
+        <div className="border-b border-[#e9ecef] px-6 py-4 flex items-center justify-between text-[#495057]">
+          <h2 className="text-[16px] font-semibold">Reservation Queue</h2>
+          <div className="flex gap-2">
             <Link href="/merchant/tables">
-              <Button>Manage Tables</Button>
+              <button className="inline-flex items-center justify-center gap-2 rounded bg-[#e9ecef] px-4 py-2 text-[14px] font-semibold text-[#495057] transition-colors hover:bg-[#dee2e6]">
+                Manage Tables
+              </button>
             </Link>
           </div>
-        </section>
+        </div>
+
+        <div className="p-6">
 
         {!restaurantId ? (
           <Card className="border-[#efe4d8]">
@@ -536,7 +536,8 @@ export default function MerchantReservationsPage() {
             </section>
           </>
         )}
-      </main>
-    </div>
+        </div>
+      </div>
+    </MerchantDashboardLayout>
   );
 }

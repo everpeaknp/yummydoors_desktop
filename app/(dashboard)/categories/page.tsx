@@ -5,6 +5,8 @@ import { apiFetch } from "@/lib/http";
 import { useAuth } from "@/hooks/use-auth";
 import { Plus, Edit2, Trash2 } from "lucide-react";
 
+import { MerchantDashboardLayout } from "@/components/merchant/merchant-dashboard-layout";
+
 export default function CategoriesPage() {
   const { user } = useAuth();
   const [categories, setCategories] = useState<any[]>([]);
@@ -101,112 +103,124 @@ export default function CategoriesPage() {
   }
 
   if (!restaurantId) {
-    return <div className="text-sm text-muted-foreground p-6">Please select a restaurant to manage categories.</div>;
+    return (
+      <MerchantDashboardLayout>
+        <div className="text-[14px] text-[#868e96] p-6">Please select a restaurant to manage categories.</div>
+      </MerchantDashboardLayout>
+    );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight text-[#1f2937]">Categories</h2>
-          <p className="text-sm text-[#6b7280] mt-1">Organize your menu into groups like Appetizers, Mains, etc.</p>
-        </div>
-        <button 
-          onClick={openCreateModal}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary/90"
-        >
-          <Plus className="w-4 h-4" />
-          Add Category
-        </button>
+    <MerchantDashboardLayout>
+      <div className="mb-6 flex items-center text-[13px] text-[#868e96] font-medium">
+        <span className="text-[#e53e4f]">Management</span>
+        <span className="mx-2">/</span>
+        <span>Category structure</span>
       </div>
 
-      {loading ? (
-        <div className="text-sm text-muted-foreground">Loading...</div>
-      ) : error ? (
-        <div className="text-sm text-red-500">{error}</div>
-      ) : (
-        <div className="overflow-hidden rounded-2xl border border-[#efe4d8] bg-white">
-          <table className="w-full text-left text-sm text-[#6b7280]">
-            <thead className="bg-[#fcfaf7] border-b border-[#efe4d8]">
-              <tr>
-                <th className="px-6 py-4 font-semibold text-[#1f2937]">Name</th>
-                <th className="px-6 py-4 font-semibold text-[#1f2937]">Slug</th>
-                <th className="px-6 py-4 font-semibold text-[#1f2937]">Sort Order</th>
-                <th className="px-6 py-4 font-semibold text-[#1f2937]">Featured</th>
-                <th className="px-6 py-4 font-semibold text-[#1f2937] text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#efe4d8]">
-              {categories.map((c) => (
-                <tr key={c.id} className="hover:bg-[#fcfaf7]/50 transition-colors">
-                  <td className="px-6 py-4 font-medium text-[#1f2937]">{c.name}</td>
-                  <td className="px-6 py-4">{c.slug}</td>
-                  <td className="px-6 py-4">{c.sort_order}</td>
-                  <td className="px-6 py-4">
-                    {c.is_featured ? (
-                      <span className="inline-flex items-center rounded-full bg-green-50 px-2 py-1 text-xs font-semibold text-green-700 ring-1 ring-inset ring-green-600/20">Yes</span>
-                    ) : (
-                      <span className="inline-flex items-center rounded-full bg-gray-50 px-2 py-1 text-xs font-semibold text-gray-600 ring-1 ring-inset ring-gray-500/10">No</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <button onClick={() => openEditModal(c)} className="p-2 text-[#6b7280] hover:text-primary transition-colors"><Edit2 className="w-4 h-4" /></button>
-                    <button onClick={() => handleDelete(c.id)} className="p-2 text-[#6b7280] hover:text-red-600 transition-colors ml-1"><Trash2 className="w-4 h-4" /></button>
-                  </td>
-                </tr>
-              ))}
-              {categories.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-sm">No categories found. Start by adding one.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+      <div className="bg-white rounded shadow-sm border border-[#e9ecef] overflow-hidden">
+        <div className="border-b border-[#e9ecef] px-6 py-4 flex items-center justify-between text-[#495057]">
+          <h2 className="text-[16px] font-semibold">Category Management</h2>
+          <button 
+            onClick={openCreateModal}
+            className="inline-flex items-center justify-center gap-2 rounded bg-[#e53e4f] px-4 py-2 text-[14px] font-semibold text-white transition-colors hover:bg-[#d63a4a]"
+          >
+            <Plus className="w-4 h-4" />
+            Add Category
+          </button>
         </div>
-      )}
 
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-xl">
-            <div className="px-6 py-4 border-b border-[#efe4d8] flex justify-between items-center bg-[#fcfaf7]">
-              <h3 className="font-semibold text-lg text-[#1f2937]">{editingId ? "Edit Category" : "Add Category"}</h3>
-              <button onClick={() => setIsModalOpen(false)} className="text-[#6b7280] hover:text-[#1f2937] text-2xl leading-none">&times;</button>
+        <div className="p-6">
+          {loading ? (
+            <div className="text-[14px] text-[#868e96]">Loading...</div>
+          ) : error ? (
+            <div className="text-[14px] text-red-500">{error}</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-[14px] text-[#495057]">
+                <thead>
+                  <tr className="border-b-2 border-[#dee2e6] font-bold">
+                    <th className="py-3 px-2">Name</th>
+                    <th className="py-3 px-2">Slug</th>
+                    <th className="py-3 px-2">Sort Order</th>
+                    <th className="py-3 px-2">Featured</th>
+                    <th className="py-3 px-2 text-right">Edit</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#dee2e6]">
+                  {categories.map((c) => (
+                    <tr key={c.id} className="hover:bg-gray-50">
+                      <td className="py-4 px-2 font-semibold text-[#212529]">{c.name}</td>
+                      <td className="py-4 px-2">{c.slug}</td>
+                      <td className="py-4 px-2">{c.sort_order}</td>
+                      <td className="py-4 px-2">
+                        {c.is_featured ? (
+                          <span className="inline-flex items-center rounded-sm bg-[#28a745] px-2 py-0.5 text-[10px] font-bold text-white">Yes</span>
+                        ) : (
+                          <span className="inline-flex items-center rounded-sm bg-gray-200 px-2 py-0.5 text-[10px] font-bold text-gray-700">No</span>
+                        )}
+                      </td>
+                      <td className="py-4 px-2 text-[#e53e4f] text-right">
+                        <button onClick={() => openEditModal(c)} className="hover:underline">Edit</button>
+                        <span className="mx-1 text-[#868e96]">|</span>
+                        <button onClick={() => handleDelete(c.id)} className="hover:underline">Delete</button>
+                      </td>
+                    </tr>
+                  ))}
+                  {categories.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="px-6 py-12 text-center text-sm">No categories found. Start by adding one.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-[#1f2937] mb-1">Name</label>
-                <input required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full rounded-xl border border-[#efe4d8] px-4 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-[#1f2937] mb-1">Slug</label>
-                <input required value={formData.slug} onChange={e => setFormData({...formData, slug: e.target.value})} className="w-full rounded-xl border border-[#efe4d8] px-4 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-[#1f2937] mb-1">Icon URL (optional)</label>
-                <input type="url" value={formData.icon_url} onChange={e => setFormData({...formData, icon_url: e.target.value})} className="w-full rounded-xl border border-[#efe4d8] px-4 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" />
-              </div>
-              <div className="flex gap-4">
-                <div className="flex-1">
-                  <label className="block text-sm font-medium text-[#1f2937] mb-1">Sort Order</label>
-                  <input type="number" required value={formData.sort_order} onChange={e => setFormData({...formData, sort_order: parseInt(e.target.value)})} className="w-full rounded-xl border border-[#efe4d8] px-4 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" />
-                </div>
-                <div className="flex-1 flex items-center pt-6">
-                  <label className="flex items-center gap-2 cursor-pointer text-sm text-[#1f2937]">
-                    <input type="checkbox" checked={formData.is_featured} onChange={e => setFormData({...formData, is_featured: e.target.checked})} className="rounded text-primary focus:ring-primary w-4 h-4" />
-                    Featured Category
-                  </label>
-                </div>
-              </div>
-              <div className="pt-4 flex justify-end gap-3">
-                <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-sm font-semibold text-[#6b7280] hover:text-[#1f2937]">Cancel</button>
-                <button type="submit" disabled={isSubmitting} className="rounded-xl bg-primary px-6 py-2 text-sm font-semibold text-white hover:bg-primary/90 disabled:opacity-50">
-                  {isSubmitting ? "Saving..." : "Save Category"}
-                </button>
-              </div>
-            </form>
-          </div>
+          )}
         </div>
-      )}
-    </div>
+
+        {isModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4">
+            <div className="bg-white rounded w-full max-w-md overflow-hidden shadow-xl border border-[#e9ecef]">
+              <div className="px-6 py-4 border-b border-[#e9ecef] flex justify-between items-center bg-[#f8f9fa]">
+                <h3 className="font-semibold text-[16px] text-[#495057]">{editingId ? "Edit Category" : "Add Category"}</h3>
+                <button onClick={() => setIsModalOpen(false)} className="text-[#868e96] hover:text-[#212529] text-xl leading-none">&times;</button>
+              </div>
+              <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                <div>
+                  <label className="block text-[14px] font-medium text-[#495057] mb-1">Name</label>
+                  <input required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full rounded border border-[#ced4da] px-3 py-2 text-[14px] focus:border-[#86b7fe] outline-none" />
+                </div>
+                <div>
+                  <label className="block text-[14px] font-medium text-[#495057] mb-1">Slug</label>
+                  <input required value={formData.slug} onChange={e => setFormData({...formData, slug: e.target.value})} className="w-full rounded border border-[#ced4da] px-3 py-2 text-[14px] focus:border-[#86b7fe] outline-none" />
+                </div>
+                <div>
+                  <label className="block text-[14px] font-medium text-[#495057] mb-1">Icon URL (optional)</label>
+                  <input type="url" value={formData.icon_url} onChange={e => setFormData({...formData, icon_url: e.target.value})} className="w-full rounded border border-[#ced4da] px-3 py-2 text-[14px] focus:border-[#86b7fe] outline-none" />
+                </div>
+                <div className="flex gap-4">
+                  <div className="flex-1">
+                    <label className="block text-[14px] font-medium text-[#495057] mb-1">Sort Order</label>
+                    <input type="number" required value={formData.sort_order} onChange={e => setFormData({...formData, sort_order: parseInt(e.target.value)})} className="w-full rounded border border-[#ced4da] px-3 py-2 text-[14px] focus:border-[#86b7fe] outline-none" />
+                  </div>
+                  <div className="flex-1 flex items-center pt-6">
+                    <label className="flex items-center gap-2 cursor-pointer text-[14px] text-[#495057]">
+                      <input type="checkbox" checked={formData.is_featured} onChange={e => setFormData({...formData, is_featured: e.target.checked})} className="rounded text-[#e53e4f] focus:ring-[#e53e4f] w-4 h-4" />
+                      Featured
+                    </label>
+                  </div>
+                </div>
+                <div className="pt-4 flex justify-end gap-3 border-t border-[#e9ecef] mt-4 pt-4">
+                  <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-[14px] font-semibold text-[#6c757d] hover:bg-gray-100 rounded">Cancel</button>
+                  <button type="submit" disabled={isSubmitting} className="rounded bg-[#e53e4f] px-5 py-2 text-[14px] font-semibold text-white hover:bg-[#d63a4a] disabled:opacity-50">
+                    {isSubmitting ? "Saving..." : "Save Category"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+      </div>
+    </MerchantDashboardLayout>
   );
 }

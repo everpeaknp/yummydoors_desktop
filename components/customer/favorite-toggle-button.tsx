@@ -16,6 +16,7 @@ type FavoriteToggleButtonProps = {
   active: boolean;
   onChange: (next: boolean) => void;
   className?: string;
+  children?: React.ReactNode;
   compact?: boolean;
 };
 
@@ -33,6 +34,7 @@ export function FavoriteToggleButton({
   onChange,
   className,
   compact = false,
+  children,
 }: FavoriteToggleButtonProps) {
   const { accessToken } = useAuth();
   const [error, setError] = useState<string | null>(null);
@@ -78,26 +80,42 @@ export function FavoriteToggleButton({
     }
   }
 
+  const buttonContent = (
+    <Button
+      type="button"
+      variant="secondary"
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        void handleToggle();
+      }}
+      disabled={loading}
+      className={className}
+      title={active ? "Remove from wishlist" : "Save to wishlist"}
+    >
+      {children ? (
+        children
+      ) : (
+        <>
+          <Heart className={`h-4 w-4 ${active ? "fill-current text-[#e8505b]" : "text-[#6b7280]"}`} />
+          {!compact ? (
+            <span className={active ? "text-[#e8505b]" : "text-[#4b5563]"}>
+              {loading ? "Saving..." : active ? "Saved" : "Save"}
+            </span>
+          ) : null}
+        </>
+      )}
+    </Button>
+  );
+
+  if (compact) {
+    return buttonContent;
+  }
+
   return (
     <div className="flex flex-col items-start gap-2">
-      <Button
-        type="button"
-        variant="secondary"
-        onClick={() => {
-          void handleToggle();
-        }}
-        disabled={loading}
-        className={className}
-        title={active ? "Remove from wishlist" : "Save to wishlist"}
-      >
-        <Heart className={`h-4 w-4 ${active ? "fill-current text-primary" : "text-[#6b7280]"}`} />
-        {!compact ? (
-          <span className={active ? "text-primary" : "text-[#4b5563]"}>
-            {loading ? "Saving..." : active ? "Saved" : "Save"}
-          </span>
-        ) : null}
-      </Button>
-      {error && !compact ? <p className="text-xs text-[#be123c]">{error}</p> : null}
+      {buttonContent}
+      {error ? <p className="text-xs text-[#be123c]">{error}</p> : null}
     </div>
   );
 }

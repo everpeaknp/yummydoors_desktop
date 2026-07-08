@@ -3,11 +3,26 @@
 import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { Star, ArrowRight, Instagram, Twitter, Facebook, ChevronLeft, ChevronRight, MapPin } from "lucide-react";
+import {
+  Star,
+  ArrowRight,
+  Instagram,
+  Twitter,
+  Facebook,
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
+  MapPin,
+} from "lucide-react";
 import { apiFetch } from "@/lib/http";
+import { readJsonSafely, extractApiErrorMessage } from "@/lib/api-utils";
 import { SiteNavbar } from "@/components/layout/site-navbar";
+import { SiteFooter } from "@/components/layout/site-footer";
 import { useGoogleMaps } from "@/hooks/use-google-maps";
-import { mapStoredAddress, mergeStoredUserWithProfile } from "@/lib/auth-mappers";
+import {
+  mapStoredAddress,
+  mergeStoredUserWithProfile,
+} from "@/lib/auth-mappers";
 import {
   loadStoredAuth,
   saveStoredAuth,
@@ -20,7 +35,9 @@ import {
   isUsableImageUrl,
 } from "@/lib/restaurant-media";
 
-const MapPicker = dynamic(() => import("@/components/ui/map-picker"), { ssr: false });
+const MapPicker = dynamic(() => import("@/components/ui/map-picker"), {
+  ssr: false,
+});
 
 function useDraggableScroll() {
   const ref = useRef<HTMLDivElement>(null);
@@ -48,7 +65,7 @@ function useDraggableScroll() {
     e.preventDefault();
     e.stopPropagation();
     if (ref.current) {
-      ref.current.scrollBy({ left: 350, behavior: 'smooth' });
+      ref.current.scrollBy({ left: 350, behavior: "smooth" });
     }
   };
 
@@ -56,16 +73,16 @@ function useDraggableScroll() {
     e.preventDefault();
     e.stopPropagation();
     if (ref.current) {
-      ref.current.scrollBy({ left: -350, behavior: 'smooth' });
+      ref.current.scrollBy({ left: -350, behavior: "smooth" });
     }
   };
 
-  return { 
-    ref, 
-    events: { onMouseDown, onMouseLeave, onMouseUp, onMouseMove }, 
+  return {
+    ref,
+    events: { onMouseDown, onMouseLeave, onMouseUp, onMouseMove },
     scrollRight,
     scrollPrev,
-    isDragging: isDown
+    isDragging: isDown,
   };
 }
 
@@ -145,6 +162,7 @@ type HomeMenuItem = {
   currency_code: string;
   is_featured: boolean;
   is_popular: boolean;
+  is_spicy?: boolean;
   popularity_score: number;
 };
 
@@ -156,15 +174,26 @@ type HomeLocationContext = {
   selected_address_label?: string | null;
 };
 
+type FeaturedVideo = {
+  id: number;
+  title: string;
+  subtitle: string | null;
+  thumbnail_url: string | null;
+  video_url: string;
+  sort_order: number;
+};
+
 type HomeFeed = {
   location_context: HomeLocationContext;
   categories: HomeCategory[];
   restaurants: HomeRestaurant[];
+  explore_restaurants: HomeRestaurant[];
   promos: HomePromo[];
   hero_promos?: HomePromo[];
   banner_promos?: HomePromo[];
   recommended_items: HomeMenuItem[];
   popular_foods: HomeMenuItem[];
+  featured_videos: FeaturedVideo[];
 };
 
 const LOCATION_STORAGE_KEY = "yummydoors.selectedLocation";
@@ -198,7 +227,9 @@ const LOCATION_PLACEHOLDER_LABELS = new Set([
 
 function formatPrice(price: number, currencyCode = "NPR") {
   const rounded = Number.isInteger(price) ? price.toFixed(0) : price.toFixed(2);
-  return currencyCode === "NPR" ? `Rs. ${rounded}` : `${currencyCode} ${rounded}`;
+  return currencyCode === "NPR"
+    ? `Rs. ${rounded}`
+    : `${currencyCode} ${rounded}`;
 }
 
 function isMeaningfulLocationLabel(value: string | null | undefined) {
@@ -244,25 +275,37 @@ const heroSlides = [
 ];
 
 export default function LandingPage() {
-  useGoogleMaps();
+  const { isLoaded: googleMapsReady } = useGoogleMaps();
   const [hydrated, setHydrated] = useState(false);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [sessionUser, setSessionUser] = useState<StoredUser | null>(null);
   const [feed, setFeed] = useState<HomeFeed | null>(null);
   const [loading, setLoading] = useState(true);
   const lastLoadKeyRef = useRef<string | null>(null);
-  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(
+    null,
+  );
   const [isCompactViewport, setIsCompactViewport] = useState(false);
   const [locationModalOpen, setLocationModalOpen] = useState(false);
-  const [selectedCoords, setSelectedCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const [selectedLocationLabel, setSelectedLocationLabel] = useState<string>("Set delivery location");
+  const [selectedCoords, setSelectedCoords] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
+  const [selectedLocationLabel, setSelectedLocationLabel] = useState<string>(
+    "Set delivery location",
+  );
   const [locationSelectionLocked, setLocationSelectionLocked] = useState(false);
   const [locationPreferenceReady, setLocationPreferenceReady] = useState(false);
   const [usingCurrentLocation, setUsingCurrentLocation] = useState(false);
-  const [savedAddresses, setSavedAddresses] = useState<StoredCustomerAddress[]>([]);
+  const [savedAddresses, setSavedAddresses] = useState<StoredCustomerAddress[]>(
+    [],
+  );
   const [addressesLoading, setAddressesLoading] = useState(false);
   const [savingSelectedAddress, setSavingSelectedAddress] = useState(false);
-  const [locationSaveMessage, setLocationSaveMessage] = useState<string | null>(null);
+  const [locationSaveMessage, setLocationSaveMessage] = useState<string | null>(
+    null,
+  );
+  const [foodSearch, setFoodSearch] = useState("");
   const locationDropdownRef = useRef<HTMLDivElement | null>(null);
   const heroSlider = useAutoPager(heroSlides.length, 5000);
 
@@ -326,7 +369,7 @@ export default function LandingPage() {
           // Default to Pokhara if user denies permission
           setCoords({ lat: 28.2096, lng: 83.9856 });
         },
-        { timeout: 10000 }
+        { timeout: 10000 },
       );
     } else {
       // Default if browser doesn't support geolocation
@@ -364,7 +407,9 @@ export default function LandingPage() {
 
   const catScroll = useDraggableScroll();
   const restScroll = useDraggableScroll();
-  const activeCoords = locationSelectionLocked ? selectedCoords ?? coords : coords ?? selectedCoords;
+  const activeCoords = locationSelectionLocked
+    ? (selectedCoords ?? coords)
+    : (coords ?? selectedCoords);
 
   useEffect(() => {
     if (!hydrated || !accessToken) {
@@ -420,14 +465,17 @@ export default function LandingPage() {
 
     async function loadData() {
       try {
-        const feedRes = await apiFetch(`/home/feed?latitude=${currentCoords.lat}&longitude=${currentCoords.lng}`, {
-          auth: Boolean(accessToken),
-        });
+        const feedRes = await apiFetch(
+          `/home/feed?latitude=${currentCoords.lat}&longitude=${currentCoords.lng}`,
+          {
+            auth: Boolean(accessToken),
+          },
+        );
         if (feedRes.ok) {
-           const feedPayload = await feedRes.json();
-           if (!cancelled) {
-             setFeed(feedPayload.data);
-           }
+          const feedPayload = await feedRes.json();
+          if (!cancelled) {
+            setFeed(feedPayload.data);
+          }
         }
       } catch (err) {
         console.error(err);
@@ -445,18 +493,52 @@ export default function LandingPage() {
   }, [hydrated, accessToken, activeCoords, locationPreferenceReady]);
 
   const fallbackCategories: HomeCategory[] = [
-    { id: 1, slug: "momo", name: "Momo", icon_url: "https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?q=80&w=800&auto=format&fit=crop", sort_order: 10, is_featured: true },
-    { id: 2, slug: "coffee", name: "Coffee", icon_url: "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?q=80&w=800&auto=format&fit=crop", sort_order: 20, is_featured: true },
-    { id: 3, slug: "pizza", name: "Pizza", icon_url: "https://images.unsplash.com/photo-1513104890138-7c749659a591?q=80&w=800&auto=format&fit=crop", sort_order: 30, is_featured: true },
-    { id: 4, slug: "burger", name: "Burger", icon_url: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?q=80&w=800&auto=format&fit=crop", sort_order: 40, is_featured: true },
+    {
+      id: 1,
+      slug: "momo",
+      name: "Momo",
+      icon_url:
+        "https://images.unsplash.com/photo-1626082927389-6cd097cdc6ec?q=80&w=800&auto=format&fit=crop",
+      sort_order: 10,
+      is_featured: true,
+    },
+    {
+      id: 2,
+      slug: "coffee",
+      name: "Coffee",
+      icon_url:
+        "https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?q=80&w=800&auto=format&fit=crop",
+      sort_order: 20,
+      is_featured: true,
+    },
+    {
+      id: 3,
+      slug: "pizza",
+      name: "Pizza",
+      icon_url:
+        "https://images.unsplash.com/photo-1513104890138-7c749659a591?q=80&w=800&auto=format&fit=crop",
+      sort_order: 30,
+      is_featured: true,
+    },
+    {
+      id: 4,
+      slug: "burger",
+      name: "Burger",
+      icon_url:
+        "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?q=80&w=800&auto=format&fit=crop",
+      sort_order: 40,
+      is_featured: true,
+    },
   ];
   const fallbackRestaurants: HomeRestaurant[] = [
     {
       id: 1,
       slug: "yummy-momo-house",
       name: "Yummy Momo House",
-      cover_image_url: "https://images.unsplash.com/photo-1562967914-608f82629710?q=80&w=1600&auto=format&fit=crop",
-      short_description: "Steamed momo, jhol momo, and late-night comfort bowls.",
+      cover_image_url:
+        "https://images.unsplash.com/photo-1562967914-608f82629710?q=80&w=1600&auto=format&fit=crop",
+      short_description:
+        "Steamed momo, jhol momo, and late-night comfort bowls.",
       primary_cuisine_label: "Nepali",
       city: "Pokhara",
       area: "Ratnachowk",
@@ -474,8 +556,10 @@ export default function LandingPage() {
       id: 2,
       slug: "coffee-break-pokhara",
       name: "Coffee Break Pokhara",
-      cover_image_url: "https://images.unsplash.com/photo-1554118811-1e0d58224f24?q=80&w=1600&auto=format&fit=crop",
-      short_description: "Breakfast plates, espresso, pastries, and quick cafe delivery.",
+      cover_image_url:
+        "https://images.unsplash.com/photo-1554118811-1e0d58224f24?q=80&w=1600&auto=format&fit=crop",
+      short_description:
+        "Breakfast plates, espresso, pastries, and quick cafe delivery.",
       primary_cuisine_label: "Cafe",
       city: "Pokhara",
       area: "Lakeside",
@@ -507,7 +591,8 @@ export default function LandingPage() {
       slug: "buff-jhol-momo",
       name: "Buff Jhol Momo",
       description: "Steamed momo in a spicy sesame-tomato broth.",
-      image_url: "https://images.unsplash.com/photo-1626776876729-bab4369a5a5d?q=80&w=1200&auto=format&fit=crop",
+      image_url:
+        "https://images.unsplash.com/photo-1626776876729-bab4369a5a5d?q=80&w=1200&auto=format&fit=crop",
       price: 240,
       currency_code: "NPR",
       is_featured: true,
@@ -521,7 +606,8 @@ export default function LandingPage() {
       slug: "pepperoni-supreme",
       name: "Pepperoni Supreme",
       description: "Wood-fired pizza with pepperoni and mozzarella.",
-      image_url: "https://images.unsplash.com/photo-1513104890138-7c749659a591?q=80&w=1200&auto=format&fit=crop",
+      image_url:
+        "https://images.unsplash.com/photo-1513104890138-7c749659a591?q=80&w=1200&auto=format&fit=crop",
       price: 680,
       currency_code: "NPR",
       is_featured: true,
@@ -536,30 +622,42 @@ export default function LandingPage() {
     saved_addresses_count: 0,
   };
 
-  const categories = (feed?.categories?.filter((item) => item.slug !== "all") ?? []).length
+  const categories = (
+    feed?.categories?.filter((item) => item.slug !== "all") ?? []
+  ).length
     ? (feed?.categories.filter((item) => item.slug !== "all") as HomeCategory[])
     : fallbackCategories;
-  const restaurants = feed?.restaurants?.length ? feed.restaurants : fallbackRestaurants;
+  const restaurants = feed?.restaurants?.length
+    ? feed.restaurants
+    : fallbackRestaurants;
   const promos = feed?.promos?.length ? feed.promos : fallbackPromos;
   const heroPromos = feed?.hero_promos?.length ? feed.hero_promos : promos;
-  const bannerPromos = feed?.banner_promos?.length ? feed.banner_promos : promos;
-  const recommendedItems = feed?.recommended_items?.length
-    ? feed.recommended_items
-    : fallbackRecommendedItems;
-  const popularFoods = feed?.popular_foods?.length ? feed.popular_foods : recommendedItems;
+  const bannerPromos = feed?.banner_promos?.length
+    ? feed.banner_promos
+    : promos;
+  const recommendedItems = feed?.recommended_items ?? [];
+  const popularFoods = feed?.popular_foods ?? [];
+  const featuredVideos = feed?.featured_videos ?? [];
   const locationContext = feed?.location_context ?? fallbackLocationContext;
   const safeCategories = categories;
   const safeRestaurants = restaurants;
+  const exploreRestaurants = feed?.explore_restaurants?.length
+    ? (feed.explore_restaurants as HomeRestaurant[])
+    : safeRestaurants;
   const activeHeroPromos = heroPromos.length ? heroPromos : fallbackPromos;
-  const activeBannerPromos = bannerPromos.length ? bannerPromos : activeHeroPromos;
+  const activeBannerPromos = bannerPromos.length
+    ? bannerPromos
+    : activeHeroPromos;
   const trendingTerms = [...recommendedItems, ...popularFoods]
     .map((item) => item.name)
     .filter((value, index, array) => array.indexOf(value) === index)
     .slice(0, 4);
   const heroPager = useAutoPager(activeHeroPromos.length, 3000);
   const bannerPager = useAutoPager(activeBannerPromos.length, 3000);
-  const currentHeroPromo = activeHeroPromos[heroPager.index] ?? fallbackPromos[0];
-  const currentBannerPromo = activeBannerPromos[bannerPager.index] ?? currentHeroPromo;
+  const currentHeroPromo =
+    activeHeroPromos[heroPager.index] ?? fallbackPromos[0];
+  const currentBannerPromo =
+    activeBannerPromos[bannerPager.index] ?? currentHeroPromo;
   const currentHeroSlide = heroSlides[heroSlider.index];
 
   useEffect(() => {
@@ -583,10 +681,18 @@ export default function LandingPage() {
     if (isMeaningfulLocationLabel(locationTitle)) {
       setSelectedLocationLabel(locationTitle ?? "Set delivery location");
     }
-  }, [locationContext.location_title, locationContext.selected_address_label, locationSelectionLocked]);
+  }, [
+    locationContext.location_title,
+    locationContext.selected_address_label,
+    locationSelectionLocked,
+  ]);
 
   useEffect(() => {
-    if (!locationSelectionLocked || !selectedCoords || isMeaningfulLocationLabel(selectedLocationLabel)) {
+    if (
+      !locationSelectionLocked ||
+      !selectedCoords ||
+      isMeaningfulLocationLabel(selectedLocationLabel)
+    ) {
       return;
     }
 
@@ -594,7 +700,10 @@ export default function LandingPage() {
     let cancelled = false;
 
     async function hydrateSelectedLocationLabel() {
-      const label = await resolveAddressLabel(coordsToResolve.lat, coordsToResolve.lng);
+      const label = await resolveAddressLabel(
+        coordsToResolve.lat,
+        coordsToResolve.lng,
+      );
       if (!cancelled && isMeaningfulLocationLabel(label)) {
         setSelectedLocationLabel(label);
       }
@@ -619,10 +728,9 @@ export default function LandingPage() {
 
     const payload: StoredLocationPreference = {
       coords: selectedCoords,
-      label:
-        isMeaningfulLocationLabel(selectedLocationLabel)
-          ? selectedLocationLabel
-          : `${selectedCoords.lat.toFixed(5)}, ${selectedCoords.lng.toFixed(5)}`,
+      label: isMeaningfulLocationLabel(selectedLocationLabel)
+        ? selectedLocationLabel
+        : `${selectedCoords.lat.toFixed(5)}, ${selectedCoords.lng.toFixed(5)}`,
     };
 
     window.localStorage.setItem(LOCATION_STORAGE_KEY, JSON.stringify(payload));
@@ -638,7 +746,10 @@ export default function LandingPage() {
       return FALLBACK_RESTAURANT_COVER;
     }
 
-    if (isCompactViewport && isUsableImageUrl(promo.image_url_mobile ?? undefined)) {
+    if (
+      isCompactViewport &&
+      isUsableImageUrl(promo.image_url_mobile ?? undefined)
+    ) {
       return promo.image_url_mobile!;
     }
 
@@ -650,49 +761,69 @@ export default function LandingPage() {
   }
 
   async function resolveAddressLabel(lat: number, lng: number) {
-    if (typeof window === "undefined" || typeof google === "undefined") {
+    if (
+      typeof window === "undefined" ||
+      typeof google === "undefined" ||
+      !google.maps
+    ) {
       return `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
     }
-
-    const geocoder = new google.maps.Geocoder();
-
-    return new Promise<string>((resolve) => {
-      geocoder.geocode({ location: { lat, lng } }, (results, status) => {
-        if (status === "OK" && results?.[0]?.formatted_address) {
-          resolve(results[0].formatted_address);
-          return;
-        }
-
-        resolve(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+    try {
+      const geocoder = new google.maps.Geocoder();
+      return new Promise<string>((resolve) => {
+        geocoder.geocode({ location: { lat, lng } }, (results, status) => {
+          if (status === "OK" && results?.[0]?.formatted_address) {
+            resolve(results[0].formatted_address);
+            return;
+          }
+          resolve(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+        });
       });
-    });
+    } catch {
+      return `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    }
   }
 
-  async function resolveAddressDetails(lat: number, lng: number): Promise<ResolvedAddressDetails> {
+  async function resolveAddressDetails(
+    lat: number,
+    lng: number,
+  ): Promise<ResolvedAddressDetails> {
     const fallbackLabel =
       selectedLocationLabel && selectedLocationLabel !== "Set delivery location"
         ? selectedLocationLabel
         : `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
 
-    if (typeof window === "undefined" || typeof google === "undefined") {
-      return {
-        label: fallbackLabel,
-        addressLine1: fallbackLabel,
-        streetNumber: null,
-        city: null,
-        area: null,
-        stateOrProvince: null,
-      };
+    const fallback: ResolvedAddressDetails = {
+      label: fallbackLabel,
+      addressLine1: fallbackLabel,
+      streetNumber: null,
+      city: null,
+      area: null,
+      stateOrProvince: null,
+    };
+
+    if (
+      typeof window === "undefined" ||
+      typeof google === "undefined" ||
+      !google.maps
+    ) {
+      return fallback;
     }
 
-    const geocoder = new google.maps.Geocoder();
+    let geocoder: google.maps.Geocoder;
+    try {
+      geocoder = new google.maps.Geocoder();
+    } catch {
+      return fallback;
+    }
 
     return new Promise<ResolvedAddressDetails>((resolve) => {
       geocoder.geocode({ location: { lat, lng } }, (results, status) => {
         const first = status === "OK" ? results?.[0] : null;
         const components = first?.address_components ?? [];
         const pick = (type: string) =>
-          components.find((component) => component.types.includes(type))?.long_name ?? null;
+          components.find((component) => component.types.includes(type))
+            ?.long_name ?? null;
 
         const streetNumber = pick("street_number");
         const route = pick("route");
@@ -701,7 +832,10 @@ export default function LandingPage() {
           pick("sublocality") ??
           pick("neighborhood") ??
           pick("administrative_area_level_2");
-        const city = pick("locality") ?? pick("postal_town") ?? pick("administrative_area_level_2");
+        const city =
+          pick("locality") ??
+          pick("postal_town") ??
+          pick("administrative_area_level_2");
         const stateOrProvince = pick("administrative_area_level_1");
         const label = first?.formatted_address ?? fallbackLabel;
         const addressLine1 =
@@ -777,7 +911,9 @@ export default function LandingPage() {
     }
 
     const payload = await response.json();
-    const nextAddresses = Array.isArray(payload) ? payload.map(mapStoredAddress) : [];
+    const nextAddresses = Array.isArray(payload)
+      ? payload.map(mapStoredAddress)
+      : [];
     setSavedAddresses(nextAddresses);
     return nextAddresses;
   }
@@ -817,7 +953,9 @@ export default function LandingPage() {
     }
 
     if (!sessionUser?.phone?.trim()) {
-      setLocationSaveMessage("Location was saved in this browser. Add a phone number to your profile to sync addresses.");
+      setLocationSaveMessage(
+        "Location was saved in this browser. Add a phone number to your profile to sync addresses.",
+      );
       setLocationModalOpen(false);
       return;
     }
@@ -825,7 +963,25 @@ export default function LandingPage() {
     setSavingSelectedAddress(true);
 
     try {
-      const details = await resolveAddressDetails(selectedCoords.lat, selectedCoords.lng);
+      // Geocoding is best-effort — if Maps isn't ready yet, we still save with coordinates.
+      let details: ResolvedAddressDetails;
+      try {
+        details = await resolveAddressDetails(
+          selectedCoords.lat,
+          selectedCoords.lng,
+        );
+      } catch {
+        details = {
+          label:
+            selectedLocationLabel ||
+            `${selectedCoords.lat.toFixed(5)}, ${selectedCoords.lng.toFixed(5)}`,
+          addressLine1: selectedLocationLabel || "Selected location",
+          streetNumber: null,
+          city: null,
+          area: null,
+          stateOrProvince: null,
+        };
+      }
       setSelectedLocationLabel(details.label);
 
       const existingAddress = savedAddresses.find((address) => {
@@ -836,29 +992,44 @@ export default function LandingPage() {
           Math.abs(address.longitude - selectedCoords.lng) < 0.0001;
 
         const sameLabel =
-          normalizeAddressKey(address.addressSummary) === normalizeAddressKey(details.label) ||
-          normalizeAddressKey(address.locationTitle) === normalizeAddressKey(details.area ?? details.city ?? details.label);
+          normalizeAddressKey(address.addressSummary) ===
+            normalizeAddressKey(details.label) ||
+          normalizeAddressKey(address.locationTitle) ===
+            normalizeAddressKey(details.area ?? details.city ?? details.label);
 
         return sameCoords || sameLabel;
       });
 
       if (existingAddress) {
-        await apiFetch(`/me/addresses/${existingAddress.id}/default`, {
-          method: "POST",
-          auth: true,
-        });
+        const defaultRes = await apiFetch(
+          `/me/addresses/${existingAddress.id}/default`,
+          {
+            method: "POST",
+            auth: true,
+          },
+        );
+        if (!defaultRes.ok) {
+          const payload = await readJsonSafely(defaultRes);
+          throw new Error(
+            extractApiErrorMessage(payload, "Failed to set default address."),
+          );
+        }
       } else {
         const phoneParts = splitPhoneNumber(sessionUser.phone);
-        await apiFetch("/me/addresses", {
+        const phoneNumber =
+          phoneParts.phoneNumber ||
+          sessionUser.phone?.replace(/\D/g, "") ||
+          "0000000000";
+        const createRes = await apiFetch("/me/addresses", {
           method: "POST",
           auth: true,
           body: JSON.stringify({
             label: details.area ?? details.city ?? "Saved place",
             recipient_name: sessionUser.fullName || "YummyDoors user",
             phone_country_code: phoneParts.phoneCountryCode,
-            phone_number: phoneParts.phoneNumber,
+            phone_number: phoneNumber,
             email: sessionUser.email,
-            address_line_1: details.addressLine1,
+            address_line_1: details.addressLine1 || "Selected location",
             address_line_2: null,
             street_number: details.streetNumber,
             city: details.city,
@@ -870,12 +1041,23 @@ export default function LandingPage() {
             is_default: true,
           }),
         });
+        if (!createRes.ok) {
+          const payload = await readJsonSafely(createRes);
+          throw new Error(
+            extractApiErrorMessage(payload, "Failed to save address."),
+          );
+        }
       }
 
       await Promise.all([loadSavedAddressesNow(), syncStoredProfile()]);
       setLocationModalOpen(false);
-    } catch {
-      setLocationSaveMessage("We could not save this address right now. The selected location is still kept on this device.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : null;
+      setLocationSaveMessage(
+        message && message !== "Failed to fetch"
+          ? message
+          : "Could not save address. Check your connection and try again.",
+      );
     } finally {
       setSavingSelectedAddress(false);
     }
@@ -924,38 +1106,83 @@ export default function LandingPage() {
         </div>
 
         <div className="absolute bottom-0 left-0 right-0 z-10 w-full overflow-hidden leading-none">
-          <svg className="relative block h-[60px] w-full md:h-[100px]" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 120" preserveAspectRatio="none">
-            <path d="M321.39,56.44c58-10.79,114.16-30.13,172-41.86,82.39-16.72,168.19-17.73,250.45-.39C823.78,31,906.67,72,985.66,92.83c70.05,18.48,146.53,26.09,214.34,3V120H0V0C73.69,32.39,150.81,59.2,223.4,70.52Z" fill="#ffffff" />
+          <svg
+            className="relative block h-[60px] w-full md:h-[100px]"
+            data-name="Layer 1"
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 1200 120"
+            preserveAspectRatio="none"
+          >
+            <path
+              d="M321.39,56.44c58-10.79,114.16-30.13,172-41.86,82.39-16.72,168.19-17.73,250.45-.39C823.78,31,906.67,72,985.66,92.83c70.05,18.48,146.53,26.09,214.34,3V120H0V0C73.69,32.39,150.81,59.2,223.4,70.52Z"
+              fill="#ffffff"
+            />
           </svg>
         </div>
 
         <SiteNavbar variant="transparent" className="!border-b-0" />
 
         <div className="relative z-20 mt-10 flex w-full max-w-3xl flex-col px-6 md:mt-20">
-          <h1 className="mb-2 text-white" style={{ fontSize: "42px", fontWeight: 600, lineHeight: "42px" }}>
+          <h1
+            className="mb-2 text-white"
+            style={{ fontSize: "42px", fontWeight: 600, lineHeight: "42px" }}
+          >
             Delivery or Takeaway Food
           </h1>
-          <p className="mb-10 text-white" style={{ fontSize: "28px", fontWeight: 300, lineHeight: "42px" }}>
+          <p
+            className="mb-10 text-white"
+            style={{ fontSize: "28px", fontWeight: 300, lineHeight: "42px" }}
+          >
             The best restaurants at the best price
           </p>
 
           <div className="relative z-[95]" ref={locationDropdownRef}>
-            <div className="flex w-full flex-col overflow-hidden rounded-[2px] bg-white shadow-[0_16px_40px_rgba(15,23,42,0.16)] md:flex-row">
+            <button
+              type="button"
+              onClick={() => setLocationModalOpen(true)}
+              className="flex items-center gap-2.5 text-white hover:opacity-90 transition-opacity text-left"
+            >
+              <MapPin className="h-6 w-6 text-[#ef4444]" fill="currentColor" strokeWidth={1.5} />
+              <div className="flex flex-col">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-lg font-medium leading-tight">
+                    {selectedLocationLabel === "Set delivery location"
+                      ? "Set delivery location"
+                      : selectedLocationLabel.split(',')[0]}
+                  </span>
+                  <ChevronDown className="h-5 w-5" />
+                </div>
+                {selectedLocationLabel !== "Set delivery location" && selectedLocationLabel.includes(",") && (
+                  <span className="text-sm font-light text-white/80 leading-tight mt-0.5">
+                    {selectedLocationLabel.split(',').slice(1).join(',').trim()}
+                  </span>
+                )}
+              </div>
+            </button>
+
+            <div className="mt-3 flex w-full overflow-hidden rounded-[2px] bg-white/10 border border-white/20 backdrop-blur-sm">
               <input
                 type="text"
-                readOnly
-                value={selectedLocationLabel === "Set delivery location" ? "" : selectedLocationLabel}
-                placeholder="Choose your delivery location..."
-                onFocus={() => setLocationModalOpen(true)}
-                onClick={() => setLocationModalOpen(true)}
-                className="min-h-[64px] flex-1 cursor-pointer border-0 bg-white px-5 text-[17px] font-normal text-[#4b5563] outline-none placeholder:text-[#a7adb8]"
+                value={foodSearch}
+                onChange={(e) => setFoodSearch(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && foodSearch.trim()) {
+                    window.location.href = `/restaurants?q=${encodeURIComponent(foodSearch.trim())}`;
+                  }
+                }}
+                placeholder="Search for food or restaurant..."
+                className="min-h-[52px] flex-1 border-0 bg-transparent px-5 text-[15px] text-white outline-none placeholder:text-white/60"
               />
               <button
                 type="button"
-                onClick={() => setLocationModalOpen(true)}
-                className="min-h-[64px] whitespace-nowrap bg-primary px-10 text-[17px] font-medium text-white transition-colors hover:bg-primary/90"
+                onClick={() => {
+                  if (foodSearch.trim()) {
+                    window.location.href = `/restaurants?q=${encodeURIComponent(foodSearch.trim())}`;
+                  }
+                }}
+                className="min-h-[52px] whitespace-nowrap bg-white/20 px-8 text-[15px] font-medium text-white transition-colors hover:bg-white/30"
               >
-                Search
+                Find food
               </button>
             </div>
 
@@ -978,7 +1205,9 @@ export default function LandingPage() {
                         className="inline-flex h-9 items-center justify-center rounded-[4px] border border-black/10 bg-white px-4 text-[13px] font-medium text-[#20242b] transition hover:border-black/20 hover:bg-black/[0.02]"
                         disabled={usingCurrentLocation}
                       >
-                        {usingCurrentLocation ? "Locating..." : "Use current location"}
+                        {usingCurrentLocation
+                          ? "Locating..."
+                          : "Use current location"}
                       </button>
                       <button
                         type="button"
@@ -986,7 +1215,9 @@ export default function LandingPage() {
                         disabled={savingSelectedAddress}
                         className="inline-flex h-9 items-center justify-center rounded-[4px] bg-primary px-4 text-[13px] font-semibold text-white transition hover:bg-primary/90"
                       >
-                        {savingSelectedAddress ? "Saving..." : "Use this location"}
+                        {savingSelectedAddress
+                          ? "Saving..."
+                          : "Use this location"}
                       </button>
                     </div>
                   </div>
@@ -1005,7 +1236,9 @@ export default function LandingPage() {
                         Saved places
                       </p>
                       {addressesLoading ? (
-                        <span className="text-[12px] text-[#6b7280]">Loading...</span>
+                        <span className="text-[12px] text-[#6b7280]">
+                          Loading...
+                        </span>
                       ) : null}
                     </div>
                     {savedAddresses.length ? (
@@ -1014,7 +1247,9 @@ export default function LandingPage() {
                           <button
                             key={address.id}
                             type="button"
-                            onClick={() => void handleSelectSavedAddress(address)}
+                            onClick={() =>
+                              void handleSelectSavedAddress(address)
+                            }
                             className={`min-w-[210px] rounded-[6px] border px-3 py-2.5 text-left transition ${
                               address.isDefault
                                 ? "border-primary/20 bg-[#fff6f1]"
@@ -1032,7 +1267,8 @@ export default function LandingPage() {
                       </div>
                     ) : addressesLoading ? null : (
                       <p className="mt-3 text-[13px] text-[#6b7280]">
-                        No saved addresses yet. Confirm one from the map and we will keep it here for quick select.
+                        No saved addresses yet. Confirm one from the map and we
+                        will keep it here for quick select.
                       </p>
                     )}
                   </div>
@@ -1063,7 +1299,9 @@ export default function LandingPage() {
             {trendingTerms.length
               ? trendingTerms.map((term, index) => (
                   <span key={term}>
-                    <span className="cursor-pointer font-medium text-white underline hover:text-primary">{term}</span>
+                    <span className="cursor-pointer font-medium text-white underline hover:text-primary">
+                      {term}
+                    </span>
                     {index === trendingTerms.length - 1 ? "" : ", "}
                   </span>
                 ))
@@ -1073,8 +1311,8 @@ export default function LandingPage() {
       </section>
 
       <main className="bg-white">
-        <section className="relative z-20 px-6 py-12 md:py-16">
-          <div className="mx-auto max-w-6xl">
+        <section className="relative z-20 py-12 md:py-16">
+          <div className="pl-[100px] pr-6">
             <Link
               href="/restaurants"
               className="block overflow-hidden rounded-[12px] shadow-[0_18px_60px_rgba(15,23,42,0.10)]"
@@ -1094,7 +1332,9 @@ export default function LandingPage() {
                   aria-label={`Go to hero promo ${index + 1}`}
                   onClick={() => heroPager.setIndex(index)}
                   className={`rounded-full transition-all duration-200 ${
-                    index === heroPager.index ? "h-2 w-6 bg-black" : "h-2 w-2 bg-[#d9d9d9]"
+                    index === heroPager.index
+                      ? "h-2 w-6 bg-black"
+                      : "h-2 w-2 bg-[#d9d9d9]"
                   }`}
                 />
               ))}
@@ -1106,37 +1346,48 @@ export default function LandingPage() {
           <section className="pt-16 pb-12 overflow-hidden">
             <div className="text-center mb-10">
               <div className="w-[40px] h-[2px] bg-primary mx-auto mb-5"></div>
-              <h2 className="text-[34px] font-medium text-[#222222] leading-[1.2]">Popular Categories</h2>
+              <h2 className="text-[34px] font-medium text-[#222222] leading-[1.2]">
+                Popular Categories
+              </h2>
               <p className="text-[21px] font-light text-[#444444] mt-2 leading-[1.5]">
                 Browse the cuisines shaping today&apos;s live YummyDoors feed.
               </p>
             </div>
 
             <div className="relative">
-              <button 
+              <button
                 onClick={catScroll.scrollPrev}
                 className="absolute top-[50%] left-[16px] -translate-y-1/2 h-[42px] w-[42px] rounded-full bg-white shadow-[0_2px_12px_rgba(0,0,0,0.12)] border border-gray-100 flex items-center justify-center text-gray-500 hover:text-primary transition-all z-50"
               >
-                <ArrowRight className="w-[16px] h-[16px] rotate-180" strokeWidth={1.5} />
+                <ArrowRight
+                  className="w-[16px] h-[16px] rotate-180"
+                  strokeWidth={1.5}
+                />
               </button>
 
-              <div 
+              <div
                 ref={catScroll.ref}
                 {...catScroll.events}
-                className={`flex gap-[16px] overflow-x-auto pb-4 scrollbar-hide pl-[100px] pr-[80px] ${catScroll.isDragging ? 'cursor-grabbing select-none' : 'cursor-grab'}`} 
-                style={{ msOverflowStyle: 'none', scrollbarWidth: 'none' }}
+                className={`flex gap-[16px] overflow-x-auto pb-4 scrollbar-hide pl-[100px] pr-[80px] ${catScroll.isDragging ? "cursor-grabbing select-none" : "cursor-grab"}`}
+                style={{ msOverflowStyle: "none", scrollbarWidth: "none" }}
               >
                 {safeCategories.map((cat, i) => {
                   const categoryRestaurants = restaurants.filter((restaurant) =>
-                    restaurant.categories?.some((restaurantCategory) => restaurantCategory.slug === cat.slug),
+                    restaurant.categories?.some(
+                      (restaurantCategory) =>
+                        restaurantCategory.slug === cat.slug,
+                    ),
                   );
-                  const categoryItems = [...recommendedItems, ...popularFoods].filter(
-                    (item) => item.category_id === cat.id,
-                  );
+                  const categoryItems = [
+                    ...recommendedItems,
+                    ...popularFoods,
+                  ].filter((item) => item.category_id === cat.id);
                   const startingPrice = categoryItems.length
                     ? Math.min(...categoryItems.map((item) => item.price))
                     : null;
-                  const categoryImage = isUsableImageUrl(cat.icon_url ?? undefined)
+                  const categoryImage = isUsableImageUrl(
+                    cat.icon_url ?? undefined,
+                  )
                     ? (cat.icon_url ?? FALLBACK_MENU_ITEM_IMAGE)
                     : FALLBACK_MENU_ITEM_IMAGE;
 
@@ -1146,36 +1397,81 @@ export default function LandingPage() {
                       href={`/restaurants?category=${encodeURIComponent(cat.slug)}`}
                       className="relative block h-[280px] w-[195px] shrink-0 overflow-hidden rounded-[4px]"
                     >
-                      <img src={categoryImage} alt={cat.name} className="h-full w-full object-cover" />
+                      <img
+                        src={categoryImage}
+                        alt={cat.name}
+                        className="h-full w-full object-cover"
+                      />
                       <div className="absolute inset-x-0 bottom-0 h-[120px] bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
                       <div className="absolute top-[12px] right-[12px] bg-white text-[#333333] text-[11px] font-semibold w-[30px] h-[30px] rounded-full flex items-center justify-center shadow">
                         {categoryRestaurants.length || 1}
                       </div>
                       <div className="absolute bottom-[16px] left-[14px] right-[14px]">
-                        <h3 className="text-[16px] font-semibold text-white leading-none mb-1">{cat.name}</h3>
+                        <h3 className="text-[16px] font-semibold text-white leading-none mb-1">
+                          {cat.name}
+                        </h3>
                         <p className="text-[12px] text-[#cccccc] font-normal">
-                          {startingPrice ? `From ${formatPrice(startingPrice)}` : "Fresh picks available"}
+                          {startingPrice
+                            ? `From ${formatPrice(startingPrice)}`
+                            : "Fresh picks available"}
                         </p>
                       </div>
                     </Link>
                   );
                 })}
               </div>
-              
-              <button 
+
+              <button
                 onClick={catScroll.scrollRight}
                 className="absolute top-[50%] right-[24px] -translate-y-1/2 h-[42px] w-[42px] rounded-full bg-white shadow-[0_2px_12px_rgba(0,0,0,0.12)] border border-gray-100 flex items-center justify-center text-gray-500 hover:text-primary transition-all z-50"
               >
                 <ArrowRight className="w-[16px] h-[16px]" strokeWidth={1.5} />
               </button>
             </div>
-            
-            <style dangerouslySetInnerHTML={{__html: `.scrollbar-hide::-webkit-scrollbar { display: none; }`}} />
+
+            <style
+              dangerouslySetInnerHTML={{
+                __html: `.scrollbar-hide::-webkit-scrollbar { display: none; }`,
+              }}
+            />
           </section>
         )}
 
-        <section className="px-6 pb-12">
-          <div className="mx-auto max-w-6xl">
+        <section className="pb-6">
+          <div className="pl-[100px] pr-6">
+            <div className="flex flex-wrap gap-2">
+              {[
+                { label: "🥦 Veg", href: "/restaurants?food_type=veg" },
+                { label: "🍗 Non-Veg", href: "/restaurants?food_type=non_veg" },
+                {
+                  label: "🚀 Free Delivery",
+                  href: "/restaurants?has_free_delivery=true",
+                },
+                { label: "⏰ Open Now", href: "/restaurants?open_now=true" },
+                { label: "⭐ Top Rated", href: "/restaurants?sort_by=rating" },
+                {
+                  label: "⚡ Fast Delivery",
+                  href: "/restaurants?sort_by=delivery_time",
+                },
+                {
+                  label: "🔥 Highly Reordered",
+                  href: "/restaurants?sort_by=highly_reordered",
+                },
+              ].map((chip) => (
+                <Link
+                  key={chip.label}
+                  href={chip.href}
+                  className="inline-flex items-center rounded-full border border-gray-200 bg-white px-4 py-2 text-[13px] font-medium text-[#333333] shadow-sm transition hover:border-primary hover:text-primary"
+                >
+                  {chip.label}
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="pb-12">
+          <div className="pl-[100px] pr-6">
             <Link
               href="/restaurants"
               className="block overflow-hidden rounded-[12px] shadow-[0_16px_50px_rgba(15,23,42,0.08)]"
@@ -1195,7 +1491,9 @@ export default function LandingPage() {
                   aria-label={`Go to banner promo ${index + 1}`}
                   onClick={() => bannerPager.setIndex(index)}
                   className={`rounded-full transition-all duration-200 ${
-                    index === bannerPager.index ? "h-2 w-6 bg-black" : "h-2 w-2 bg-[#d9d9d9]"
+                    index === bannerPager.index
+                      ? "h-2 w-6 bg-black"
+                      : "h-2 w-2 bg-[#d9d9d9]"
                   }`}
                 />
               ))}
@@ -1203,90 +1501,301 @@ export default function LandingPage() {
           </div>
         </section>
 
+        {recommendedItems.length > 0 && (
+          <section className="py-12 bg-white">
+            <div className="pl-[100px] pr-6">
+              <div className="mb-8">
+                <div className="w-[40px] h-[2px] bg-primary mb-4"></div>
+                <h2 className="text-[28px] font-medium text-[#222222] leading-tight">
+                  Recommended for You
+                </h2>
+                <p className="text-[16px] font-light text-[#555555] mt-1">
+                  Based on your favourites and saved restaurants.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+                {recommendedItems.slice(0, 8).map((item) => {
+                  const imgUrl = isUsableImageUrl(item.image_url ?? undefined)
+                    ? item.image_url!
+                    : FALLBACK_MENU_ITEM_IMAGE;
+                  return (
+                    <div
+                      key={item.id}
+                      className="overflow-hidden rounded-[8px] border border-gray-100 bg-white shadow-sm hover:shadow-md transition-shadow"
+                    >
+                      <div
+                        className="h-[140px] w-full bg-cover bg-center"
+                        style={{ backgroundImage: `url(${imgUrl})` }}
+                      />
+                      <div className="p-3">
+                        <p className="truncate text-[14px] font-semibold text-[#222222]">
+                          {item.name}
+                        </p>
+                        <p className="mt-1 text-[12px] text-[#777777]">
+                          {item.currency_code} {item.price}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {popularFoods.length > 0 && (
+          <section className="py-12 bg-gray-50/60">
+            <div className="pl-[100px] pr-6">
+              <div className="mb-8 flex items-end justify-between">
+                <div>
+                  <div className="w-[40px] h-[2px] bg-primary mb-4"></div>
+                  <h2 className="text-[28px] font-medium text-[#222222] leading-tight">
+                    Popular Foods
+                  </h2>
+                  <p className="text-[16px] font-light text-[#555555] mt-1">
+                    Most hearted dishes across all restaurants.
+                  </p>
+                </div>
+                <Link
+                  href="/restaurants"
+                  className="text-[13px] font-bold text-primary hover:text-gray-700 uppercase tracking-wider"
+                >
+                  View All
+                </Link>
+              </div>
+              <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+                {popularFoods.slice(0, 8).map((item) => {
+                  const imgUrl = isUsableImageUrl(item.image_url ?? undefined)
+                    ? item.image_url!
+                    : FALLBACK_MENU_ITEM_IMAGE;
+                  return (
+                    <div
+                      key={item.id}
+                      className="overflow-hidden rounded-[8px] border border-gray-100 bg-white shadow-sm hover:shadow-md transition-shadow"
+                    >
+                      <div
+                        className="h-[140px] w-full bg-cover bg-center"
+                        style={{ backgroundImage: `url(${imgUrl})` }}
+                      />
+                      <div className="p-3">
+                        <p className="truncate text-[14px] font-semibold text-[#222222]">
+                          {item.name}
+                        </p>
+                        <div className="mt-1 flex items-center justify-between">
+                          <p className="text-[12px] text-[#777777]">
+                            {item.currency_code} {item.price}
+                          </p>
+                          {item.is_spicy && (
+                            <span className="text-[10px] font-semibold text-[#e11d48]">
+                              🌶 Spicy
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {featuredVideos.length > 0 && (
+          <section className="py-12 bg-white">
+            <div className="pl-[100px] pr-6">
+              <div className="mb-8">
+                <div className="w-[40px] h-[2px] bg-primary mb-4"></div>
+                <h2 className="text-[28px] font-medium text-[#222222] leading-tight">
+                  Featured Videos
+                </h2>
+                <p className="text-[16px] font-light text-[#555555] mt-1">
+                  Watch before you order.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+                {featuredVideos.map((video) => (
+                  <a
+                    key={video.id}
+                    href={video.video_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group overflow-hidden rounded-[8px] border border-gray-100 bg-white shadow-sm hover:shadow-md transition-shadow"
+                  >
+                    <div
+                      className="relative h-[140px] w-full bg-cover bg-center"
+                      style={{
+                        backgroundImage: isUsableImageUrl(
+                          video.thumbnail_url ?? undefined,
+                        )
+                          ? `url(${video.thumbnail_url})`
+                          : `url(https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=600&auto=format&fit=crop)`,
+                      }}
+                    >
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/25 transition group-hover:bg-black/40">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/90 shadow">
+                          <svg
+                            className="ml-0.5 h-4 w-4 text-[#333]"
+                            viewBox="0 0 24 24"
+                            fill="currentColor"
+                          >
+                            <path d="M8 5v14l11-7z" />
+                          </svg>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="p-3">
+                      <p className="truncate text-[13px] font-semibold text-[#222222]">
+                        {video.title}
+                      </p>
+                      {video.subtitle && (
+                        <p className="mt-0.5 truncate text-[11px] text-[#777]">
+                          {video.subtitle}
+                        </p>
+                      )}
+                    </div>
+                  </a>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+
         {safeRestaurants.length > 0 && (
           <section className="bg-gray-50/60 py-12">
             <div className="pl-[100px] pr-6 flex justify-between items-end mb-8 border-b border-gray-200 pb-5">
               <div>
                 <div className="w-[40px] h-[2px] bg-primary mb-4"></div>
-                <h2 className="text-[34px] font-medium text-[#222222] leading-[1.2]">Top Rated Restaurants</h2>
+                <h2 className="text-[34px] font-medium text-[#222222] leading-[1.2]">
+                  Top Rated Restaurants
+                </h2>
                 <p className="text-[21px] font-light text-[#444444] mt-2 leading-[1.5]">
-                  Live restaurants available for {locationContext.location_title}.
+                  Live restaurants available for{" "}
+                  {locationContext.location_title}.
                 </p>
               </div>
-              <Link href="/restaurants" className="text-[13px] font-bold text-primary hover:text-gray-700 uppercase tracking-wider">View All</Link>
+              <Link
+                href="/restaurants"
+                className="text-[13px] font-bold text-primary hover:text-gray-700 uppercase tracking-wider"
+              >
+                View All
+              </Link>
             </div>
-            
+
             <div className="relative">
-              <button 
+              <button
                 onClick={restScroll.scrollPrev}
                 className="absolute top-[100px] left-[16px] h-[42px] w-[42px] rounded-full bg-white shadow-[0_2px_12px_rgba(0,0,0,0.12)] border border-gray-100 flex items-center justify-center text-gray-500 hover:text-primary transition-all z-50"
               >
-                <ArrowRight className="w-[16px] h-[16px] rotate-180" strokeWidth={1.5} />
+                <ArrowRight
+                  className="w-[16px] h-[16px] rotate-180"
+                  strokeWidth={1.5}
+                />
               </button>
 
-              <div 
+              <div
                 ref={restScroll.ref}
                 {...restScroll.events}
-                className={`flex gap-[18px] overflow-x-auto pb-8 scrollbar-hide pl-[120px] ${restScroll.isDragging ? 'cursor-grabbing select-none' : 'cursor-grab'}`} 
-                style={{ msOverflowStyle: 'none', scrollbarWidth: 'none' }}
+                className={`flex gap-[18px] overflow-x-auto pb-8 scrollbar-hide pl-[120px] ${restScroll.isDragging ? "cursor-grabbing select-none" : "cursor-grab"}`}
+                style={{ msOverflowStyle: "none", scrollbarWidth: "none" }}
               >
                 {safeRestaurants.map((r, i) => {
-                  const coverUrl = isUsableImageUrl(r.cover_image_url ?? undefined)
+                  const coverUrl = isUsableImageUrl(
+                    r.cover_image_url ?? undefined,
+                  )
                     ? (r.cover_image_url ?? FALLBACK_RESTAURANT_COVER)
                     : FALLBACK_RESTAURANT_COVER;
 
                   return (
-                  <div key={`${r.slug}-${i}`} className="shrink-0 w-[300px] bg-white border border-gray-200/60 rounded-[4px] overflow-hidden flex flex-col hover:shadow-lg transition-shadow duration-300 pointer-events-none">
-                    <div className="relative h-[200px] w-full overflow-hidden bg-gray-100">
-                      <img src={coverUrl} alt={r.name} className="h-full w-full object-cover" />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
-                      
-                      <div className="absolute top-4 left-4 bg-white text-gray-800 text-[10px] font-bold px-2.5 py-1 rounded-[3px] shadow-sm uppercase tracking-wider flex items-center gap-1">
-                        <div className="w-1.5 h-1.5 rounded-full bg-red-500"></div>
-                        {r.primary_cuisine_label ?? "Restaurant"}
+                    <div
+                      key={`${r.slug}-${i}`}
+                      className="shrink-0 w-[300px] bg-white border border-gray-200/60 rounded-[4px] overflow-hidden flex flex-col hover:shadow-lg transition-shadow duration-300"
+                    >
+                      <div className="relative h-[200px] w-full overflow-hidden bg-gray-100">
+                        <img
+                          src={coverUrl}
+                          alt={r.name}
+                          className="h-full w-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
+
+                        <div className="absolute top-4 left-4 bg-white text-gray-800 text-[10px] font-bold px-2.5 py-1 rounded-[3px] shadow-sm uppercase tracking-wider flex items-center gap-1">
+                          <div className="w-1.5 h-1.5 rounded-full bg-red-500"></div>
+                          {r.primary_cuisine_label ?? "Restaurant"}
+                        </div>
+
+                        <div className="absolute top-4 right-4 bg-primary text-white text-[10px] font-bold px-2.5 py-1 rounded-[3px] uppercase tracking-wider">
+                          {r.offer_text ??
+                            (r.has_free_delivery
+                              ? "Free delivery"
+                              : "Open now")}
+                        </div>
+
+                        <div className="absolute bottom-4 left-4 right-4">
+                          <h3 className="text-[17px] font-semibold text-white mb-0.5">
+                            {r.name}
+                          </h3>
+                          <p className="text-[12px] text-gray-300">
+                            {[r.area, r.city].filter(Boolean).join(", ")}
+                          </p>
+                        </div>
                       </div>
-                      
-                      <div className="absolute top-4 right-4 bg-primary text-white text-[10px] font-bold px-2.5 py-1 rounded-[3px] uppercase tracking-wider">
-                        {r.offer_text ?? (r.has_free_delivery ? "Free delivery" : "Open now")}
+
+                      <div className="flex items-center justify-between px-4 py-3 bg-white">
+                        <div className="flex items-center gap-3 text-[12px] text-gray-500">
+                          <span className="flex items-center gap-1 pointer-events-auto">
+                            <svg
+                              className="w-[13px] h-[13px]"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path>
+                              <line x1="3" y1="6" x2="21" y2="6"></line>
+                              <path d="M16 10a4 4 0 0 1-8 0"></path>
+                            </svg>{" "}
+                            Take away
+                          </span>
+                          <span className="flex items-center gap-1 pointer-events-auto">
+                            <svg
+                              className="w-[13px] h-[13px]"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <circle cx="12" cy="12" r="10"></circle>
+                              <polyline points="12 6 12 12 16 14"></polyline>
+                            </svg>{" "}
+                            {r.delivery_eta_min_minutes &&
+                            r.delivery_eta_max_minutes
+                              ? `${r.delivery_eta_min_minutes}-${r.delivery_eta_max_minutes} min`
+                              : "Delivery"}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1 text-[12px] font-bold text-[#32a067]">
+                          <Star className="w-[13px] h-[13px] fill-[#32a067]" />{" "}
+                          {r.rating_average}
+                        </div>
                       </div>
-                      
-                      <div className="absolute bottom-4 left-4 right-4">
-                        <h3 className="text-[17px] font-semibold text-white mb-0.5">{r.name}</h3>
-                        <p className="text-[12px] text-gray-300">
-                          {[r.area, r.city].filter(Boolean).join(", ")}
-                        </p>
+                      <div className="border-t border-gray-100 px-4 py-3">
+                        <Link
+                          href={`/restaurants/${r.slug}`}
+                          className="pointer-events-auto inline-flex items-center text-[12px] font-semibold uppercase tracking-[0.12em] text-primary transition hover:text-[#d84c1d]"
+                        >
+                          Open restaurant
+                        </Link>
                       </div>
                     </div>
-                    
-                    <div className="flex items-center justify-between px-4 py-3 bg-white">
-                      <div className="flex items-center gap-3 text-[12px] text-gray-500">
-                        <span className="flex items-center gap-1 pointer-events-auto">
-                          <svg className="w-[13px] h-[13px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg> Take away
-                        </span>
-                        <span className="flex items-center gap-1 pointer-events-auto">
-                          <svg className="w-[13px] h-[13px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>{" "}
-                          {r.delivery_eta_min_minutes && r.delivery_eta_max_minutes
-                            ? `${r.delivery_eta_min_minutes}-${r.delivery_eta_max_minutes} min`
-                            : "Delivery"}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1 text-[12px] font-bold text-[#32a067]">
-                        <Star className="w-[13px] h-[13px] fill-[#32a067]" /> {r.rating_average}
-                      </div>
-                    </div>
-                    <div className="border-t border-gray-100 px-4 py-3">
-                      <Link
-                        href={`/restaurants/${r.slug}`}
-                        className="pointer-events-auto inline-flex items-center text-[12px] font-semibold uppercase tracking-[0.12em] text-primary transition hover:text-[#d84c1d]"
-                      >
-                        Open restaurant
-                      </Link>
-                    </div>
-                  </div>
-                )})}
+                  );
+                })}
               </div>
-              
-              <button 
+
+              <button
                 onClick={restScroll.scrollRight}
                 className="absolute top-[100px] right-6 h-[44px] w-[44px] rounded-full bg-white shadow-[0_4px_16px_rgba(0,0,0,0.12)] border border-gray-100 flex items-center justify-center text-gray-500 hover:text-primary transition-all z-50"
               >
@@ -1296,177 +1805,77 @@ export default function LandingPage() {
           </section>
         )}
 
-        <div className="mx-auto max-w-6xl px-6">
-          <section className="grid gap-12 py-16 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
-            <div className="grid gap-5 md:grid-cols-2">
-              <article className="overflow-hidden rounded-[6px] bg-white shadow-[0_16px_48px_rgba(15,23,42,0.08)]">
-                <div
-                  className="aspect-[4/3] bg-cover bg-center"
-                  style={{
-                    backgroundImage: `url(https://images.unsplash.com/photo-1626776876729-bab4369a5a5d?q=80&w=1200&auto=format&fit=crop)`,
-                  }}
-                />
-                <div className="space-y-2 p-6">
-                  <h3 className="text-[15px] font-semibold text-[#333333]">Buff Jhol Momo</h3>
-                  <p className="text-[13px] leading-7 text-[#777777]">
-                    Steamed momo in a spicy sesame-tomato broth.
-                  </p>
-                  <p className="pt-2 text-[12px] font-semibold uppercase tracking-[0.16em] text-primary">
-                    Rs. 240
-                  </p>
-                </div>
-              </article>
-
-              <article className="overflow-hidden rounded-[6px] bg-white shadow-[0_16px_48px_rgba(15,23,42,0.08)]">
-                <div
-                  className="aspect-[4/3] bg-cover bg-center"
-                  style={{
-                    backgroundImage: `url(https://images.unsplash.com/photo-1513104890138-7c749659a591?q=80&w=1200&auto=format&fit=crop)`,
-                  }}
-                />
-                <div className="space-y-2 p-6">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
-                    Popular pick
-                  </p>
-                  <h3 className="text-[15px] font-semibold text-[#333333]">Pepperoni Supreme</h3>
-                  <p className="text-[13px] leading-7 text-[#777777]">
-                    Wood-fired pizza with pepperoni and mozzarella.
-                  </p>
-                  <p className="pt-2 text-[12px] font-semibold uppercase tracking-[0.16em] text-primary">
-                    Rs. 680
-                  </p>
-                </div>
-              </article>
-            </div>
-
-            <div className="lg:pl-8">
-              <div className="mb-5">
-                <div className="mb-4 h-[2px] w-[40px] bg-primary"></div>
-                <h2 className="text-[28px] font-bold leading-tight text-[#222222] md:text-[32px]">
-                  Start ordering in Pokhara
+        <section className="bg-white py-14">
+          <div className="pl-[100px] pr-6">
+            <div className="mb-8 flex items-end justify-between">
+              <div>
+                <div className="w-[40px] h-[2px] bg-primary mb-4"></div>
+                <h2 className="text-[34px] font-medium text-[#222222] leading-[1.2]">
+                  Explore Restaurants
                 </h2>
-              </div>
-              <p className="mb-4 text-[17px] leading-relaxed text-[#555555]">
-                Set delivery address to personalize restaurants.
-              </p>
-              <p className="mb-8 text-[14px] leading-relaxed text-[#777777]">
-                We found nearby restaurants, popular categories, and recommended picks ready to shape the feed.
-              </p>
-              <div className="mb-8 space-y-3">
-                <div className="flex items-center justify-between rounded-[4px] border border-gray-100 bg-white px-4 py-3 shadow-[0_0_20px_rgba(0,0,0,0.04)]">
-                  <div>
-                    <p className="text-[14px] font-semibold text-[#222222]">Buff Jhol Momo</p>
-                    <p className="text-[12px] text-[#777777]">Steamed momo in a spicy sesame-tomato broth.</p>
-                  </div>
-                  <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-primary">Rs. 240</p>
-                </div>
-                <div className="flex items-center justify-between rounded-[4px] border border-gray-100 bg-white px-4 py-3 shadow-[0_0_20px_rgba(0,0,0,0.04)]">
-                  <div>
-                    <p className="text-[14px] font-semibold text-[#222222]">Pepperoni Supreme</p>
-                    <p className="text-[12px] text-[#777777]">Wood-fired pizza with pepperoni and mozzarella.</p>
-                  </div>
-                  <p className="text-[12px] font-semibold uppercase tracking-[0.14em] text-primary">Rs. 680</p>
-                </div>
+                <p className="text-[18px] font-light text-[#555555] mt-2">
+                  Most-ordered restaurants near you.
+                </p>
               </div>
               <Link
                 href="/restaurants"
-                className="inline-flex rounded-[4px] bg-primary px-8 py-3 text-[14px] font-semibold text-white transition-all hover:bg-primary/90 shadow-md shadow-primary/20"
+                className="text-[13px] font-bold text-primary hover:text-gray-700 uppercase tracking-wider"
               >
-                Browse restaurants
+                View All
               </Link>
             </div>
-          </section>
-        </div>
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {exploreRestaurants.slice(0, 6).map((r) => {
+                const coverUrl = isUsableImageUrl(
+                  r.cover_image_url ?? undefined,
+                )
+                  ? (r.cover_image_url ?? FALLBACK_RESTAURANT_COVER)
+                  : FALLBACK_RESTAURANT_COVER;
+                return (
+                  <Link
+                    key={r.slug}
+                    href={`/restaurants/${r.slug}`}
+                    className="group overflow-hidden rounded-[8px] border border-gray-200/60 bg-white shadow-sm hover:shadow-lg transition-shadow duration-300"
+                  >
+                    <div className="relative h-[200px] w-full overflow-hidden bg-gray-100">
+                      <img
+                        src={coverUrl}
+                        alt={r.name}
+                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                      {r.offer_text || r.has_free_delivery ? (
+                        <div className="absolute top-3 right-3 rounded-[3px] bg-primary px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-white">
+                          {r.offer_text ?? "Free delivery"}
+                        </div>
+                      ) : null}
+                      <div className="absolute bottom-3 left-4 right-4">
+                        <h3 className="text-[16px] font-semibold text-white">
+                          {r.name}
+                        </h3>
+                        <p className="text-[12px] text-gray-300">
+                          {[r.area, r.city].filter(Boolean).join(", ")}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between px-4 py-3">
+                      <p className="text-[12px] text-gray-500">
+                        {r.primary_cuisine_label ?? "Restaurant"}
+                      </p>
+                      <div className="flex items-center gap-1 text-[12px] font-semibold text-[#32a067]">
+                        <Star className="h-3 w-3 fill-[#32a067]" />{" "}
+                        {r.rating_average.toFixed(1)}
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        </section>
       </main>
 
-      <footer className="relative bg-[#FCFBF4] pt-24 pb-10 mt-10">
-        <div className="absolute top-0 left-0 right-0 w-full overflow-hidden leading-none transform -translate-y-[99%]">
-          <svg className="relative block w-full h-[40px] md:h-[60px]" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 120" preserveAspectRatio="none">
-            <path d="M321.39,56.44c58-10.79,114.16-30.13,172-41.86,82.39-16.72,168.19-17.73,250.45-.39C823.78,31,906.67,72,985.66,92.83c70.05,18.48,146.53,26.09,214.34,3V120H0V0C73.69,32.39,150.81,59.2,223.4,70.52Z" fill="#FCFBF4"></path>
-          </svg>
-        </div>
-
-        <div className="mx-auto max-w-6xl px-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">
-            <div>
-              <h4 className="text-xs font-bold text-gray-800 mb-6 uppercase tracking-wider">Quick Links</h4>
-              <ul className="space-y-3 text-xs text-gray-500 font-medium">
-                <li><a href="#" className="hover:text-primary transition-colors">About us</a></li>
-                <li><a href="#" className="hover:text-primary transition-colors">Add your restaurant</a></li>
-                <li><a href="#" className="hover:text-primary transition-colors">Help</a></li>
-                <li><a href="#" className="hover:text-primary transition-colors">My account</a></li>
-                <li><a href="#" className="hover:text-primary transition-colors">Blog</a></li>
-                <li><a href="#" className="hover:text-primary transition-colors">Contacts</a></li>
-              </ul>
-            </div>
-
-            <div>
-              <h4 className="text-xs font-bold text-gray-800 mb-6 uppercase tracking-wider">Categories</h4>
-              <ul className="space-y-3 text-xs text-gray-500 font-medium">
-                <li><a href="#" className="hover:text-primary transition-colors">Top Categories</a></li>
-                <li><a href="#" className="hover:text-primary transition-colors">Best Rated</a></li>
-                <li><a href="#" className="hover:text-primary transition-colors">Best Price</a></li>
-                <li><a href="#" className="hover:text-primary transition-colors">Latest Submissions</a></li>
-              </ul>
-            </div>
-
-            <div>
-              <h4 className="text-xs font-bold text-gray-800 mb-6 uppercase tracking-wider">Contacts</h4>
-              <ul className="space-y-4 text-xs text-gray-500 font-medium">
-                <li className="flex items-start gap-3">
-                  <MapPin className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                  <span>97845 Baker st. 567<br/>Los Angeles - US</span>
-                </li>
-                <li className="flex items-center gap-3">
-                  <svg className="w-4 h-4 text-primary shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
-                  <span>+94 423-23-221</span>
-                </li>
-                <li className="flex items-center gap-3">
-                  <svg className="w-4 h-4 text-primary shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
-                  <span>info@domain.com</span>
-                </li>
-              </ul>
-            </div>
-
-            <div>
-              <h4 className="text-xs font-bold text-gray-800 mb-6 uppercase tracking-wider">Keep In Touch</h4>
-              <div className="flex">
-                <input 
-                  type="email" 
-                  placeholder="Your email" 
-                  className="bg-white border border-gray-200 px-3 py-2 text-xs w-full outline-none focus:border-primary"
-                />
-                <button className="bg-primary text-white px-3 py-2">
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-              </div>
-              
-              <h4 className="text-xs font-bold text-gray-800 mt-8 mb-4 uppercase tracking-wider">Follow Us</h4>
-              <div className="flex gap-4">
-                <a href="#" className="text-gray-400 hover:text-gray-800 transition-colors"><Facebook className="w-4 h-4" /></a>
-                <a href="#" className="text-gray-400 hover:text-gray-800 transition-colors"><Twitter className="w-4 h-4" /></a>
-                <a href="#" className="text-gray-400 hover:text-gray-800 transition-colors"><Instagram className="w-4 h-4" /></a>
-              </div>
-            </div>
-          </div>
-          
-          <div className="mt-16 pt-8 border-t border-gray-200/60 flex flex-col md:flex-row justify-between items-center gap-4 text-[10px] text-gray-500 font-medium">
-            <div className="flex gap-4 items-center">
-              <select className="bg-transparent outline-none cursor-pointer">
-                <option>English</option>
-              </select>
-              <select className="bg-transparent outline-none cursor-pointer">
-                <option>US Dollars</option>
-              </select>
-            </div>
-            <div className="flex gap-4">
-              <span className="hover:text-gray-800 cursor-pointer">Terms and conditions</span>
-              <span className="hover:text-gray-800 cursor-pointer">Privacy</span>
-              <span>© FooYes</span>
-            </div>
-          </div>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }

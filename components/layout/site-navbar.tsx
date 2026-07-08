@@ -109,7 +109,7 @@ export function SiteNavbar({ className, variant = "light" }: SiteNavbarProps) {
     >
       <div
         className={cn(
-          "mx-auto flex w-full max-w-[1320px] items-center justify-between px-6 lg:px-10",
+          "mx-auto flex w-full items-center justify-between px-6 lg:px-10",
           useScrolledLight || isLight ? "py-4" : "py-6",
         )}
       >

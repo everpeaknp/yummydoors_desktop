@@ -8,6 +8,8 @@ import {
   BadgeCheck,
   Clock3,
   Flame,
+  Heart,
+  ImageIcon,
   Mail,
   MapPin,
   MessageSquareText,
@@ -21,11 +23,19 @@ import {
 } from "lucide-react";
 
 import { SiteNavbar } from "@/components/layout/site-navbar";
+import { SiteFooter } from "@/components/layout/site-footer";
 import { AddToCartButton } from "@/components/customer/add-to-cart-button";
 import { FavoriteToggleButton } from "@/components/customer/favorite-toggle-button";
-import { ReviewEditor, type ReviewPayload } from "@/components/customer/review-editor";
+import {
+  ReviewEditor,
+  type ReviewPayload,
+} from "@/components/customer/review-editor";
 import { apiFetch } from "@/lib/http";
-import { extractApiErrorMessage, readJsonSafely, unwrapApiData } from "@/lib/api-utils";
+import {
+  extractApiErrorMessage,
+  readJsonSafely,
+  unwrapApiData,
+} from "@/lib/api-utils";
 import {
   FALLBACK_MENU_ITEM_IMAGE,
   FALLBACK_RESTAURANT_COVER,
@@ -33,6 +43,9 @@ import {
 } from "@/lib/restaurant-media";
 import { CustomerBookingPanel } from "@/components/reservations/customer-booking-panel";
 import { Card, CardContent } from "@/components/ui/card";
+import { MenuCard } from "@/components/customer/menu-card";
+import { MenuItemModal } from "@/components/customer/menu-item-modal";
+import { OrderSummaryPanel } from "@/components/customer/order-summary-panel";
 
 type CategorySummary = {
   id: number;
@@ -89,6 +102,7 @@ type MenuItemSummary = {
   rating_average: number;
   rating_count: number;
   is_favorited: boolean;
+  modifier_groups?: any[];
 };
 
 type RestaurantMenuSection = {
@@ -147,7 +161,10 @@ function formatEta(restaurant: RestaurantCardSummary) {
 }
 
 function formatLocation(restaurant: RestaurantCardSummary) {
-  return [restaurant.area, restaurant.city].filter(Boolean).join(", ") || "Location not set";
+  return (
+    [restaurant.area, restaurant.city].filter(Boolean).join(", ") ||
+    "Location not set"
+  );
 }
 
 function collectGalleryImages(detail: RestaurantDetail) {
@@ -156,8 +173,12 @@ function collectGalleryImages(detail: RestaurantDetail) {
     detail.restaurant.logo_url,
     ...detail.featured_items.map((item) => item.image_url),
     ...detail.popular_items.map((item) => item.image_url),
-    ...detail.menu_sections.flatMap((section) => section.items.map((item) => item.image_url)),
-  ].filter((value): value is string => Boolean(value && isUsableImageUrl(value)));
+    ...detail.menu_sections.flatMap((section) =>
+      section.items.map((item) => item.image_url),
+    ),
+  ].filter((value): value is string =>
+    Boolean(value && isUsableImageUrl(value)),
+  );
 
   return Array.from(new Set(images)).slice(0, 5);
 }
@@ -167,9 +188,85 @@ export default function RestaurantDetailPage() {
   const slug = typeof params?.slug === "string" ? params.slug : "";
 
   const [detail, setDetail] = useState<RestaurantDetail | null>(null);
-  const [selectedCoords, setSelectedCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [selectedCoords, setSelectedCoords] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Cart & Modal State
+  const [selectedItem, setSelectedItem] = useState<MenuItemSummary | null>(
+    null,
+  );
+  const [cartItems, setCartItems] = useState<any[]>([]);
+  const [cartPricing, setCartPricing] = useState<any | null>(null);
+  const [isCalculating, setIsCalculating] = useState(false);
+  const [sidebarTab, setSidebarTab] = useState<"order" | "book">("order");
+
+  // Calculate order summary when cart changes
+  useEffect(() => {
+    const calculateCart = async () => {
+      if (!detail?.restaurant?.id || cartItems.length === 0) {
+        setCartPricing(null);
+        return;
+      }
+      setIsCalculating(true);
+      try {
+        const payload = {
+          restaurant_id: detail.restaurant.id,
+          items: cartItems.map((item) => ({
+            menu_item_id: item.menu_item_id,
+            quantity: item.quantity,
+            modifier_ids: item.modifier_ids,
+          })),
+        };
+        const res = await apiFetch("/orders/summary", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+        const payloadData = (await readJsonSafely(res)) as { pricing?: any };
+        if (res.ok && payloadData?.pricing) {
+          setCartPricing(payloadData.pricing);
+        }
+      } catch (err) {
+        console.error("Failed to calculate summary", err);
+      } finally {
+        setIsCalculating(false);
+      }
+    };
+    calculateCart();
+  }, [cartItems, detail?.restaurant?.id]);
+
+  const handleAddToCart = (
+    itemId: number,
+    quantity: number,
+    modifierIds: number[],
+  ) => {
+    const item = [
+      ...(detail?.featured_items || []),
+      ...(detail?.menu_sections.flatMap((s) => s.items) || []),
+    ].find((i) => i.id === itemId);
+    if (!item) return;
+
+    setCartItems((prev) => [
+      ...prev,
+      {
+        cartItemId: Math.random().toString(36).substring(7),
+        menu_item_id: itemId,
+        name: item.name,
+        price: item.price,
+        quantity,
+        modifier_ids: modifierIds,
+      },
+    ]);
+  };
+
+  const handleRemoveFromCart = (cartItemId: string) => {
+    setCartItems((prev) =>
+      prev.filter((item) => item.cartItemId !== cartItemId),
+    );
+  };
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -181,7 +278,9 @@ export default function RestaurantDetailPage() {
       if (!raw) {
         return;
       }
-      const parsed = JSON.parse(raw) as { coords?: { lat?: number; lng?: number } };
+      const parsed = JSON.parse(raw) as {
+        coords?: { lat?: number; lng?: number };
+      };
       if (
         parsed?.coords &&
         Number.isFinite(parsed.coords.lat) &&
@@ -197,43 +296,53 @@ export default function RestaurantDetailPage() {
     }
   }, []);
 
-  const loadRestaurant = useCallback(async (signal?: AbortSignal) => {
-    if (!slug) {
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    try {
-      const query = new URLSearchParams();
-      if (selectedCoords) {
-        query.set("latitude", String(selectedCoords.lat));
-        query.set("longitude", String(selectedCoords.lng));
-      }
-      const response = await apiFetch(
-        `/restaurants/${slug}${query.size ? `?${query.toString()}` : ""}`,
-        { signal },
-      );
-      const payload = await readJsonSafely<RestaurantDetail | { data: RestaurantDetail }>(response);
-      if (!response.ok) {
-        throw new Error(extractApiErrorMessage(payload, "Failed to load restaurant."));
-      }
-
-      const data = unwrapApiData<RestaurantDetail>(payload);
-      if (data) {
-        setDetail(data);
-      }
-    } catch (caught) {
-      if (signal?.aborted) {
+  const loadRestaurant = useCallback(
+    async (signal?: AbortSignal) => {
+      if (!slug) {
         return;
       }
-      setError(caught instanceof Error ? caught.message : "Failed to load restaurant.");
-    } finally {
-      if (!signal?.aborted) {
-        setLoading(false);
+
+      setLoading(true);
+      setError(null);
+      try {
+        const query = new URLSearchParams();
+        if (selectedCoords) {
+          query.set("latitude", String(selectedCoords.lat));
+          query.set("longitude", String(selectedCoords.lng));
+        }
+        const response = await apiFetch(
+          `/restaurants/${slug}${query.size ? `?${query.toString()}` : ""}`,
+          { signal },
+        );
+        const payload = (await readJsonSafely(response)) as
+          RestaurantDetail | { data: RestaurantDetail };
+        if (!response.ok) {
+          throw new Error(
+            extractApiErrorMessage(payload, "Failed to load restaurant."),
+          );
+        }
+
+        const data = unwrapApiData<RestaurantDetail>(payload);
+        if (data) {
+          setDetail(data);
+        }
+      } catch (caught) {
+        if (signal?.aborted) {
+          return;
+        }
+        setError(
+          caught instanceof Error
+            ? caught.message
+            : "Failed to load restaurant.",
+        );
+      } finally {
+        if (!signal?.aborted) {
+          setLoading(false);
+        }
       }
-    }
-  }, [selectedCoords, slug]);
+    },
+    [selectedCoords, slug],
+  );
 
   useEffect(() => {
     if (!slug) return;
@@ -249,12 +358,20 @@ export default function RestaurantDetailPage() {
       ? restaurant.cover_image_url
       : FALLBACK_RESTAURANT_COVER;
   const logoUrl =
-    restaurant && isUsableImageUrl(restaurant.logo_url) ? restaurant.logo_url : null;
+    restaurant && isUsableImageUrl(restaurant.logo_url)
+      ? restaurant.logo_url
+      : null;
   const galleryImages = detail ? collectGalleryImages(detail) : [];
-  const heroCategories = restaurant?.categories.length ? restaurant.categories : [];
+  const heroCategories = restaurant?.categories.length
+    ? restaurant.categories
+    : [];
   const aboutPoints = [
-    restaurant?.primary_cuisine_label ? `${restaurant.primary_cuisine_label} kitchen` : null,
-    restaurant?.supports_delivery ? `Delivery available in ${formatLocation(restaurant)}` : null,
+    restaurant?.primary_cuisine_label
+      ? `${restaurant.primary_cuisine_label} kitchen`
+      : null,
+    restaurant?.supports_delivery
+      ? `Delivery available in ${formatLocation(restaurant)}`
+      : null,
     restaurant?.offer_text ? restaurant.offer_text : null,
     restaurant?.has_free_delivery ? "Free delivery on selected orders" : null,
   ].filter(Boolean) as string[];
@@ -265,10 +382,11 @@ export default function RestaurantDetailPage() {
         ? {
             ...current,
             restaurant: { ...current.restaurant, is_favorited: next },
-            related_restaurants: current.related_restaurants.map((restaurantItem) =>
-              restaurantItem.id === current.restaurant.id
-                ? { ...restaurantItem, is_favorited: next }
-                : restaurantItem,
+            related_restaurants: current.related_restaurants.map(
+              (restaurantItem) =>
+                restaurantItem.id === current.restaurant.id
+                  ? { ...restaurantItem, is_favorited: next }
+                  : restaurantItem,
             ),
           }
         : current,
@@ -303,7 +421,9 @@ export default function RestaurantDetailPage() {
 
       {loading ? (
         <div className="mx-auto flex min-h-[70vh] max-w-7xl items-center justify-center px-6 lg:px-10">
-          <div className="text-sm text-muted-foreground">Loading restaurant...</div>
+          <div className="text-sm text-muted-foreground">
+            Loading restaurant...
+          </div>
         </div>
       ) : error ? (
         <div className="mx-auto flex min-h-[70vh] max-w-7xl items-center justify-center px-6 lg:px-10">
@@ -313,583 +433,292 @@ export default function RestaurantDetailPage() {
         </div>
       ) : detail && restaurant ? (
         <>
-          <section className="relative isolate overflow-hidden">
+          <section className="relative h-[400px] w-full overflow-hidden">
             <div
               className="absolute inset-0 bg-cover bg-center"
               style={{ backgroundImage: `url(${coverUrl})` }}
             />
-            <div className="absolute inset-0 bg-[#08101dd9]" />
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,105,41,0.38),transparent_32%)]" />
+            {/* Dark overlay */}
+            <div className="absolute inset-0 bg-black/40" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
 
-            <div className="relative mx-auto max-w-7xl px-6 py-12 lg:px-10 lg:py-16">
-              <Link
-                href="/restaurants"
-                className="mb-8 inline-flex items-center gap-2 text-sm font-medium text-white/80 transition hover:text-white"
-              >
-                <ArrowLeft className="h-4 w-4" />
-                Back to restaurants
-              </Link>
-
-              <div className="grid gap-10 lg:grid-cols-[1.4fr_0.9fr]">
-                <div className="max-w-3xl">
-                  <div className="mb-5 flex flex-wrap items-center gap-3">
-                    {heroCategories.map((category) => (
-                      <span
-                        key={category.id}
-                        className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-white/85"
-                      >
-                        {category.name}
+            {/* Content Container positioned at the bottom */}
+            <div className="absolute inset-x-0 bottom-0 mx-auto w-full max-w-7xl px-6 pb-12 lg:px-10">
+              <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+                {/* Left side: Rating, Title, Address */}
+                <div className="flex flex-col">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div
+                      className="flex items-center justify-center rounded-[3px] bg-[#66cc66] text-white p-[8px] shadow-sm"
+                      style={{
+                        fontFamily: "Poppins, Helvetica, sans-serif",
+                        fontSize: "15px",
+                        fontWeight: 500,
+                        lineHeight: "16.5px",
+                        width: "56.7px",
+                        height: "33.8px",
+                      }}
+                    >
+                      <Star className="mr-1 h-3.5 w-3.5 fill-current" />
+                      {restaurant.rating_average.toFixed(1)}
+                    </div>
+                    <div
+                      className="flex flex-col text-white"
+                      style={{ fontFamily: "Poppins, Helvetica, sans-serif" }}
+                    >
+                      <span className="text-[14px] font-medium leading-tight mb-0.5">
+                        Superb
                       </span>
-                    ))}
-                  </div>
-
-                  <div className="mb-6 flex items-center gap-4">
-                    {logoUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={logoUrl}
-                        alt={restaurant.name}
-                        className="h-16 w-16 rounded-2xl border border-white/20 bg-white/90 object-cover shadow-lg"
-                      />
-                    ) : (
-                      <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-white/20 bg-white/10 text-white">
-                        <Store className="h-7 w-7" />
-                      </div>
-                    )}
-
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-[#ffb085]">
-                        Restaurant
-                      </p>
-                      <div className="mt-2 flex flex-wrap items-center gap-3">
-                        <h1 className="text-4xl font-semibold tracking-tight text-white md:text-5xl">
-                          {restaurant.name}
-                        </h1>
-                        <FavoriteToggleButton
-                          entityType="restaurant"
-                          entityId={restaurant.id}
-                          active={restaurant.is_favorited}
-                          onChange={handleRestaurantFavoriteChange}
-                          className="h-11 rounded-full border-white/20 bg-white/12 px-4 text-white hover:bg-white/18"
-                        />
-                      </div>
+                      <span className="text-[11px] opacity-90 leading-tight">
+                        {restaurant.review_count} Reviews
+                      </span>
                     </div>
                   </div>
 
-                  <p className="max-w-2xl text-base leading-8 text-white/78 md:text-lg">
-                    {restaurant.short_description ??
-                      `${restaurant.name} is now live on YummyDoors with menu sections, featured dishes, and nearby recommendations ready for browsing.`}
-                  </p>
+                  <h1
+                    className="text-[36px] font-semibold text-white m-0 p-0"
+                    style={{
+                      fontFamily: "Poppins, Helvetica, sans-serif",
+                      lineHeight: "43.2px",
+                    }}
+                  >
+                    {restaurant.name}
+                  </h1>
 
-                  <div className="mt-8 flex flex-wrap gap-3">
-                    <span className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-medium text-[#111827]">
-                      <Star className="h-4 w-4 fill-[#ffb648] text-[#ffb648]" />
-                      {restaurant.rating_average.toFixed(1)} ({restaurant.review_count})
+                  <div className="flex items-center gap-2 text-white mt-1.5 flex-wrap">
+                    <span
+                      className="text-[14px] font-medium uppercase tracking-wide"
+                      style={{
+                        fontFamily: "Poppins, Helvetica, sans-serif",
+                        lineHeight: "21px",
+                        color: "rgb(255, 255, 255)",
+                      }}
+                    >
+                      {restaurant.primary_cuisine_label ?? "Restaurant"}
                     </span>
-                    <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white">
-                      <Clock3 className="h-4 w-4" />
-                      {formatEta(restaurant)}
+                    <span
+                      className="text-[14px] opacity-80"
+                      style={{
+                        fontFamily: "Poppins, Helvetica, sans-serif",
+                        lineHeight: "21px",
+                      }}
+                    >
+                      -
                     </span>
-                    <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white">
-                      <MapPin className="h-4 w-4" />
+                    <span
+                      className="flex items-center gap-1 text-[14px] font-medium"
+                      style={{
+                        fontFamily: "Poppins, Helvetica, sans-serif",
+                        lineHeight: "21px",
+                        color: "rgb(255, 255, 255)",
+                      }}
+                    >
+                      <MapPin className="h-3.5 w-3.5" />
                       {formatLocation(restaurant)}
                     </span>
-                    {restaurant.supports_delivery ? (
-                      <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white">
-                        <Truck className="h-4 w-4" />
-                        Delivery enabled
-                      </span>
-                    ) : null}
-                    {restaurant.supports_table_booking ? (
-                      <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-2 text-sm font-medium text-white">
-                        <BadgeCheck className="h-4 w-4" />
-                        Table booking
-                      </span>
-                    ) : null}
-                  </div>
-
-                  <div className="mt-8 flex flex-wrap gap-3">
-                    <a
-                      href="#menu"
-                      className="inline-flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-[#111827] transition hover:bg-white/90"
+                    <span
+                      className="text-[14px] opacity-80"
+                      style={{
+                        fontFamily: "Poppins, Helvetica, sans-serif",
+                        lineHeight: "21px",
+                      }}
                     >
-                      <UtensilsCrossed className="h-4 w-4" />
-                      Browse menu
-                    </a>
+                      -
+                    </span>
                     <a
-                      href="/cart"
-                      className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-white/15"
+                      href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(formatLocation(restaurant))}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[14px] font-medium underline decoration-white/70 hover:decoration-white transition"
+                      style={{
+                        fontFamily: "Poppins, Helvetica, sans-serif",
+                        lineHeight: "21px",
+                        color: "rgb(255, 255, 255)",
+                      }}
                     >
-                      <ShoppingCart className="h-4 w-4" />
-                      Open cart
-                    </a>
-                    <a
-                      href="#about"
-                      className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-white/15"
-                    >
-                      <BadgeCheck className="h-4 w-4" />
-                      About restaurant
-                    </a>
-                    <a
-                      href="#reviews"
-                      className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-white/15"
-                    >
-                      <MessageSquareText className="h-4 w-4" />
-                      Reviews
+                      Get directions
                     </a>
                   </div>
                 </div>
 
-                <Card className="border-white/12 bg-white/95 shadow-[0_30px_100px_rgba(3,7,18,0.24)]">
-                  <CardContent className="space-y-5">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-                        At a glance
-                      </p>
-                      <h2 className="mt-2 text-2xl font-semibold text-foreground">
-                        Everything a customer needs before ordering
-                      </h2>
-                    </div>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div className="rounded-2xl border border-border bg-[#fcfcfd] px-4 py-4">
-                        <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                          Status
-                        </p>
-                        <p className="mt-2 text-sm font-medium text-foreground">
-                          {restaurant.is_open_now === null
-                            ? "Hours not set"
-                            : restaurant.is_open_now
-                              ? "Open now"
-                              : "Closed now"}
-                        </p>
-                      </div>
-                      <div className="rounded-2xl border border-border bg-[#fcfcfd] px-4 py-4">
-                        <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                          Hours
-                        </p>
-                        <p className="mt-2 text-sm font-medium text-foreground">
-                          {restaurant.opening_time && restaurant.closing_time
-                            ? `${restaurant.opening_time} - ${restaurant.closing_time}`
-                            : "Not set"}
-                        </p>
-                      </div>
-                      <div className="rounded-2xl border border-border bg-[#fcfcfd] px-4 py-4">
-                        <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                          Distance
-                        </p>
-                        <p className="mt-2 text-sm font-medium text-foreground">
-                          {restaurant.distance_km !== null
-                            ? `${restaurant.distance_km.toFixed(1)} km away`
-                            : "Select a location to measure"}
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                <div className="flex flex-wrap items-center gap-3 md:justify-end">
+                  <a
+                    href="#gallery"
+                    className="inline-flex items-center gap-2 rounded-[4px] border border-white/30 bg-white px-4 py-2 text-[13px] font-medium text-[#333] shadow-sm transition hover:bg-gray-50"
+                  >
+                    <ImageIcon
+                      className="h-[15px] w-[15px] text-[#555]"
+                      strokeWidth={1.5}
+                    />
+                    View photos
+                  </a>
+                  <FavoriteToggleButton
+                    entityType="restaurant"
+                    entityId={restaurant.id}
+                    active={restaurant.is_favorited ?? false}
+                    onChange={handleRestaurantFavoriteChange}
+                    compact={false}
+                    className="inline-flex items-center gap-2 !h-auto !w-auto !rounded-[4px] !border !border-white/30 !bg-white !px-4 !py-2 !text-[13px] !font-medium !text-[#333] !shadow-sm !transition hover:!bg-gray-50"
+                  >
+                    <Heart
+                      className={`h-[15px] w-[15px] ${
+                        restaurant.is_favorited
+                          ? "fill-[#e8505b] text-[#e8505b]"
+                          : "text-[#555]"
+                      }`}
+                      strokeWidth={2}
+                    />
+                    <span>
+                      {restaurant.is_favorited ? "Saved" : "Save to wishlist"}
+                    </span>
+                  </FavoriteToggleButton>
+                </div>
               </div>
             </div>
           </section>
 
-          <main className="mx-auto max-w-7xl space-y-8 px-6 py-10 lg:px-10">
-            <div className="flex flex-wrap gap-3">
-              {["menu", "about", "gallery", "reviews"].map((section) => (
-                <a
-                  key={section}
-                  href={`#${section}`}
-                  className="rounded-full border border-border bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground transition hover:border-primary/30 hover:text-primary"
-                >
-                  {section}
-                </a>
-              ))}
+          {/* Sticky Category Navigation */}
+          <nav className="sticky top-[77px] z-30 bg-white border-b border-gray-200 shadow-sm">
+            <div className="mx-auto max-w-7xl px-6 lg:px-10">
+              <ul className="flex items-center gap-8 overflow-x-auto py-4 no-scrollbar m-0 p-0 list-none">
+                {detail.menu_sections.map((section) => (
+                  <li key={`nav-${section.category_slug}`}>
+                    <a
+                      href={`#cat-${section.category_slug}`}
+                      className="whitespace-nowrap rounded-full px-[15px] py-[5px] text-[14px] font-normal text-[#444] transition hover:bg-black/10"
+                      style={{
+                        fontFamily: "Poppins, Helvetica, sans-serif",
+                        lineHeight: "21px",
+                        backgroundColor: "rgba(0, 0, 0, 0.05)",
+                      }}
+                    >
+                      {section.category_name}
+                    </a>
+                  </li>
+                ))}
+                <li>
+                  <a
+                    href="#reviews"
+                    className="whitespace-nowrap flex items-center gap-2 text-[15px] font-semibold text-[#444] transition hover:text-[#e8505b]"
+                  >
+                    <MessageSquareText className="h-4 w-4" /> Reviews
+                  </a>
+                </li>
+              </ul>
             </div>
+          </nav>
 
-            <div className="grid gap-8 xl:grid-cols-[1.2fr_0.8fr]">
-              <div className="space-y-8">
-                <Card>
-                  <CardContent className="space-y-5">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-                        Recommended
-                      </p>
-                      <h2 className="mt-2 text-2xl font-semibold text-foreground">
-                        Good first picks from this restaurant
-                      </h2>
-                    </div>
+          <main className="bg-[#f8f9fa] py-10">
+            <div className="mx-auto max-w-7xl px-6 lg:px-10">
+              <div className="grid gap-10 xl:grid-cols-[1fr_340px]">
+                {/* Left Column: Menu & Reviews */}
+                <div className="space-y-12">
+                  <section id="recommended" className="space-y-4">
+                    <h4 className="text-[21px] font-semibold text-[#444]">
+                      Recommended
+                    </h4>
                     {detail.featured_items.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">
-                        Featured dishes will appear here once this restaurant highlights them.
+                      <p className="text-[15px] text-muted-foreground">
+                        Featured dishes will appear here.
                       </p>
                     ) : (
-                      <div className="grid gap-4 md:grid-cols-2">
-                        {detail.featured_items.map((item) => {
-                          const itemImage = isUsableImageUrl(item.image_url)
-                            ? item.image_url
-                            : FALLBACK_MENU_ITEM_IMAGE;
-
-                          return (
-                            <div
-                              key={item.id}
-                              className="overflow-hidden rounded-2xl border border-border bg-[#fcfcfd]"
-                            >
-                              <div
-                                className="h-40 w-full bg-cover bg-center"
-                                style={{ backgroundImage: `url(${itemImage})` }}
-                              />
-                              <div className="space-y-3 p-4">
-                                <div className="flex items-start justify-between gap-3">
-                                  <div>
-                                    <h3 className="text-base font-semibold text-foreground">
-                                      {item.name}
-                                    </h3>
-                                    <p className="mt-1 text-sm text-muted-foreground">
-                                      {item.description ?? "Freshly prepared and ready to order."}
-                                    </p>
-                                  </div>
-                                  {item.is_popular ? (
-                                    <span className="rounded-full bg-[#eefbf2] px-2.5 py-1 text-[11px] font-semibold text-[#17803d]">
-                                      Popular
-                                    </span>
-                                  ) : null}
-                                </div>
-                                <div className="flex items-center justify-between gap-4">
-                                  <p className="text-sm font-semibold text-foreground">{formatPrice(item)}</p>
-                                  <p className="text-xs text-muted-foreground">
-                                    {item.rating_count > 0
-                                      ? `${item.rating_average.toFixed(1)} from ${item.rating_count} reviews`
-                                      : "New on the menu"}
-                                  </p>
-                                </div>
-                                <div className="flex items-center justify-between gap-3">
-                                  <FavoriteToggleButton
-                                    entityType="menu-item"
-                                    entityId={item.id}
-                                    active={item.is_favorited}
-                                    onChange={(next) => handleMenuItemFavoriteChange(item.id, next)}
-                                    className="h-10 rounded-full px-3"
-                                  />
-                                  <AddToCartButton restaurantId={restaurant.id} menuItemId={item.id} />
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
+                      <div className="grid gap-6 md:grid-cols-2">
+                        {detail.featured_items.map((item, index) => (
+                          <MenuCard
+                            key={item.id}
+                            item={item}
+                            restaurantId={restaurant.id}
+                            index={index}
+                            onClick={() => setSelectedItem(item)}
+                            onFavoriteChange={handleMenuItemFavoriteChange}
+                          />
+                        ))}
                       </div>
                     )}
-                  </CardContent>
-                </Card>
+                  </section>
 
-                <Card id="menu">
-                  <CardContent className="space-y-6">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-                        Menu
-                      </p>
-                      <h2 className="mt-2 text-2xl font-semibold text-foreground">
-                        Explore dishes by section
-                      </h2>
-                    </div>
-
+                  <div id="menu" className="space-y-10">
                     {detail.menu_sections.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">
+                      <p className="text-[15px] text-muted-foreground">
                         No menu sections are available for this restaurant yet.
                       </p>
                     ) : (
-                      <div className="space-y-6">
-                        {detail.menu_sections.map((section) => (
-                          <div key={`${section.category_slug ?? "misc"}-${section.category_id ?? "none"}`}>
-                            <div className="mb-3 flex items-center justify-between gap-3">
-                              <div>
-                                <h3 className="text-lg font-semibold text-foreground">
-                                  {section.category_name}
-                                </h3>
-                                <p className="text-sm text-muted-foreground">
-                                  {section.items.length} item{section.items.length === 1 ? "" : "s"}
-                                </p>
-                              </div>
-                            </div>
+                      detail.menu_sections.map((section) => (
+                        <section
+                          id={`cat-${section.category_slug}`}
+                          key={`${section.category_slug ?? "misc"}-${section.category_id ?? "none"}`}
+                          className="space-y-4"
+                        >
+                          <h4 className="text-[21px] font-semibold text-[#444]">
+                            {section.category_name}
+                          </h4>
 
-                            <div className="grid gap-4">
-                              {section.items.map((item) => {
-                                const itemImage = isUsableImageUrl(item.image_url)
-                                  ? item.image_url
-                                  : FALLBACK_MENU_ITEM_IMAGE;
-
-                                return (
-                                  <div
-                                    key={item.id}
-                                    className="grid gap-4 rounded-2xl border border-border bg-[#fcfcfd] p-4 md:grid-cols-[120px_1fr]"
-                                  >
-                                    <div
-                                      className="h-28 rounded-2xl bg-cover bg-center"
-                                      style={{ backgroundImage: `url(${itemImage})` }}
-                                    />
-                                    <div className="flex flex-col justify-between gap-4">
-                                      <div>
-                                        <div className="flex flex-wrap items-center gap-2">
-                                          <h4 className="text-base font-semibold text-foreground">{item.name}</h4>
-                                          {item.is_spicy ? (
-                                            <span className="inline-flex items-center gap-1 rounded-full bg-[#fff1eb] px-2.5 py-1 text-[11px] font-semibold text-primary">
-                                              <Flame className="h-3.5 w-3.5" />
-                                              Spicy
-                                            </span>
-                                          ) : null}
-                                          {item.is_popular ? (
-                                            <span className="inline-flex items-center gap-1 rounded-full bg-[#eefbf2] px-2.5 py-1 text-[11px] font-semibold text-[#17803d]">
-                                              <Sparkles className="h-3.5 w-3.5" />
-                                              Popular
-                                            </span>
-                                          ) : null}
-                                        </div>
-                                        <p className="mt-2 text-sm leading-7 text-muted-foreground">
-                                          {item.description ?? "No description available yet."}
-                                        </p>
-                                      </div>
-
-                                      <div className="flex items-center justify-between gap-4">
-                                        <div>
-                                          <p className="text-sm font-semibold text-foreground">
-                                            {formatPrice(item)}
-                                          </p>
-                                          <p className="mt-1 text-xs text-muted-foreground">
-                                            {item.rating_count > 0
-                                              ? `${item.rating_average.toFixed(1)} rating from ${item.rating_count} reviews`
-                                              : "Fresh item with no reviews yet"}
-                                          </p>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                          <span className="rounded-full border border-border bg-white px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-muted-foreground">
-                                            {item.food_type ?? "standard"}
-                                          </span>
-                                          <FavoriteToggleButton
-                                            entityType="menu-item"
-                                            entityId={item.id}
-                                            active={item.is_favorited}
-                                            onChange={(next) => handleMenuItemFavoriteChange(item.id, next)}
-                                            compact
-                                            className="h-10 rounded-full px-3"
-                                          />
-                                          <AddToCartButton
-                                            restaurantId={restaurant.id}
-                                            menuItemId={item.id}
-                                            className="h-10 rounded-full px-4"
-                                          />
-                                        </div>
-                                      </div>
-                                    </div>
-                                  </div>
-                                );
-                              })}
-                            </div>
+                          <div className="grid gap-6 md:grid-cols-2">
+                            {section.items.map((item, index) => (
+                              <MenuCard
+                                key={item.id}
+                                item={item}
+                                restaurantId={restaurant.id}
+                                index={index}
+                                onClick={() => setSelectedItem(item)}
+                                onFavoriteChange={handleMenuItemFavoriteChange}
+                              />
+                            ))}
                           </div>
-                        ))}
-                      </div>
+                        </section>
+                      ))
                     )}
-                  </CardContent>
-                </Card>
-              </div>
+                  </div>
 
-              <div className="space-y-8">
-                <CustomerBookingPanel
-                  restaurantSlug={restaurant.slug}
-                  restaurantName={restaurant.name}
-                  supportsTableBooking={restaurant.supports_table_booking}
-                />
+                  <div id="reviews" className="space-y-6 pt-4">
+                    <h2 className="text-[21px] font-semibold text-[#111]">
+                      Reviews
+                    </h2>
 
-                <Card id="about">
-                  <CardContent className="space-y-5">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-                        About restaurant
-                      </p>
-                      <h2 className="mt-2 text-2xl font-semibold text-foreground">
-                        Delivery, cuisine, and local context
-                      </h2>
-                    </div>
-                    <p className="text-sm leading-7 text-muted-foreground">
-                      {detail.about_text ??
-                        restaurant.short_description ??
-                        `${restaurant.name} serves ${restaurant.primary_cuisine_label ?? "fresh food"} around ${formatLocation(restaurant)} with a simple delivery-first experience.`}
-                    </p>
-                    <div className="grid gap-3">
-                      {aboutPoints.length > 0 ? (
-                        aboutPoints.map((point) => (
-                          <div
-                            key={point}
-                            className="rounded-2xl border border-border bg-[#fcfcfd] px-4 py-4 text-sm text-foreground"
-                          >
-                            {point}
-                          </div>
-                        ))
-                      ) : (
-                        <div className="rounded-2xl border border-border bg-[#fcfcfd] px-4 py-4 text-sm text-muted-foreground">
-                          More restaurant details will show here as merchant setup expands.
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <div className="rounded-2xl border border-border bg-[#fcfcfd] px-4 py-4">
-                        <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                          Service modes
-                        </p>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {restaurant.supports_delivery ? (
-                            <span className="rounded-full bg-[#fff4ec] px-3 py-1 text-xs font-semibold text-primary">
-                              Delivery
-                            </span>
-                          ) : null}
-                          {restaurant.supports_pickup ? (
-                            <span className="rounded-full bg-[#eef6ff] px-3 py-1 text-xs font-semibold text-[#2563eb]">
-                              Pickup
-                            </span>
-                          ) : null}
-                          {restaurant.supports_table_booking ? (
-                            <span className="rounded-full bg-[#eefbf2] px-3 py-1 text-xs font-semibold text-[#15803d]">
-                              Table booking
-                            </span>
-                          ) : null}
-                        </div>
-                      </div>
-                      <div className="rounded-2xl border border-border bg-[#fcfcfd] px-4 py-4">
-                        <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                          Contact
-                        </p>
-                        <div className="mt-3 space-y-2 text-sm text-foreground">
-                          <p className="flex items-center gap-2">
-                            <Phone className="h-4 w-4 text-primary" />
-                            {restaurant.contact_phone ?? "Phone not listed"}
-                          </p>
-                          <p className="flex items-center gap-2">
-                            <Mail className="h-4 w-4 text-primary" />
-                            {restaurant.contact_email ?? "Email not listed"}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="rounded-2xl border border-border bg-[#fcfcfd] px-4 py-4">
-                      <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
-                        Facilities
-                      </p>
-                      {detail.facilities.length > 0 ? (
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {detail.facilities.map((facility) => (
-                            <span
-                              key={facility}
-                              className="rounded-full border border-border bg-white px-3 py-1 text-xs font-medium text-foreground"
-                            >
-                              {facility}
-                            </span>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="mt-3 text-sm text-muted-foreground">
-                          Facilities have not been listed yet.
-                        </p>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardContent className="space-y-5">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-                        Popular
-                      </p>
-                      <h2 className="mt-2 text-2xl font-semibold text-foreground">
-                        Most ordered right now
-                      </h2>
-                    </div>
-                    {detail.popular_items.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">No popular items yet.</p>
-                    ) : (
-                      <div className="space-y-3">
-                        {detail.popular_items.map((item) => (
-                          <div
-                            key={item.id}
-                            className="rounded-2xl border border-border bg-[#fcfcfd] px-4 py-4"
-                          >
-                            <p className="text-sm font-semibold text-foreground">{item.name}</p>
-                            <p className="mt-1 text-sm text-muted-foreground">{formatPrice(item)}</p>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                <Card id="gallery">
-                  <CardContent className="space-y-5">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-                        Photos
-                      </p>
-                      <h2 className="mt-2 text-2xl font-semibold text-foreground">
-                        A quick visual feel for the restaurant
-                      </h2>
-                    </div>
-                    {galleryImages.length === 0 ? (
-                      <div className="rounded-2xl border border-dashed border-border bg-[#fcfcfd] px-4 py-8 text-sm text-muted-foreground">
-                        Photo assets have not been added yet.
-                      </div>
-                    ) : (
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        {galleryImages.map((imageUrl, index) => (
-                          <div
-                            key={`${imageUrl}-${index}`}
-                            className={`${index === 0 ? "sm:col-span-2" : ""} overflow-hidden rounded-2xl border border-border bg-[#fcfcfd]`}
-                          >
-                            <div
-                              className={`${index === 0 ? "h-52" : "h-36"} w-full bg-cover bg-center`}
-                              style={{ backgroundImage: `url(${imageUrl})` }}
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                <Card id="reviews">
-                  <CardContent className="space-y-5">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-                        Reviews
-                      </p>
-                      <h2 className="mt-2 text-2xl font-semibold text-foreground">
-                        Trust signals before checkout
-                      </h2>
-                    </div>
-                    <div className="rounded-2xl border border-border bg-[#fcfcfd] p-5">
-                      <div className="flex items-center gap-3">
-                        <span className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-[#fff5ef] text-primary">
-                          <Star className="h-5 w-5 fill-current" />
+                    {/* Reviews Summary Block */}
+                    <div className="flex flex-col md:flex-row items-center gap-8 bg-white mb-6">
+                      <div className="flex w-[160px] h-[160px] shrink-0 flex-col items-center justify-center rounded-[3px] bg-[#32a067] text-white text-center">
+                        <span className="text-[42px] font-bold leading-none mb-1">
+                          {(
+                            detail.reviews_summary?.average_rating ??
+                            restaurant.rating_average
+                          ).toFixed(1)}
                         </span>
-                        <div>
-                          <p className="text-lg font-semibold text-foreground">
-                            {(detail.reviews_summary?.average_rating ?? restaurant.rating_average).toFixed(1)} overall rating
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            {(detail.reviews_summary?.total_reviews ?? restaurant.review_count) > 0
-                              ? `${detail.reviews_summary?.total_reviews ?? restaurant.review_count} customer reviews recorded so far.`
-                              : "This restaurant is still waiting for its first public reviews."}
-                          </p>
-                        </div>
+                        <span className="text-[14px] font-bold italic mb-1">
+                          Superb
+                        </span>
+                        <span className="text-[12px]">
+                          Based on{" "}
+                          {detail.reviews_summary?.total_reviews ??
+                            restaurant.review_count}{" "}
+                          reviews
+                        </span>
                       </div>
 
-                      {detail.reviews_summary?.highlights?.length ? (
-                        <div className="mt-5 grid gap-3">
-                          {detail.reviews_summary.highlights.map((highlight, index) => (
-                            <div
-                              key={`${highlight}-${index}`}
-                              className="rounded-2xl border border-border bg-white px-4 py-4 text-sm leading-7 text-muted-foreground"
-                            >
-                              “{highlight}”
+                      <div className="flex-1 grid gap-x-8 gap-y-4 md:grid-cols-2 w-full">
+                        {(
+                          (detail.reviews_summary as any)?.category_scores || []
+                        ).map((stat: any) => (
+                          <div key={stat.label}>
+                            <div className="text-[13px] font-bold text-[#111] mb-1">
+                              {stat.label}
                             </div>
-                          ))}
-                        </div>
-                      ) : null}
+                            <div className="flex items-center gap-3">
+                              <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-gray-200">
+                                <div
+                                  className="h-full bg-[#32a067]"
+                                  style={{
+                                    width: `${(stat.score / 10) * 100}%`,
+                                  }}
+                                />
+                              </div>
+                              <span className="text-[13px] font-bold text-[#111]">
+                                {stat.score.toFixed(1)}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
 
                     <ReviewEditor
@@ -901,74 +730,225 @@ export default function RestaurantDetailPage() {
                       }}
                     />
 
+                    {/* Review List */}
                     {detail.reviews.length > 0 ? (
-                      <div className="grid gap-3">
+                      <div className="space-y-6 pt-4 rounded-[4px] border border-gray-100 bg-white p-6 shadow-sm">
                         {detail.reviews.map((review) => (
                           <div
                             key={review.id}
-                            className="rounded-2xl border border-border bg-[#fcfcfd] px-4 py-4"
+                            className="flex gap-4 border-b border-gray-100 py-6 first:pt-0 last:border-0 last:pb-0"
                           >
-                            <div className="flex flex-wrap items-center justify-between gap-3">
-                              <div>
-                                <p className="text-sm font-semibold text-foreground">
-                                  {review.author_name}
-                                </p>
-                                <p className="mt-1 text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                                  {review.source}{review.is_mine ? " • Your review" : ""}
-                                </p>
+                            {/* Avatar */}
+                            <div className="flex h-[50px] w-[50px] shrink-0 items-center justify-center rounded-full bg-gray-100 text-[#111] font-bold">
+                              {review.author_name.charAt(0).toUpperCase()}
+                            </div>
+                            <div className="flex-1">
+                              <div className="flex flex-col gap-1 mb-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[18px] font-bold text-[#32a067]">
+                                    {review.rating.toFixed(1)}
+                                  </span>
+                                  <span className="text-[13px] text-gray-500 italic">
+                                    {review.author_name} -{" "}
+                                    {new Date(
+                                      review.created_at,
+                                    ).toLocaleDateString()}
+                                  </span>
+                                </div>
                               </div>
-                              <div className="text-right">
-                                <p className="text-sm font-semibold text-foreground">
-                                  {review.rating.toFixed(1)} / 5
-                                </p>
-                                <p className="mt-1 text-xs text-muted-foreground">
-                                  {new Date(review.created_at).toLocaleDateString()}
-                                </p>
+                              <p className="text-[14px] leading-relaxed text-gray-600 mb-4">
+                                {review.comment ??
+                                  "No written note left for this review."}
+                              </p>
+                              <div className="flex gap-2">
+                                <button className="rounded-[3px] border border-gray-200 bg-[#f8f8f8] px-3 py-1.5 text-[12px] font-bold text-gray-600 transition hover:bg-gray-100">
+                                  Helpful
+                                </button>
+                                <button className="rounded-[3px] border border-gray-200 bg-[#f8f8f8] px-3 py-1.5 text-[12px] font-bold text-gray-600 transition hover:bg-gray-100">
+                                  Not Helpful
+                                </button>
                               </div>
                             </div>
-                            <p className="mt-3 text-sm leading-7 text-muted-foreground">
-                              {review.comment ?? "No written note left for this review."}
-                            </p>
                           </div>
                         ))}
                       </div>
                     ) : null}
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
 
-                <Card>
-                  <CardContent className="space-y-5">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-                        Related
-                      </p>
-                      <h2 className="mt-2 text-2xl font-semibold text-foreground">
-                        Nearby picks
-                      </h2>
+                <div className="space-y-6">
+                  <div className="flex w-full rounded-[3px] border border-gray-200 p-1 bg-gray-50 shadow-sm">
+                    <button
+                      className={`flex-1 rounded-[3px] py-2.5 text-[14px] font-bold transition ${sidebarTab === "order" ? "bg-white text-[#e8505b] shadow-sm" : "text-gray-500 hover:text-[#111]"}`}
+                      onClick={() => setSidebarTab("order")}
+                    >
+                      Order Summary
+                    </button>
+                    <button
+                      className={`flex-1 rounded-[3px] py-2.5 text-[14px] font-bold transition ${sidebarTab === "book" ? "bg-white text-[#e8505b] shadow-sm" : "text-gray-500 hover:text-[#111]"}`}
+                      onClick={() => setSidebarTab("book")}
+                    >
+                      Book a Table
+                    </button>
+                  </div>
+
+                  {sidebarTab === "order" ? (
+                    <OrderSummaryPanel
+                      restaurantId={restaurant.id}
+                      items={cartItems}
+                      pricing={cartPricing}
+                      isCalculating={isCalculating}
+                      onRemoveItem={handleRemoveFromCart}
+                      onCheckout={() => {
+                        window.location.href = `/checkout/${restaurant.id}`;
+                      }}
+                    />
+                  ) : (
+                    <CustomerBookingPanel
+                      restaurantSlug={restaurant.slug}
+                      restaurantName={restaurant.name}
+                      supportsTableBooking={restaurant.supports_table_booking}
+                    />
+                  )}
+
+                  {/* About Widget */}
+                  <div
+                    id="about"
+                    className="rounded-[4px] border border-gray-100 bg-white p-6 shadow-sm"
+                  >
+                    <h3 className="mb-4 text-[16px] font-bold text-[#111]">
+                      About
+                    </h3>
+                    <p className="text-[14px] leading-relaxed text-gray-600">
+                      {detail.about_text ??
+                        restaurant.short_description ??
+                        `${restaurant.name} serves ${restaurant.primary_cuisine_label ?? "fresh food"} around ${formatLocation(restaurant)} with a simple delivery-first experience.`}
+                    </p>
+
+                    <div className="mt-6 space-y-4">
+                      <div className="flex items-center gap-3">
+                        <Phone className="h-4 w-4 text-gray-400" />
+                        <span className="text-[14px] text-gray-600">
+                          {restaurant.contact_phone ?? "Phone not listed"}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Mail className="h-4 w-4 text-gray-400" />
+                        <span className="text-[14px] text-gray-600">
+                          {restaurant.contact_email ?? "Email not listed"}
+                        </span>
+                      </div>
                     </div>
-                    {detail.related_restaurants.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">No related restaurants yet.</p>
-                    ) : (
-                      <div className="space-y-3">
+
+                    {detail.facilities.length > 0 && (
+                      <div className="mt-6 border-t border-gray-100 pt-6">
+                        <h4 className="mb-3 text-[14px] font-bold text-[#111]">
+                          Facilities
+                        </h4>
+                        <div className="flex flex-wrap gap-2">
+                          {detail.facilities.map((facility) => (
+                            <span
+                              key={facility}
+                              className="rounded border border-gray-200 bg-gray-50 px-2 py-1 text-[12px] font-semibold text-gray-600"
+                            >
+                              {facility}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Popular Widget */}
+                  {detail.popular_items.length > 0 && (
+                    <div className="rounded-[4px] border border-gray-100 bg-white p-6 shadow-sm">
+                      <h3 className="mb-4 text-[16px] font-bold text-[#111]">
+                        Popular Now
+                      </h3>
+                      <div className="space-y-4">
+                        {detail.popular_items.map((item, idx) => (
+                          <div
+                            key={item.id}
+                            className="flex items-center justify-between border-b border-gray-100 pb-4 last:border-0 last:pb-0"
+                          >
+                            <div className="flex items-center gap-3">
+                              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 text-[11px] font-bold text-gray-600">
+                                {idx + 1}
+                              </span>
+                              <span className="text-[14px] font-semibold text-[#111]">
+                                {item.name}
+                              </span>
+                            </div>
+                            <span className="text-[14px] font-bold text-[#111]">
+                              {formatPrice(item)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Photos Widget */}
+                  {galleryImages.length > 0 && (
+                    <div
+                      id="gallery"
+                      className="rounded-[4px] border border-gray-100 bg-white p-6 shadow-sm"
+                    >
+                      <h3 className="mb-4 text-[16px] font-bold text-[#111]">
+                        Photos
+                      </h3>
+                      <div className="grid gap-2 grid-cols-2">
+                        {galleryImages.slice(0, 4).map((imageUrl, index) => (
+                          <div
+                            key={`${imageUrl}-${index}`}
+                            className="h-24 w-full overflow-hidden rounded-[4px] bg-gray-100"
+                          >
+                            <div
+                              className="h-full w-full bg-cover bg-center transition hover:scale-110"
+                              style={{ backgroundImage: `url(${imageUrl})` }}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Related Widget */}
+                  {detail.related_restaurants.length > 0 && (
+                    <div className="rounded-[4px] border border-gray-100 bg-white p-6 shadow-sm">
+                      <h3 className="mb-4 text-[16px] font-bold text-[#111]">
+                        Nearby Places
+                      </h3>
+                      <div className="space-y-4">
                         {detail.related_restaurants.map((item) => (
                           <Link
                             key={item.id}
                             href={`/restaurants/${item.slug}`}
-                            className="block rounded-2xl border border-border bg-[#fcfcfd] px-4 py-4 transition hover:border-primary/30 hover:bg-white"
+                            className="group flex flex-col gap-1 border-b border-gray-100 pb-4 last:border-0 last:pb-0"
                           >
-                            <p className="text-sm font-semibold text-foreground">{item.name}</p>
-                            <p className="mt-1 text-sm text-muted-foreground">
-                              {item.primary_cuisine_label ?? "Restaurant"} • {formatLocation(item)}
-                            </p>
+                            <span className="text-[14px] font-semibold text-[#111] group-hover:text-primary transition">
+                              {item.name}
+                            </span>
+                            <span className="text-[12px] text-gray-500">
+                              {item.primary_cuisine_label ?? "Restaurant"} •{" "}
+                              {formatLocation(item)}
+                            </span>
                           </Link>
                         ))}
                       </div>
-                    )}
-                  </CardContent>
-                </Card>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </main>
+          <SiteFooter />
+          <MenuItemModal
+            isOpen={!!selectedItem}
+            onClose={() => setSelectedItem(null)}
+            item={selectedItem}
+            onAddToCart={handleAddToCart}
+          />
         </>
       ) : null}
     </div>

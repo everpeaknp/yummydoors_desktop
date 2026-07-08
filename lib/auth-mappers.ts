@@ -78,12 +78,26 @@ export function mapStoredUser(data: any): StoredUser {
   const workspaces = Array.isArray(data.workspaces) ? data.workspaces.map(mapStoredWorkspace) : [];
   const activeWorkspace =
     data.active_workspace ? mapStoredWorkspace(data.active_workspace) : null;
+  const phoneCountry = data.phone_country
+    ? {
+        iso2: data.phone_country.iso2,
+        name: data.phone_country.name,
+        dialCode: data.phone_country.dial_code,
+        flagEmoji: data.phone_country.flag_emoji,
+      }
+    : null;
 
   return {
     id: data.id,
     fullName: data.full_name,
     email: data.email,
     phone: data.phone,
+    phoneCountryCode: data.phone_country_code ?? null,
+    phoneNationalNumber: data.phone_national_number ?? null,
+    phoneDisplay: data.phone_display ?? data.phone ?? null,
+    phoneIsPresent: Boolean(data.phone_is_present ?? data.phone),
+    phoneCanEdit: data.phone_can_edit !== false,
+    phoneCountry,
     avatarUrl: data.avatar_url ?? null,
     status: data.status ?? "unknown",
     isVerified: Boolean(data.is_verified),
@@ -111,11 +125,30 @@ export function mergeStoredUserWithProfile(
   user: StoredUser,
   payload: any,
 ): StoredUser {
+  const phoneCountry = payload.phone_country
+    ? {
+        iso2: payload.phone_country.iso2,
+        name: payload.phone_country.name,
+        dialCode: payload.phone_country.dial_code,
+        flagEmoji: payload.phone_country.flag_emoji,
+      }
+    : user.phoneCountry;
+
   return {
     ...user,
     fullName: payload.full_name ?? user.fullName,
     email: payload.email ?? user.email,
     phone: payload.phone ?? user.phone,
+    phoneCountryCode: payload.phone_country_code ?? user.phoneCountryCode,
+    phoneNationalNumber: payload.phone_national_number ?? user.phoneNationalNumber,
+    phoneDisplay: payload.phone_display ?? payload.phone ?? user.phoneDisplay,
+    phoneIsPresent:
+      typeof payload.phone_is_present === "boolean"
+        ? payload.phone_is_present
+        : user.phoneIsPresent,
+    phoneCanEdit:
+      typeof payload.phone_can_edit === "boolean" ? payload.phone_can_edit : user.phoneCanEdit,
+    phoneCountry,
     avatarUrl: payload.avatar_url ?? user.avatarUrl,
     status: payload.status ?? user.status,
     isVerified:

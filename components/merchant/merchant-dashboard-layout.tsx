@@ -34,6 +34,7 @@ import { apiFetch } from "@/lib/http";
 import { mapStoredUser } from "@/lib/auth-mappers";
 import { useAuthStore } from "@/stores/auth-store";
 import { OrderNotificationManager } from "@/components/notifications/order-notification-manager";
+import { WEB_PUSH_ENABLE_EVENT, resetWebPushPrompted } from "@/lib/web-push";
 
 type MerchantRestaurant = {
   id: number;
@@ -58,6 +59,7 @@ export function MerchantDashboardLayout({ children }: { children: React.ReactNod
 
   const [showMessages, setShowMessages] = useState(false);
   const [showAlerts, setShowAlerts] = useState(false);
+  const notificationPermission = typeof Notification !== "undefined" ? Notification.permission : "default";
 
   useEffect(() => {
     if (!hydrated || !accessToken) return;
@@ -132,6 +134,14 @@ export function MerchantDashboardLayout({ children }: { children: React.ReactNod
   const handleLogout = () => {
     clearAuth();
     router.push("/login");
+  };
+
+  const handleEnableOrderAlerts = async () => {
+    resetWebPushPrompted();
+    if (typeof Notification !== "undefined" && Notification.permission !== "granted") {
+      await Notification.requestPermission();
+    }
+    window.dispatchEvent(new Event(WEB_PUSH_ENABLE_EVENT));
   };
 
   if (!hydrated || loading) {
@@ -294,6 +304,16 @@ export function MerchantDashboardLayout({ children }: { children: React.ReactNod
                 </div>
               )}
             </div>
+
+            <button
+              type="button"
+              onClick={handleEnableOrderAlerts}
+              className="flex items-center gap-2 rounded-full border border-[#ced4da] bg-white px-4 py-2 text-[13px] font-medium text-[#495057] shadow-sm transition hover:border-[#86b7fe] hover:text-[#212529]"
+              title="Enable browser notifications for new orders"
+            >
+              <Bell className="h-4 w-4 text-[#868e96]" />
+              {notificationPermission === "granted" ? "Order alerts on" : "Enable order alerts"}
+            </button>
             
             <div className="flex h-[38px] w-[260px] items-center rounded bg-white border border-[#ced4da] overflow-hidden focus-within:border-[#86b7fe] focus-within:ring-2 focus-within:ring-[#86b7fe]/25">
               <input type="text" placeholder="Search for..." className="h-full w-full bg-transparent px-3 text-[14px] text-[#495057] outline-none placeholder:text-[#6c757d]" />

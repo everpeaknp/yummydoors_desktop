@@ -8,8 +8,10 @@ import { config } from "@/lib/config";
 import {
   markWebPushPrompted,
   ORDER_EVENT_NAME,
+  WEB_PUSH_ENABLE_EVENT,
   shouldPromptForWebPushPermission,
   type OrderNotificationPayload,
+  resetWebPushPrompted,
   urlBase64ToUint8Array,
 } from "@/lib/web-push";
 
@@ -17,6 +19,7 @@ export function OrderNotificationManager() {
   const { hydrated, accessToken, user } = useAuth();
   const wsRef = useRef<WebSocket | null>(null);
   const latestEventIdRef = useRef<string | null>(null);
+  const setupWebPushRef = useRef<(() => Promise<void>) | null>(null);
 
   const wsUrl = useMemo(() => {
     if (!accessToken || !user) {
@@ -41,16 +44,19 @@ export function OrderNotificationManager() {
       try {
         const registration = await navigator.serviceWorker.register("/sw.js");
 
-        if (
-          typeof Notification !== "undefined" &&
-          shouldPromptForWebPushPermission()
-        ) {
-          markWebPushPrompted();
-          await Notification.requestPermission();
+        if (typeof Notification === "undefined") {
+          return;
         }
 
-        if (typeof Notification === "undefined" || Notification.permission !== "granted") {
-          return;
+        if (Notification.permission !== "granted") {
+          if (shouldPromptForWebPushPermission()) {
+            markWebPushPrompted();
+            await Notification.requestPermission();
+          }
+
+          if (Notification.permission !== "granted") {
+            return;
+          }
         }
 
         const publicKeyResponse = await apiFetch("/notifications/webpush/public-key", { auth: true });
@@ -87,12 +93,24 @@ export function OrderNotificationManager() {
       }
     }
 
+    setupWebPushRef.current = setupWebPush;
     void setupWebPush();
 
     return () => {
       cancelled = true;
+      setupWebPushRef.current = null;
     };
   }, [accessToken, hydrated]);
+
+  useEffect(() => {
+    function handleManualEnable() {
+      resetWebPushPrompted();
+      void setupWebPushRef.current?.();
+    }
+
+    window.addEventListener(WEB_PUSH_ENABLE_EVENT, handleManualEnable);
+    return () => window.removeEventListener(WEB_PUSH_ENABLE_EVENT, handleManualEnable);
+  }, []);
 
   useEffect(() => {
     if (!wsUrl) {

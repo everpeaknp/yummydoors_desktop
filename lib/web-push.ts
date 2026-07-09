@@ -1,6 +1,7 @@
 "use client";
 
 export const ORDER_EVENT_NAME = "yummydoors:order-event";
+export const WEB_PUSH_ENABLE_EVENT = "yummydoors:webpush:enable";
 const WEB_PUSH_PROMPT_KEY = "yummydoors.webpush.prompted.v1";
 
 export type OrderNotificationPayload = {
@@ -40,4 +41,11 @@ export function markWebPushPrompted() {
     return;
   }
   window.localStorage.setItem(WEB_PUSH_PROMPT_KEY, "1");
+}
+
+export function resetWebPushPrompted() {
+  if (typeof window === "undefined") {
+    return;
+  }
+  window.localStorage.removeItem(WEB_PUSH_PROMPT_KEY);
 }

@@ -1024,15 +1024,13 @@ export default function RestaurantDetailPage() {
                           </div>
                         ))}
                       </div>
-                      {galleryImages.length > 4 && (
-                        <Link
-                          href={`/merchant/restaurants/${restaurant.id}/gallery`}
-                          className="mt-4 inline-flex items-center gap-1 text-[14px] font-medium text-[#32a067] hover:underline"
-                        >
-                          <ImageIcon className="h-4 w-4" />
-                          View full gallery ({galleryImages.length})
-                        </Link>
-                      )}
+                      <Link
+                        href={`/restaurants/${slug}/gallery`}
+                        className="mt-4 inline-flex items-center gap-1 text-[14px] font-medium text-[#32a067] hover:underline"
+                      >
+                        <ImageIcon className="h-4 w-4" />
+                        View full gallery
+                      </Link>
                     </div>
                   )}
 

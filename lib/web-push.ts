@@ -32,6 +32,36 @@ export function urlBase64ToUint8Array(base64String: string) {
   return Uint8Array.from(rawData, (char) => char.charCodeAt(0));
 }
 
+export function bufferSourceToUint8Array(value: BufferSource | null | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  if (value instanceof ArrayBuffer) {
+    return new Uint8Array(value);
+  }
+
+  if (ArrayBuffer.isView(value)) {
+    return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+  }
+
+  return null;
+}
+
+export function areUint8ArraysEqual(left: Uint8Array | null, right: Uint8Array | null) {
+  if (!left || !right || left.length !== right.length) {
+    return false;
+  }
+
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 export function shouldPromptForWebPushPermission() {
   if (typeof window === "undefined" || typeof Notification === "undefined") {
     return false;

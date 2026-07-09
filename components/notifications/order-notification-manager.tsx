@@ -11,6 +11,8 @@ import {
   WEB_PUSH_ENABLE_EVENT,
   WEB_PUSH_STATUS_EVENT,
   shouldPromptForWebPushPermission,
+  areUint8ArraysEqual,
+  bufferSourceToUint8Array,
   type OrderNotificationPayload,
   type WebPushStatusPayload,
   resetWebPushPrompted,
@@ -73,11 +75,22 @@ export function OrderNotificationManager() {
           return;
         }
 
+        const desiredApplicationServerKey = urlBase64ToUint8Array(publicKey);
+
         let subscription = await registration.pushManager.getSubscription();
+        if (subscription) {
+          const currentKey = bufferSourceToUint8Array(subscription.options?.applicationServerKey);
+          const keyMatches = areUint8ArraysEqual(currentKey, desiredApplicationServerKey);
+          if (!keyMatches) {
+            await subscription.unsubscribe();
+            subscription = null;
+          }
+        }
+
         if (!subscription) {
           subscription = await registration.pushManager.subscribe({
             userVisibleOnly: true,
-            applicationServerKey: urlBase64ToUint8Array(publicKey),
+            applicationServerKey: desiredApplicationServerKey,
           });
         }
 

@@ -2,6 +2,7 @@
 
 export const ORDER_EVENT_NAME = "yummydoors:order-event";
 export const WEB_PUSH_ENABLE_EVENT = "yummydoors:webpush:enable";
+export const WEB_PUSH_STATUS_EVENT = "yummydoors:webpush:status";
 const WEB_PUSH_PROMPT_KEY = "yummydoors.webpush.prompted.v1";
 
 export type OrderNotificationPayload = {
@@ -17,6 +18,11 @@ export type OrderNotificationPayload = {
   body?: string;
   deep_link?: string;
   tag?: string;
+};
+
+export type WebPushStatusPayload = {
+  subscribed: boolean;
+  source: "refresh" | "sync" | "manual";
 };
 
 export function urlBase64ToUint8Array(base64String: string) {

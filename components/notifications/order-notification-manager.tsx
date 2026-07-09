@@ -9,8 +9,10 @@ import {
   markWebPushPrompted,
   ORDER_EVENT_NAME,
   WEB_PUSH_ENABLE_EVENT,
+  WEB_PUSH_STATUS_EVENT,
   shouldPromptForWebPushPermission,
   type OrderNotificationPayload,
+  type WebPushStatusPayload,
   resetWebPushPrompted,
   urlBase64ToUint8Array,
 } from "@/lib/web-push";
@@ -88,7 +90,18 @@ export function OrderNotificationManager() {
           auth: true,
           body: JSON.stringify(subscription),
         });
+
+        window.dispatchEvent(
+          new CustomEvent<WebPushStatusPayload>(WEB_PUSH_STATUS_EVENT, {
+            detail: { subscribed: true, source: "sync" },
+          }),
+        );
       } catch {
+        window.dispatchEvent(
+          new CustomEvent<WebPushStatusPayload>(WEB_PUSH_STATUS_EVENT, {
+            detail: { subscribed: false, source: "sync" },
+          }),
+        );
         // Keep notifications best-effort.
       }
     }

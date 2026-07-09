@@ -34,7 +34,12 @@ import { apiFetch } from "@/lib/http";
 import { mapStoredUser } from "@/lib/auth-mappers";
 import { useAuthStore } from "@/stores/auth-store";
 import { OrderNotificationManager } from "@/components/notifications/order-notification-manager";
-import { WEB_PUSH_ENABLE_EVENT, resetWebPushPrompted } from "@/lib/web-push";
+import {
+  WEB_PUSH_ENABLE_EVENT,
+  WEB_PUSH_STATUS_EVENT,
+  resetWebPushPrompted,
+  type WebPushStatusPayload,
+} from "@/lib/web-push";
 
 type MerchantRestaurant = {
   id: number;
@@ -59,7 +64,7 @@ export function MerchantDashboardLayout({ children }: { children: React.ReactNod
 
   const [showMessages, setShowMessages] = useState(false);
   const [showAlerts, setShowAlerts] = useState(false);
-  const notificationPermission = typeof Notification !== "undefined" ? Notification.permission : "default";
+  const [webPushStatus, setWebPushStatus] = useState<"checking" | "subscribed" | "unsubscribed" | "error">("checking");
 
   useEffect(() => {
     if (!hydrated || !accessToken) return;
@@ -103,6 +108,52 @@ export function MerchantDashboardLayout({ children }: { children: React.ReactNod
     loadData();
   }, [hydrated, accessToken, setUser, user]);
 
+  useEffect(() => {
+    if (!hydrated || !accessToken) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function refreshWebPushStatus() {
+      try {
+        const response = await apiFetch("/notifications/webpush/status", { auth: true });
+        if (!response.ok) {
+          if (!cancelled) {
+            setWebPushStatus("error");
+          }
+          return;
+        }
+
+        const payload = await response.json().catch(() => null);
+        const subscribed = Boolean(payload?.data?.has_subscription);
+        if (!cancelled) {
+          setWebPushStatus(subscribed ? "subscribed" : "unsubscribed");
+        }
+      } catch {
+        if (!cancelled) {
+          setWebPushStatus("error");
+        }
+      }
+    }
+
+    void refreshWebPushStatus();
+
+    const handleStatusEvent = (event: Event) => {
+      const detail = (event as CustomEvent<WebPushStatusPayload>).detail;
+      if (!detail) {
+        return;
+      }
+      setWebPushStatus(detail.subscribed ? "subscribed" : "unsubscribed");
+    };
+
+    window.addEventListener(WEB_PUSH_STATUS_EVENT, handleStatusEvent);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(WEB_PUSH_STATUS_EVENT, handleStatusEvent);
+    };
+  }, [hydrated, accessToken]);
+
   const handleSwitchRestaurant = async (id: number) => {
     try {
       await apiFetch("/merchant/restaurants/switch", {
@@ -137,11 +188,27 @@ export function MerchantDashboardLayout({ children }: { children: React.ReactNod
   };
 
   const handleEnableOrderAlerts = async () => {
+    setWebPushStatus("checking");
     resetWebPushPrompted();
     if (typeof Notification !== "undefined" && Notification.permission !== "granted") {
       await Notification.requestPermission();
     }
     window.dispatchEvent(new Event(WEB_PUSH_ENABLE_EVENT));
+    window.setTimeout(() => {
+      void (async () => {
+        try {
+          const response = await apiFetch("/notifications/webpush/status", { auth: true });
+          if (response.ok) {
+            const payload = await response.json().catch(() => null);
+            setWebPushStatus(payload?.data?.has_subscription ? "subscribed" : "unsubscribed");
+          } else {
+            setWebPushStatus("error");
+          }
+        } catch {
+          setWebPushStatus("error");
+        }
+      })();
+    }, 1500);
   };
 
   if (!hydrated || loading) {
@@ -312,7 +379,13 @@ export function MerchantDashboardLayout({ children }: { children: React.ReactNod
               title="Enable browser notifications for new orders"
             >
               <Bell className="h-4 w-4 text-[#868e96]" />
-              {notificationPermission === "granted" ? "Order alerts on" : "Enable order alerts"}
+              {webPushStatus === "subscribed"
+                ? "Order alerts enabled"
+                : webPushStatus === "checking"
+                  ? "Checking alerts..."
+                  : webPushStatus === "error"
+                    ? "Alerts unavailable"
+                    : "Enable order alerts"}
             </button>
             
             <div className="flex h-[38px] w-[260px] items-center rounded bg-white border border-[#ced4da] overflow-hidden focus-within:border-[#86b7fe] focus-within:ring-2 focus-within:ring-[#86b7fe]/25">

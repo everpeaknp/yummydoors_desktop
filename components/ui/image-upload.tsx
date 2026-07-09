@@ -10,10 +10,11 @@ interface ImageUploadProps {
   value: string | null;
   onChange: (url: string | null) => void;
   folderType: "restaurant_covers" | "restaurant_logos" | "menu_items" | "categories" | "promos" | "avatars" | "restaurant_gallery";
+  clientScope?: "desktop" | "mobile" | "web";
   disabled?: boolean;
 }
 
-export function ImageUpload({ value, onChange, folderType, disabled }: ImageUploadProps) {
+export function ImageUpload({ value, onChange, folderType, clientScope = "desktop", disabled }: ImageUploadProps) {
   const [uploading, setUploading] = useState(false);
 
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
@@ -27,6 +28,7 @@ export function ImageUpload({ value, onChange, folderType, disabled }: ImageUplo
       const formData = new FormData();
       formData.append("file", file);
       formData.append("folder_type", folderType);
+      formData.append("client_scope", clientScope);
 
       const response = await apiFetch("/media/upload", {
         auth: true,

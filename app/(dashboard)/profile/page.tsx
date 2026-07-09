@@ -275,6 +275,7 @@ export default function ProfilePage() {
                         src={user.avatarUrl}
                         alt={user.fullName}
                         className="object-cover"
+                        sizes="80px"
                       />
                     </div>
                   ) : (

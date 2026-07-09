@@ -160,7 +160,7 @@ export default function CustomerMessagesPage() {
                   >
                     {conv.customer_avatar ? (
                       <div className="relative w-12 h-12 shrink-0 rounded-full overflow-hidden">
-                        <Image fill src={conv.customer_avatar} alt="Logo" className="object-cover" />
+                        <Image fill src={conv.customer_avatar} alt="Logo" className="object-cover" sizes="48px" />
                       </div>
                     ) : (
                       <div className="w-12 h-12 rounded-full bg-white border border-[#ced4da] flex items-center justify-center text-[#adb5bd]">

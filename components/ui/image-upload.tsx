@@ -3,13 +3,13 @@
 import { ChangeEvent, useState } from "react";
 import Image from "next/image";
 import { Upload, X, Loader2 } from "lucide-react";
-import { apiFetch, readErrorMessage } from "@/lib/http";
-import { toast } from "sonner"; // Assuming sonner is used for toast notifications, fallback to alert if not
+import { apiFetch } from "@/lib/http";
+import { extractApiErrorMessage, readJsonSafely } from "@/lib/api-utils";
 
 interface ImageUploadProps {
   value: string | null;
   onChange: (url: string | null) => void;
-  folderType: "restaurant_covers" | "restaurant_logos" | "menu_items" | "categories" | "promos" | "avatars";
+  folderType: "restaurant_covers" | "restaurant_logos" | "menu_items" | "categories" | "promos" | "avatars" | "restaurant_gallery";
   disabled?: boolean;
 }
 
@@ -35,12 +35,14 @@ export function ImageUpload({ value, onChange, folderType, disabled }: ImageUplo
       });
 
       if (!response.ok) {
-        throw new Error(await readErrorMessage(response, "Failed to upload image."));
+        const payload = await readJsonSafely(response);
+        throw new Error(extractApiErrorMessage(payload, "Failed to upload image."));
       }
 
-      const payload = await response.json();
-      if (payload.data?.url) {
-        onChange(payload.data.url);
+      const payload = await readJsonSafely(response);
+      const uploadedUrl = payload && typeof payload === "object" ? payload.data?.url : null;
+      if (uploadedUrl) {
+        onChange(uploadedUrl);
       } else {
         throw new Error("Invalid response from server.");
       }
@@ -58,7 +60,7 @@ export function ImageUpload({ value, onChange, folderType, disabled }: ImageUplo
   if (value) {
     return (
       <div className="relative w-full overflow-hidden rounded-md border border-[#e5e5e5] bg-gray-50 flex items-center justify-center min-h-[160px] aspect-video">
-        <Image fill src={value} alt="Uploaded image" className="object-cover" />
+        <Image fill src={value} alt="Uploaded image" className="object-cover" sizes="100vw" />
         <button
           type="button"
           disabled={disabled || uploading}

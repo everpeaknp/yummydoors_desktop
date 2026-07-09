@@ -271,6 +271,7 @@ export default function EditProfilePage() {
                               src={avatarUrl}
                               alt={fullName || "Profile picture"}
                               className="object-cover"
+                              sizes="112px"
                             />
                           </div>
                         ) : (

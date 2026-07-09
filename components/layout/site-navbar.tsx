@@ -152,6 +152,7 @@ export function SiteNavbar({ className, variant = "light" }: SiteNavbarProps) {
                         src={user.avatarUrl}
                         alt={displayName}
                         className="object-cover"
+                        sizes="44px"
                       />
                     </div>
                   ) : (
@@ -202,6 +203,14 @@ export function SiteNavbar({ className, variant = "light" }: SiteNavbarProps) {
                       >
                         <MessageSquareText className="h-5 w-5 text-[#444]" />
                         Messages
+                      </Link>
+                      <Link
+                        href="/orders"
+                        onClick={() => setMenuOpen(false)}
+                        className="flex items-center gap-3 rounded-[8px] px-4 py-3 text-[15px] font-medium text-[#2f3137] transition hover:bg-[#fff5ef]"
+                      >
+                        <ReceiptText className="h-5 w-5 text-[#444]" />
+                        My orders
                       </Link>
                       <Link
                         href="/wishlist"

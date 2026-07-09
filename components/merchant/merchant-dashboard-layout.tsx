@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { apiFetch } from "@/lib/http";
+import { mapStoredUser } from "@/lib/auth-mappers";
 import { useAuthStore } from "@/stores/auth-store";
 
 type MerchantRestaurant = {
@@ -46,6 +47,8 @@ export function MerchantDashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter();
   const pathname = usePathname();
   const { hydrated, accessToken } = useAuth();
+  const user = useAuthStore((state) => state.user);
+  const setUser = useAuthStore((state) => state.setUser);
   const clearAuth = useAuthStore((state) => state.clearAuth);
   
   const [restaurants, setRestaurants] = useState<MerchantRestaurant[]>([]);
@@ -60,6 +63,28 @@ export function MerchantDashboardLayout({ children }: { children: React.ReactNod
 
     async function loadData() {
       try {
+        const merchantWorkspace = user?.workspaces?.find(
+          (workspace) => workspace.workspaceType === "merchant",
+        );
+        const activeWorkspaceType = user?.activeWorkspace?.workspaceType ?? null;
+
+        if (merchantWorkspace && activeWorkspaceType !== "merchant") {
+          const switchResponse = await apiFetch("/workspaces/switch", {
+            method: "POST",
+            auth: true,
+            body: JSON.stringify({ workspace_id: merchantWorkspace.id }),
+          });
+          if (switchResponse.ok) {
+            const meResponse = await apiFetch("/auth/me", { auth: true });
+            if (meResponse.ok) {
+              const mePayload = await meResponse.json().catch(() => null);
+              if (mePayload?.data) {
+                setUser(mapStoredUser(mePayload.data));
+              }
+            }
+          }
+        }
+
         const res = await apiFetch("/merchant/restaurants/me", { auth: true });
         if (res.ok) {
           const payload = await res.json();
@@ -73,7 +98,7 @@ export function MerchantDashboardLayout({ children }: { children: React.ReactNod
       }
     }
     loadData();
-  }, [hydrated, accessToken]);
+  }, [hydrated, accessToken, setUser, user]);
 
   const handleSwitchRestaurant = async (id: number) => {
     try {

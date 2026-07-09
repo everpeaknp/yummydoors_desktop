@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { MerchantDashboardLayout } from "@/components/merchant/merchant-dashboard-layout";
+import { useAuth } from "@/hooks/use-auth";
 import { apiFetch } from "@/lib/http";
 import { config } from "@/lib/config";
 import { loadStoredAuth } from "@/lib/auth-storage";
@@ -44,6 +45,8 @@ const NEXT_STATUSES: Partial<Record<OrderStatus, OrderStatus[]>> = {
 };
 
 export default function MerchantOrdersPage() {
+  const { user } = useAuth();
+  const merchantWorkspaceReady = user?.activeWorkspace?.workspaceType === "merchant";
   const [orders, setOrders] = useState<MerchantOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -72,6 +75,9 @@ export default function MerchantOrdersPage() {
 
   // WebSocket for real-time order updates
   useEffect(() => {
+    if (!merchantWorkspaceReady) {
+      return;
+    }
     const stored = loadStoredAuth();
     if (!stored?.accessToken) return;
 
@@ -104,7 +110,7 @@ export default function MerchantOrdersPage() {
     return () => {
       ws.close();
     };
-  }, []);
+  }, [loadOrders, merchantWorkspaceReady]);
 
   const handleStatusChange = async (orderId: number, newStatus: OrderStatus) => {
     setUpdatingId(orderId);

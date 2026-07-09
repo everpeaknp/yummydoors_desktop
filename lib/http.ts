@@ -8,9 +8,24 @@ type RequestOptions = RequestInit & {
 };
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 15000;
+const PROXY_BASE = "/api/proxy";
+
+function isLocalhost() {
+  return (
+    typeof window !== "undefined" &&
+    (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
+  );
+}
+
+function buildRequestUrl(path: string) {
+  if (isLocalhost()) {
+    return `${PROXY_BASE}${path}`;
+  }
+  return `${config.apiBaseUrl}${config.apiPrefix}${path}`;
+}
 
 async function refreshAccessToken(stored: StoredAuth): Promise<StoredAuth | null> {
-  const response = await fetch(`${config.apiBaseUrl}${config.apiPrefix}/auth/refresh`, {
+  const response = await fetch(buildRequestUrl("/auth/refresh"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ refresh_token: stored.refreshToken }),
@@ -52,7 +67,7 @@ export async function apiFetch(path: string, options: RequestOptions = {}) {
   externalSignal?.addEventListener("abort", abortHandler);
 
   try {
-    let response = await fetch(`${config.apiBaseUrl}${config.apiPrefix}${path}`, {
+    let response = await fetch(buildRequestUrl(path), {
       cache: "no-store",
       ...requestOptions,
       headers,
@@ -63,7 +78,7 @@ export async function apiFetch(path: string, options: RequestOptions = {}) {
       stored = await refreshAccessToken(stored);
       if (stored?.accessToken) {
         headers.set("Authorization", `Bearer ${stored.accessToken}`);
-        response = await fetch(`${config.apiBaseUrl}${config.apiPrefix}${path}`, {
+        response = await fetch(buildRequestUrl(path), {
           cache: "no-store",
           ...requestOptions,
           headers,

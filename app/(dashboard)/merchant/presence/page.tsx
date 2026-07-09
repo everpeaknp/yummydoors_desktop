@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Clock3, Mail, MapPin, Phone, Store } from "lucide-react";
+import { ArrowLeft, Clock3, Images, Mail, MapPin, Phone, Plus, Store, Trash2 } from "lucide-react";
 
 import { MerchantDashboardLayout } from "@/components/merchant/merchant-dashboard-layout";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,13 @@ type MerchantRestaurantCategory = {
   id: number;
   name: string;
   slug: string;
+};
+
+type GalleryImage = {
+  id: number;
+  image_url: string;
+  caption: string | null;
+  sort_order: number;
 };
 
 type MerchantRestaurantProfile = {
@@ -51,6 +59,7 @@ type MerchantRestaurantProfile = {
   sort_rank: number;
   is_featured: boolean;
   categories: MerchantRestaurantCategory[];
+  gallery_images: GalleryImage[];
 };
 
 type ProfileForm = {
@@ -170,6 +179,13 @@ export default function MerchantPresencePage() {
   const [success, setSuccess] = useState<string | null>(null);
   const [hasDraft, setHasDraft] = useState(false);
 
+  // Gallery state
+  const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([]);
+  const [galleryUploading, setGalleryUploading] = useState(false);
+  const [galleryError, setGalleryError] = useState<string | null>(null);
+  const [pendingGalleryUrl, setPendingGalleryUrl] = useState<string | null>(null);
+  const [pendingGalleryCaption, setPendingGalleryCaption] = useState("");
+
   const facilitiesPreview = useMemo(
     () =>
       form.facilities_text
@@ -199,6 +215,7 @@ export default function MerchantPresencePage() {
 
       const nextProfile = payload?.data as MerchantRestaurantProfile;
       setProfile(nextProfile);
+      setGalleryImages(nextProfile.gallery_images ?? []);
       
       let appliedForm = toForm(nextProfile);
       const draftRaw = localStorage.getItem(`merchant_profile_draft_${restaurantId}`);
@@ -299,6 +316,7 @@ export default function MerchantPresencePage() {
 
       const nextProfile = payload?.data as MerchantRestaurantProfile;
       setProfile(nextProfile);
+      setGalleryImages(nextProfile.gallery_images ?? []);
       setForm(toForm(nextProfile));
       setSuccess("Restaurant profile updated.");
       localStorage.removeItem(`merchant_profile_draft_${restaurantId}`);
@@ -312,6 +330,50 @@ export default function MerchantPresencePage() {
 
   if (!hydrated) {
     return <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">Preparing merchant surface...</div>;
+  }
+
+  async function handleAddGalleryImage() {
+    if (!restaurantId || !pendingGalleryUrl) return;
+    setGalleryUploading(true);
+    setGalleryError(null);
+    try {
+      const response = await apiFetch(`/merchant/restaurants/${restaurantId}/gallery`, {
+        method: "POST",
+        auth: true,
+        body: JSON.stringify({
+          image_url: pendingGalleryUrl,
+          caption: pendingGalleryCaption.trim() || null,
+          sort_order: galleryImages.length,
+        }),
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(extractErrorMessage(payload));
+      const newImage = payload?.data as GalleryImage;
+      setGalleryImages((prev) => [...prev, newImage]);
+      setPendingGalleryUrl(null);
+      setPendingGalleryCaption("");
+    } catch (caught) {
+      setGalleryError(caught instanceof Error ? caught.message : "Failed to add gallery image.");
+    } finally {
+      setGalleryUploading(false);
+    }
+  }
+
+  async function handleDeleteGalleryImage(imageId: number) {
+    if (!restaurantId) return;
+    try {
+      const response = await apiFetch(`/merchant/restaurants/${restaurantId}/gallery/${imageId}`, {
+        method: "DELETE",
+        auth: true,
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null);
+        throw new Error(extractErrorMessage(payload));
+      }
+      setGalleryImages((prev) => prev.filter((img) => img.id !== imageId));
+    } catch (caught) {
+      setGalleryError(caught instanceof Error ? caught.message : "Failed to delete gallery image.");
+    }
   }
 
   if (!accessToken) {
@@ -382,6 +444,7 @@ export default function MerchantPresencePage() {
             <CardContent className="text-sm text-[#6b7280]">Loading restaurant presence...</CardContent>
           </Card>
         ) : (
+          <>
           <form onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
             <div className="space-y-6">
               <Card className="border-[#efe4d8]">
@@ -664,6 +727,98 @@ export default function MerchantPresencePage() {
               </Card>
             </div>
           </form>
+
+          {/* Gallery Section */}
+          <div className="mt-6">
+            <Card className="border-[#efe4d8]">
+              <CardContent className="space-y-5">
+                <div className="flex items-center gap-3">
+                  <Images className="h-5 w-5 text-primary" />
+                  <div>
+                    <h2 className="text-xl font-semibold text-[#1f2937]">Restaurant gallery</h2>
+                    <p className="text-sm text-[#6b7280]">
+                      Upload extra photos beyond cover &amp; logo — up to 20 images.
+                    </p>
+                  </div>
+                </div>
+
+                {galleryError && (
+                  <div className="rounded-[14px] border border-[#ffd8cc] bg-[#fff4ef] px-4 py-3 text-sm text-[#9a3412]">
+                    {galleryError}
+                  </div>
+                )}
+
+                {/* Existing gallery grid */}
+                {galleryImages.length > 0 && (
+                  <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
+                    {galleryImages.map((img) => (
+                      <div
+                        key={img.id}
+                        className="group relative overflow-hidden rounded-xl border border-[#efe4d8] bg-[#fcfaf7] aspect-square"
+                      >
+                        <Image
+                          src={img.image_url}
+                          alt={img.caption ?? "Gallery image"}
+                          fill
+                          className="object-cover transition group-hover:opacity-80"
+                          sizes="200px"
+                        />
+                        {img.caption && (
+                          <div className="absolute bottom-0 left-0 right-0 bg-black/50 px-2 py-1">
+                            <p className="text-[11px] text-white truncate">{img.caption}</p>
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteGalleryImage(img.id)}
+                          className="absolute right-1.5 top-1.5 rounded-full bg-black/70 p-1.5 text-white opacity-0 transition group-hover:opacity-100 hover:bg-red-600"
+                          title="Remove image"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Add new image */}
+                {galleryImages.length < 20 && (
+                  <div className="space-y-3 rounded-2xl border border-dashed border-[#efe4d8] bg-[#fcfaf7] p-4">
+                    <p className="text-sm font-medium text-[#1f2937]">Add a photo</p>
+                    <ImageUpload
+                      value={pendingGalleryUrl}
+                      folderType="restaurant_gallery"
+                      onChange={(url) => setPendingGalleryUrl(url)}
+                    />
+                    {pendingGalleryUrl && (
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                        <Input
+                          placeholder="Optional caption..."
+                          value={pendingGalleryCaption}
+                          onChange={(e) => setPendingGalleryCaption(e.target.value)}
+                          className="flex-1"
+                        />
+                        <Button
+                          type="button"
+                          onClick={handleAddGalleryImage}
+                          disabled={galleryUploading}
+                          className="flex items-center gap-1.5"
+                        >
+                          <Plus className="h-4 w-4" />
+                          {galleryUploading ? "Adding..." : "Add to gallery"}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {galleryImages.length === 0 && !restaurantId && (
+                  <p className="text-sm text-[#6b7280]">Select a restaurant to manage its gallery.</p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+          </>
         )}
     </MerchantDashboardLayout>
   );

@@ -192,7 +192,7 @@ export default function MerchantMessagesPage() {
                 >
                   <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-full border border-gray-200 bg-gray-100">
                     {conv.customer_avatar ? (
-                      <Image src={conv.customer_avatar} alt={conv.customer_name} fill className="object-cover" />
+                      <Image src={conv.customer_avatar} alt={conv.customer_name} fill className="object-cover" sizes="44px" />
                     ) : (
                       <div className="flex h-full w-full items-center justify-center text-[16px] font-bold text-gray-400">
                         {conv.customer_name.charAt(0)}
@@ -235,7 +235,7 @@ export default function MerchantMessagesPage() {
               <div className="px-5 py-3 border-b border-[#e9ecef] flex items-center gap-3">
                 <div className="relative h-9 w-9 rounded-full overflow-hidden bg-gray-100 border border-gray-200">
                   {selectedConv?.customer_avatar ? (
-                    <Image src={selectedConv.customer_avatar} alt="" fill className="object-cover" />
+                    <Image src={selectedConv.customer_avatar} alt="" fill className="object-cover" sizes="36px" />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center text-[14px] font-bold text-gray-400">
                       {selectedConv?.customer_name.charAt(0)}

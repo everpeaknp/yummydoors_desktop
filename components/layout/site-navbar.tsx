@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useAuthStore } from "@/stores/auth-store";
 import { hasMerchantWorkspace } from "@/lib/navigation";
+import { OrderNotificationManager } from "@/components/notifications/order-notification-manager";
 
 type SiteNavbarProps = {
   className?: string;
@@ -101,19 +102,21 @@ export function SiteNavbar({ className, variant = "light" }: SiteNavbarProps) {
   };
 
   return (
-    <header
-      className={cn(
-        "fixed left-0 right-0 top-0 z-[80] transition-all duration-300",
-        bgClass,
-        className,
-      )}
-    >
-      <div
+    <>
+      <OrderNotificationManager />
+      <header
         className={cn(
-          "mx-auto flex w-full items-center justify-between px-6 lg:px-10",
-          useScrolledLight || isLight ? "py-4" : "py-6",
+          "fixed left-0 right-0 top-0 z-[80] transition-all duration-300",
+          bgClass,
+          className,
         )}
       >
+        <div
+          className={cn(
+            "mx-auto flex w-full items-center justify-between px-6 lg:px-10",
+            useScrolledLight || isLight ? "py-4" : "py-6",
+          )}
+        >
         <Link href="/" className="flex items-center gap-3.5">
           <div className="flex items-center justify-center">
             <Image
@@ -266,7 +269,8 @@ export function SiteNavbar({ className, variant = "light" }: SiteNavbarProps) {
             </>
           )}
         </nav>
-      </div>
-    </header>
+        </div>
+      </header>
+    </>
   );
 }

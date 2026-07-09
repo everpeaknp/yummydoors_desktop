@@ -30,6 +30,7 @@ type ReviewEditorProps = {
   restaurantSlug: string;
   viewerReview: ReviewPayload | null;
   eligibility: ReviewEligibility | null;
+  orderId?: number;
   onSaved: () => Promise<void> | void;
 };
 
@@ -37,6 +38,7 @@ export function ReviewEditor({
   restaurantSlug,
   viewerReview,
   eligibility,
+  orderId,
   onSaved,
 }: ReviewEditorProps) {
   const [rating, setRating] = useState(viewerReview?.rating ?? 5);
@@ -75,6 +77,7 @@ export function ReviewEditor({
         body: JSON.stringify({
           rating,
           comment: comment.trim() || null,
+          ...(mode === "create" && orderId ? { order_id: orderId } : {}),
         }),
       },
     );

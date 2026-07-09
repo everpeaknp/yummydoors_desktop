@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import {
   ArrowLeft,
@@ -144,6 +144,12 @@ type RestaurantDetail = {
     existing_review_id: number | null;
     reason: string | null;
   } | null;
+  gallery_images: Array<{
+    id: number;
+    image_url: string;
+    caption: string | null;
+    sort_order: number;
+  }>;
 };
 
 type ActiveCartItem = {
@@ -197,6 +203,7 @@ function collectGalleryImages(detail: RestaurantDetail) {
   const images = [
     detail.restaurant.cover_image_url,
     detail.restaurant.logo_url,
+    ...(detail.gallery_images?.map((g) => g.image_url) || []),
     ...detail.featured_items.map((item) => item.image_url),
     ...detail.popular_items.map((item) => item.image_url),
     ...detail.menu_sections.flatMap((section) =>
@@ -206,13 +213,15 @@ function collectGalleryImages(detail: RestaurantDetail) {
     Boolean(value && isUsableImageUrl(value)),
   );
 
-  return Array.from(new Set(images)).slice(0, 5);
+  return Array.from(new Set(images));
 }
 
 export default function RestaurantDetailPage() {
   const { accessToken } = useAuth();
   const params = useParams<{ slug: string }>();
+  const searchParams = useSearchParams();
   const slug = typeof params?.slug === "string" ? params.slug : "";
+  const orderId = searchParams?.get("order_id") ? parseInt(searchParams.get("order_id")!, 10) : undefined;
 
   const [detail, setDetail] = useState<RestaurantDetail | null>(null);
   const [selectedCoords, setSelectedCoords] = useState<{
@@ -815,6 +824,7 @@ export default function RestaurantDetailPage() {
                       restaurantSlug={restaurant.slug}
                       viewerReview={detail.viewer_review}
                       eligibility={detail.review_eligibility}
+                      orderId={orderId}
                       onSaved={async () => {
                         await loadRestaurant();
                       }}
@@ -1014,6 +1024,15 @@ export default function RestaurantDetailPage() {
                           </div>
                         ))}
                       </div>
+                      {galleryImages.length > 4 && (
+                        <Link
+                          href={`/merchant/restaurants/${restaurant.id}/gallery`}
+                          className="mt-4 inline-flex items-center gap-1 text-[14px] font-medium text-[#32a067] hover:underline"
+                        >
+                          <ImageIcon className="h-4 w-4" />
+                          View full gallery ({galleryImages.length})
+                        </Link>
+                      )}
                     </div>
                   )}
 

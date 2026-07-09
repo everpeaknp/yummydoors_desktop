@@ -83,6 +83,8 @@ type OrderTimelineEvent = {
 };
 
 type OrderResponse = {
+  id: number;
+  restaurantId?: number;
   restaurantName: string;
   restaurantTags: string;
   restaurantLogo: string;
@@ -109,6 +111,45 @@ type OrderResponse = {
 
 function formatMoney(value: number) {
   return `NPR ${value.toFixed(2)}`;
+}
+
+function normalizePaymentMethod(value: string | null | undefined) {
+  return (value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+function wasPlacedRecently(order: OrderResponse, withinMinutes = 5) {
+  const placedAt = order.timeline.find((event) => event.key === "placed")?.timestamp;
+  if (!placedAt) {
+    return false;
+  }
+
+  const placedTime = Date.parse(placedAt);
+  if (Number.isNaN(placedTime)) {
+    return false;
+  }
+
+  return Math.abs(Date.now() - placedTime) <= withinMinutes * 60_000;
+}
+
+function matchesRecoveredCheckoutOrder(
+  order: OrderResponse,
+  checkoutCart: Cart,
+  addressId: number | null,
+  selectedPaymentMethod: string,
+) {
+  const restaurantMatches =
+    order.restaurantId === checkoutCart.restaurant_id ||
+    order.restaurantName.trim().toLowerCase() === checkoutCart.restaurant_name.trim().toLowerCase();
+  const totalMatches = Math.abs(order.totalPrice - checkoutCart.total_price) < 0.01;
+  const addressMatches = addressId == null || order.address?.id == null || order.address.id === addressId;
+  const paymentMatches =
+    !order.paymentMethod ||
+    normalizePaymentMethod(order.paymentMethod) === normalizePaymentMethod(selectedPaymentMethod);
+
+  return restaurantMatches && totalMatches && addressMatches && paymentMatches;
 }
 
 export default function CheckoutPage() {
@@ -203,6 +244,22 @@ export default function CheckoutPage() {
     () => addresses.find((address) => address.id === selectedAddressId) ?? null,
     [addresses, selectedAddressId],
   );
+
+  async function recoverCheckoutOrder(checkoutCart: Cart) {
+    const response = await apiFetch("/orders", { auth: true });
+    const payload = await readJsonSafely<OrderResponse[]>(response);
+    if (!response.ok || !Array.isArray(payload)) {
+      return null;
+    }
+
+    return (
+      payload.find(
+        (order) =>
+          matchesRecoveredCheckoutOrder(order, checkoutCart, selectedAddressId, paymentMethod) &&
+          wasPlacedRecently(order),
+      ) ?? null
+    );
+  }
 
   async function saveCartContext() {
     if (!cart) {
@@ -304,6 +361,16 @@ export default function CheckoutPage() {
     });
     const payload = await readJsonSafely<OrderResponse>(response);
     if (!response.ok) {
+      if (response.status >= 500) {
+        const recoveredOrder = await recoverCheckoutOrder(cart);
+        if (recoveredOrder) {
+          setPlacingOrder(false);
+          setSuccessOrder(recoveredOrder);
+          window.dispatchEvent(new CustomEvent("yummydoors:cart-updated"));
+          return;
+        }
+      }
+
       setPlacingOrder(false);
       setError(extractApiErrorMessage(payload, "Failed to place order."));
       return;

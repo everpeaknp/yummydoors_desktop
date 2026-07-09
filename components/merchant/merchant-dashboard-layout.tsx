@@ -33,6 +33,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { apiFetch } from "@/lib/http";
 import { mapStoredUser } from "@/lib/auth-mappers";
 import { useAuthStore } from "@/stores/auth-store";
+import { OrderNotificationManager } from "@/components/notifications/order-notification-manager";
 
 type MerchantRestaurant = {
   id: number;
@@ -138,7 +139,9 @@ export function MerchantDashboardLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="flex h-screen w-full bg-[#f8f9fa] text-[#555] antialiased overflow-hidden font-sans">
+    <>
+      <OrderNotificationManager />
+      <div className="flex h-screen w-full bg-[#f8f9fa] text-[#555] antialiased overflow-hidden font-sans">
       {/* Sidebar */}
       <aside className="flex h-full w-[260px] flex-col bg-[#212529] text-[#868e96] shrink-0 overflow-y-auto">
         <div className="flex h-[70px] items-center px-6">
@@ -316,7 +319,8 @@ export function MerchantDashboardLayout({ children }: { children: React.ReactNod
           </footer>
         </div>
       </main>
-    </div>
+      </div>
+    </>
   );
 }
 

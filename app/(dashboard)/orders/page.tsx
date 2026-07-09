@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
 import { apiFetch } from "@/lib/http";
+import { ORDER_EVENT_NAME, type OrderNotificationPayload } from "@/lib/web-push";
 
 type OrderStatus = "toPay" | "placed" | "preparing" | "delivered" | "cancelled";
 
@@ -33,7 +34,9 @@ type OrderAddress = {
 };
 
 type CustomerOrder = {
+  id: number;
   restaurantName: string;
+  restaurantSlug: string;
   restaurantTags: string;
   restaurantLogo: string;
   deliveryTime: string;
@@ -137,6 +140,37 @@ export default function CustomerOrdersPage() {
     }, 15000);
 
     return () => window.clearInterval(timer);
+  }, [accessToken, loadOrders]);
+
+  useEffect(() => {
+    if (!accessToken) {
+      return;
+    }
+
+    function handleOrderEvent(event: Event) {
+      const customEvent = event as CustomEvent<OrderNotificationPayload>;
+      const detail = customEvent.detail;
+      if (!detail?.order_id || !detail.status) {
+        return;
+      }
+
+      setOrders((current) => {
+        const hasOrder = current.some((order) => order.id === detail.order_id);
+        if (!hasOrder) {
+          void loadOrders()
+            .then((nextOrders) => setOrders(nextOrders))
+            .catch(() => {});
+          return current;
+        }
+
+        return current.map((order) =>
+          order.id === detail.order_id ? { ...order, status: detail.status as OrderStatus } : order,
+        );
+      });
+    }
+
+    window.addEventListener(ORDER_EVENT_NAME, handleOrderEvent as EventListener);
+    return () => window.removeEventListener(ORDER_EVENT_NAME, handleOrderEvent as EventListener);
   }, [accessToken, loadOrders]);
 
   const summary = useMemo(
@@ -251,9 +285,18 @@ export default function CustomerOrdersPage() {
                         {order.address?.address_text ?? "No delivery address captured."}
                       </p>
                     </div>
-                    <span className={`rounded-full border px-3 py-1 text-[11px] font-semibold ${STATUS_TONE[order.status]}`}>
-                      {formatStatus(order.status)}
-                    </span>
+                    <div className="flex items-center gap-3">
+                      {order.status === "delivered" ? (
+                        <Link href={`/restaurants/${order.restaurantSlug}?order_id=${order.id}`}>
+                          <Button size="sm" variant="outline" className="h-7 text-xs">
+                            Leave a review
+                          </Button>
+                        </Link>
+                      ) : null}
+                      <span className={`rounded-full border px-3 py-1 text-[11px] font-semibold ${STATUS_TONE[order.status]}`}>
+                        {formatStatus(order.status)}
+                      </span>
+                    </div>
                   </div>
 
                   <div className="grid gap-3 text-sm text-[#6b7280] md:grid-cols-2 xl:grid-cols-4">

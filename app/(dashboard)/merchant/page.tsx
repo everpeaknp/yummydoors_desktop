@@ -208,6 +208,9 @@ export default function MerchantPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+  const [stats, setStats] = useState<any>(null);
+  const [loadingStats, setLoadingStats] = useState(false);
+
   const [requestType, setRequestType] = useState<RequestType>("create_external");
   const [businessName, setBusinessName] = useState("");
   const [contactName, setContactName] = useState("");
@@ -357,6 +360,29 @@ export default function MerchantPage() {
       cancelled = true;
     };
   }, [accessToken, hydrated, loadMerchantState, router]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadStats() {
+      if (!hasApprovedMerchant || !activeRestaurant) return;
+      setLoadingStats(true);
+      try {
+        const response = await apiFetch("/merchant/restaurants/me/stats", { auth: true });
+        if (response.ok) {
+          const payload = await response.json();
+          if (!cancelled) setStats(payload);
+        }
+      } catch (err) {
+        console.error("Failed to fetch stats", err);
+      } finally {
+        if (!cancelled) setLoadingStats(false);
+      }
+    }
+    loadStats();
+    return () => {
+      cancelled = true;
+    };
+  }, [hasApprovedMerchant, activeRestaurant]);
 
   async function handleRestaurantSwitch(restaurantId: number) {
     setError(null);
@@ -533,21 +559,10 @@ export default function MerchantPage() {
 
   const selectedRequestMeta = requestTypeMeta(requestType);
 
-  const chartData = [
-    { name: "Mar 1", value: 10000 },
-    { name: "Mar 2", value: 30000 },
-    { name: "Mar 3", value: 26000 },
-    { name: "Mar 4", value: 18000 },
-    { name: "Mar 5", value: 18000 },
-    { name: "Mar 6", value: 28000 },
-    { name: "Mar 7", value: 31000 },
-    { name: "Mar 8", value: 33000 },
-    { name: "Mar 9", value: 26000 },
-    { name: "Mar 10", value: 24000 },
-    { name: "Mar 11", value: 32000 },
-    { name: "Mar 12", value: 31000 },
-    { name: "Mar 13", value: 38000 },
-  ];
+  const dynamicChartData = stats?.order_volume_14d?.map((d: any) => ({
+    name: new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+    value: d.count,
+  })) || [];
 
   if (hasApprovedMerchant) {
     return (
@@ -563,14 +578,14 @@ export default function MerchantPage() {
             {/* 4 Stat Cards */}
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-8">
               {[
-                { label: "26 New Messages!", bgColor: "bg-[#0d84ff]", icon: Mail, link: "/merchant/messages" },
-                { label: "11 New Reviews!", bgColor: "bg-[#f5b800]", icon: Star, link: "/merchant/reviews" },
-                { label: "10 New Orders!", bgColor: "bg-[#25b546]", icon: ShoppingCart, link: "/merchant/orders" },
-                { label: "10 New Bookmarks!", bgColor: "bg-[#e53e4f]", icon: Heart, link: "/merchant/bookmarks" },
+                { label: `${stats?.unread_messages ?? 0} New Messages!`, bgColor: "bg-[#0d84ff]", icon: Mail, link: "/merchant/messages" },
+                { label: `${stats?.new_reviews ?? 0} New Reviews!`, bgColor: "bg-[#f5b800]", icon: Star, link: "/merchant/reviews" },
+                { label: `${stats?.new_orders ?? 0} New Orders!`, bgColor: "bg-[#25b546]", icon: ShoppingCart, link: "/merchant/orders" },
+                { label: `${stats?.new_bookmarks ?? 0} New Bookmarks!`, bgColor: "bg-[#e53e4f]", icon: Heart, link: "/merchant/presence" },
               ].map((stat, i) => {
                 const Icon = stat.icon;
                 return (
-                  <div key={i} className={`flex flex-col justify-between overflow-hidden rounded text-white shadow-sm transition hover:-translate-y-1 ${stat.bgColor}`}>
+                  <Link href={stat.link} key={i} className={`flex flex-col justify-between overflow-hidden rounded text-white shadow-sm transition hover:-translate-y-1 ${stat.bgColor}`}>
                     <div className="p-6 flex items-center justify-between">
                       <h3 className="text-[20px] font-bold tracking-tight">{stat.label}</h3>
                       <Icon className="h-10 w-10 opacity-30" strokeWidth={2} />
@@ -579,20 +594,23 @@ export default function MerchantPage() {
                       <span>View Details</span>
                       <ChevronRight className="h-4 w-4" />
                     </div>
-                  </div>
+                  </Link>
                 );
               })}
             </div>
             
             {/* Statistic Graph */}
             <div className="bg-white rounded shadow-sm border border-[#e9ecef] overflow-hidden">
-               <div className="border-b border-[#e9ecef] px-6 py-4 flex items-center gap-3">
-                 <Store className="w-5 h-5 text-[#868e96]" />
-                 <h3 className="text-[18px] font-semibold text-[#495057]">Statistic</h3>
+               <div className="border-b border-[#e9ecef] px-6 py-4 flex items-center gap-3 justify-between">
+                 <div className="flex items-center gap-3">
+                   <Store className="w-5 h-5 text-[#868e96]" />
+                   <h3 className="text-[18px] font-semibold text-[#495057]">Order Volume (Last 14 Days)</h3>
+                 </div>
+                 {loadingStats && <span className="text-[13px] text-[#868e96]">Loading...</span>}
                </div>
                <div className="p-6 h-[400px]">
                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={chartData}>
+                    <AreaChart data={dynamicChartData}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f8f9fa" />
                       <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#868e96' }} />
                       <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#868e96' }} />

@@ -10,6 +10,7 @@ import {
   Heart,
   LayoutDashboard,
   LogOut,
+  MessageSquareText,
   ReceiptText,
   ShoppingCart,
   Store,
@@ -191,6 +192,14 @@ export function SiteNavbar({ className, variant = "light" }: SiteNavbarProps) {
                       >
                         <ReceiptText className="h-5 w-5 text-[#444]" />
                         My reservations
+                      </Link>
+                      <Link
+                        href="/messages"
+                        onClick={() => setMenuOpen(false)}
+                        className="flex items-center gap-3 rounded-[8px] px-4 py-3 text-[15px] font-medium text-[#2f3137] transition hover:bg-[#fff5ef]"
+                      >
+                        <MessageSquareText className="h-5 w-5 text-[#444]" />
+                        Messages
                       </Link>
                       <Link
                         href="/wishlist"

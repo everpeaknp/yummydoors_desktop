@@ -948,6 +948,16 @@ export default function LandingPage() {
     setLocationSelectionLocked(true);
 
     if (!accessToken) {
+      setCoords(selectedCoords);
+      if (selectedLocationLabel) {
+        localStorage.setItem(
+          LOCATION_STORAGE_KEY,
+          JSON.stringify({
+            coords: selectedCoords,
+            label: selectedLocationLabel,
+          })
+        );
+      }
       setLocationModalOpen(false);
       return;
     }
@@ -956,6 +966,16 @@ export default function LandingPage() {
       setLocationSaveMessage(
         "Location was saved in this browser. Add a phone number to your profile to sync addresses.",
       );
+      setCoords(selectedCoords);
+      if (selectedLocationLabel) {
+        localStorage.setItem(
+          LOCATION_STORAGE_KEY,
+          JSON.stringify({
+            coords: selectedCoords,
+            label: selectedLocationLabel,
+          })
+        );
+      }
       setLocationModalOpen(false);
       return;
     }
@@ -1050,6 +1070,7 @@ export default function LandingPage() {
       }
 
       await Promise.all([loadSavedAddressesNow(), syncStoredProfile()]);
+      setCoords(selectedCoords);
       setLocationModalOpen(false);
     } catch (err) {
       const message = err instanceof Error ? err.message : null;

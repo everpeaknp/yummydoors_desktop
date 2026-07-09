@@ -5,6 +5,7 @@ import { apiFetch } from "@/lib/http";
 import { useAuth } from "@/hooks/use-auth";
 import { Plus, Edit2, Trash2 } from "lucide-react";
 import { MerchantDashboardLayout } from "@/components/merchant/merchant-dashboard-layout";
+import { ImageUpload } from "@/components/ui/image-upload";
 
 export default function MenuItemsPage() {
   const { user } = useAuth();
@@ -245,8 +246,12 @@ export default function MenuItemsPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-[#1f2937] mb-1">Image URL (optional)</label>
-                  <input type="url" value={formData.image_url} onChange={e => setFormData({...formData, image_url: e.target.value})} className="w-full rounded-xl border border-[#efe4d8] px-4 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none" />
+                  <label className="block text-sm font-medium text-[#1f2937] mb-1">Image (optional)</label>
+                  <ImageUpload 
+                    value={formData.image_url} 
+                    folderType="menu_items"
+                    onChange={url => setFormData({...formData, image_url: url ?? ""})} 
+                  />
                 </div>
               </div>
               

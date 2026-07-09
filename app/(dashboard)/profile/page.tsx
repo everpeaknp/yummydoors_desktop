@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { Mail, MapPin, Phone, UserCircle2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -268,12 +269,14 @@ export default function ProfilePage() {
               <div className="flex items-center gap-4">
                 <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[#eff6ff] text-[#024abe] shadow-sm">
                   {user?.avatarUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={user.avatarUrl}
-                      alt={user.fullName}
-                      className="h-20 w-20 rounded-full object-cover"
-                    />
+                    <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-full">
+                      <Image
+                        fill
+                        src={user.avatarUrl}
+                        alt={user.fullName}
+                        className="object-cover"
+                      />
+                    </div>
                   ) : (
                     <UserCircle2 className="h-10 w-10" />
                   )}

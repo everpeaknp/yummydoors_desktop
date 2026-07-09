@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import { Send, Store, MessageSquareText } from "lucide-react";
 import { SiteNavbar } from "@/components/layout/site-navbar";
 import { SiteFooter } from "@/components/layout/site-footer";
@@ -158,7 +159,9 @@ export default function CustomerMessagesPage() {
                     }`}
                   >
                     {conv.customer_avatar ? (
-                      <img src={conv.customer_avatar} alt="Logo" className="w-12 h-12 rounded-full object-cover" />
+                      <div className="relative w-12 h-12 shrink-0 rounded-full overflow-hidden">
+                        <Image fill src={conv.customer_avatar} alt="Logo" className="object-cover" />
+                      </div>
                     ) : (
                       <div className="w-12 h-12 rounded-full bg-white border border-[#ced4da] flex items-center justify-center text-[#adb5bd]">
                         <Store className="w-6 h-6" />

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import dynamic from "next/dynamic";
 import {
   Star,
@@ -1118,10 +1119,11 @@ export default function LandingPage() {
     <div className="min-h-screen bg-white text-gray-800 font-sans antialiased overflow-x-hidden selection:bg-primary selection:text-white">
       <section className="relative z-30 flex min-h-[600px] flex-col items-center justify-center overflow-visible lg:min-h-[700px]">
         <div className="absolute inset-0 z-0">
-          <img
+          <Image
+            fill
             src="https://images.unsplash.com/photo-1543353071-10c8ba85a904?q=80&w=2000&auto=format&fit=crop"
             alt="Friends eating"
-            className="h-full w-full object-cover"
+            className="object-cover"
           />
           <div className="absolute inset-0 bg-gray-900/50" />
         </div>
@@ -1418,10 +1420,11 @@ export default function LandingPage() {
                       href={`/restaurants?category=${encodeURIComponent(cat.slug)}`}
                       className="relative block h-[280px] w-[195px] shrink-0 overflow-hidden rounded-[4px]"
                     >
-                      <img
+                      <Image
+                        fill
                         src={categoryImage}
                         alt={cat.name}
-                        className="h-full w-full object-cover"
+                        className="object-cover"
                       />
                       <div className="absolute inset-x-0 bottom-0 h-[120px] bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
                       <div className="absolute top-[12px] right-[12px] bg-white text-[#333333] text-[11px] font-semibold w-[30px] h-[30px] rounded-full flex items-center justify-center shadow">
@@ -1732,10 +1735,11 @@ export default function LandingPage() {
                       className="shrink-0 w-[300px] bg-white border border-gray-200/60 rounded-[4px] overflow-hidden flex flex-col hover:shadow-lg transition-shadow duration-300"
                     >
                       <div className="relative h-[200px] w-full overflow-hidden bg-gray-100">
-                        <img
+                        <Image
+                          fill
                           src={coverUrl}
                           alt={r.name}
-                          className="h-full w-full object-cover"
+                          className="object-cover"
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
 
@@ -1859,10 +1863,11 @@ export default function LandingPage() {
                     className="group overflow-hidden rounded-[8px] border border-gray-200/60 bg-white shadow-sm hover:shadow-lg transition-shadow duration-300"
                   >
                     <div className="relative h-[200px] w-full overflow-hidden bg-gray-100">
-                      <img
+                      <Image
+                        fill
                         src={coverUrl}
                         alt={r.name}
-                        className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                        className="object-cover transition-transform duration-300 group-hover:scale-105"
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                       {r.offer_text || r.has_free_delivery ? (

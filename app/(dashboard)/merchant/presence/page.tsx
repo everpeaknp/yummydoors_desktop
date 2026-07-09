@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import MapPicker from "@/components/ui/map-picker";
+import { ImageUpload } from "@/components/ui/image-upload";
 import { useAuth } from "@/hooks/use-auth";
 import { apiFetch } from "@/lib/http";
 
@@ -425,15 +426,23 @@ export default function MerchantPresencePage() {
                       <Input value={form.area} onChange={(event) => setForm((current) => ({ ...current, area: event.target.value }))} />
                     </label>
 
-                    <label className="space-y-2">
-                      <span className="text-sm font-medium text-[#1f2937]">Cover image URL</span>
-                      <Input value={form.cover_image_url} onChange={(event) => setForm((current) => ({ ...current, cover_image_url: event.target.value }))} />
-                    </label>
+                    <div className="space-y-2">
+                      <span className="text-sm font-medium text-[#1f2937]">Cover image</span>
+                      <ImageUpload
+                        value={form.cover_image_url}
+                        folderType="restaurant_covers"
+                        onChange={(url) => setForm((current) => ({ ...current, cover_image_url: url ?? "" }))}
+                      />
+                    </div>
 
-                    <label className="space-y-2">
-                      <span className="text-sm font-medium text-[#1f2937]">Logo image URL</span>
-                      <Input value={form.logo_url} onChange={(event) => setForm((current) => ({ ...current, logo_url: event.target.value }))} />
-                    </label>
+                    <div className="space-y-2">
+                      <span className="text-sm font-medium text-[#1f2937]">Logo image</span>
+                      <ImageUpload
+                        value={form.logo_url}
+                        folderType="restaurant_logos"
+                        onChange={(url) => setForm((current) => ({ ...current, logo_url: url ?? "" }))}
+                      />
+                    </div>
 
                     <label className="space-y-2">
                       <span className="text-sm font-medium text-[#1f2937]">Offer text</span>

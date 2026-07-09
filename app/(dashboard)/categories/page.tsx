@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Plus, Edit2, Trash2 } from "lucide-react";
 
 import { MerchantDashboardLayout } from "@/components/merchant/merchant-dashboard-layout";
+import { ImageUpload } from "@/components/ui/image-upload";
 
 export default function CategoriesPage() {
   const { user } = useAuth();
@@ -195,8 +196,12 @@ export default function CategoriesPage() {
                   <input required value={formData.slug} onChange={e => setFormData({...formData, slug: e.target.value})} className="w-full rounded border border-[#ced4da] px-3 py-2 text-[14px] focus:border-[#86b7fe] outline-none" />
                 </div>
                 <div>
-                  <label className="block text-[14px] font-medium text-[#495057] mb-1">Icon URL (optional)</label>
-                  <input type="url" value={formData.icon_url} onChange={e => setFormData({...formData, icon_url: e.target.value})} className="w-full rounded border border-[#ced4da] px-3 py-2 text-[14px] focus:border-[#86b7fe] outline-none" />
+                  <label className="block text-[14px] font-medium text-[#495057] mb-1">Icon (optional)</label>
+                  <ImageUpload 
+                    value={formData.icon_url} 
+                    folderType="categories"
+                    onChange={url => setFormData({...formData, icon_url: url ?? ""})} 
+                  />
                 </div>
                 <div className="flex gap-4">
                   <div className="flex-1">

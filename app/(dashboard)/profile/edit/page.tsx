@@ -2,6 +2,7 @@
 
 import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { Camera, Trash2, UserCircle2 } from "lucide-react";
 
 import { SiteNavbar } from "@/components/layout/site-navbar";
@@ -264,12 +265,14 @@ export default function EditProfilePage() {
                     <div className="relative">
                       <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-full bg-[#eff6ff] text-[#024abe] shadow-sm">
                         {avatarUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={avatarUrl}
-                            alt={fullName || "Profile picture"}
-                            className="h-full w-full object-cover"
-                          />
+                          <div className="relative h-full w-full">
+                            <Image
+                              fill
+                              src={avatarUrl}
+                              alt={fullName || "Profile picture"}
+                              className="object-cover"
+                            />
+                          </div>
                         ) : (
                           <UserCircle2 className="h-14 w-14" />
                         )}

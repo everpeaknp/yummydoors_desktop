@@ -46,6 +46,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { MenuCard } from "@/components/customer/menu-card";
 import { MenuItemModal } from "@/components/customer/menu-item-modal";
 import { OrderSummaryPanel } from "@/components/customer/order-summary-panel";
+import { useAuth } from "@/hooks/use-auth";
 
 type CategorySummary = {
   id: number;
@@ -145,6 +146,31 @@ type RestaurantDetail = {
   } | null;
 };
 
+type ActiveCartItem = {
+  id: number;
+  menu_item_id: number;
+  quantity: number;
+  name: string;
+  price: number;
+  image_url: string | null;
+};
+
+type ActiveCartPricing = {
+  items_total: number;
+  delivery_fee: number;
+  coupon_discount: number;
+  subtotal_amount: number;
+  total_amount: number;
+};
+
+type ActiveCart = {
+  id: number;
+  restaurant_id: number;
+  items: ActiveCartItem[];
+  items_count: number;
+  pricing: ActiveCartPricing;
+};
+
 const LOCATION_STORAGE_KEY = "yummydoors.selectedLocation";
 
 function formatPrice(item: MenuItemSummary) {
@@ -184,6 +210,7 @@ function collectGalleryImages(detail: RestaurantDetail) {
 }
 
 export default function RestaurantDetailPage() {
+  const { accessToken } = useAuth();
   const params = useParams<{ slug: string }>();
   const slug = typeof params?.slug === "string" ? params.slug : "";
 
@@ -199,74 +226,10 @@ export default function RestaurantDetailPage() {
   const [selectedItem, setSelectedItem] = useState<MenuItemSummary | null>(
     null,
   );
-  const [cartItems, setCartItems] = useState<any[]>([]);
-  const [cartPricing, setCartPricing] = useState<any | null>(null);
-  const [isCalculating, setIsCalculating] = useState(false);
+  const [activeCart, setActiveCart] = useState<ActiveCart | null>(null);
+  const [cartSyncing, setCartSyncing] = useState(false);
+  const [cartError, setCartError] = useState<string | null>(null);
   const [sidebarTab, setSidebarTab] = useState<"order" | "book">("order");
-
-  // Calculate order summary when cart changes
-  useEffect(() => {
-    const calculateCart = async () => {
-      if (!detail?.restaurant?.id || cartItems.length === 0) {
-        setCartPricing(null);
-        return;
-      }
-      setIsCalculating(true);
-      try {
-        const payload = {
-          restaurant_id: detail.restaurant.id,
-          items: cartItems.map((item) => ({
-            menu_item_id: item.menu_item_id,
-            quantity: item.quantity,
-            modifier_ids: item.modifier_ids,
-          })),
-        };
-        const res = await apiFetch("/orders/summary", {
-          method: "POST",
-          body: JSON.stringify(payload),
-        });
-        const payloadData = (await readJsonSafely(res)) as { pricing?: any };
-        if (res.ok && payloadData?.pricing) {
-          setCartPricing(payloadData.pricing);
-        }
-      } catch (err) {
-        console.error("Failed to calculate summary", err);
-      } finally {
-        setIsCalculating(false);
-      }
-    };
-    calculateCart();
-  }, [cartItems, detail?.restaurant?.id]);
-
-  const handleAddToCart = (
-    itemId: number,
-    quantity: number,
-    modifierIds: number[],
-  ) => {
-    const item = [
-      ...(detail?.featured_items || []),
-      ...(detail?.menu_sections.flatMap((s) => s.items) || []),
-    ].find((i) => i.id === itemId);
-    if (!item) return;
-
-    setCartItems((prev) => [
-      ...prev,
-      {
-        cartItemId: Math.random().toString(36).substring(7),
-        menu_item_id: itemId,
-        name: item.name,
-        price: item.price,
-        quantity,
-        modifier_ids: modifierIds,
-      },
-    ]);
-  };
-
-  const handleRemoveFromCart = (cartItemId: string) => {
-    setCartItems((prev) =>
-      prev.filter((item) => item.cartItemId !== cartItemId),
-    );
-  };
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -295,6 +258,123 @@ export default function RestaurantDetailPage() {
       window.localStorage.removeItem(LOCATION_STORAGE_KEY);
     }
   }, []);
+
+  const loadActiveCart = useCallback(async () => {
+    const restaurantId = detail?.restaurant?.id;
+    if (!restaurantId || !accessToken) {
+      setActiveCart(null);
+      setCartError(null);
+      return;
+    }
+
+    setCartSyncing(true);
+    setCartError(null);
+    try {
+      const response = await apiFetch(`/carts/${restaurantId}`, { auth: true });
+      const payload = await readJsonSafely<ActiveCart>(response);
+      if (response.status === 404) {
+        setActiveCart(null);
+        return;
+      }
+      if (!response.ok) {
+        throw new Error(extractApiErrorMessage(payload, "Failed to load cart."));
+      }
+      setActiveCart(payload);
+    } catch (caught) {
+      setCartError(
+        caught instanceof Error ? caught.message : "Failed to load cart.",
+      );
+    } finally {
+      setCartSyncing(false);
+    }
+  }, [accessToken, detail?.restaurant?.id]);
+
+  useEffect(() => {
+    void loadActiveCart();
+  }, [loadActiveCart]);
+
+  useEffect(() => {
+    function handleCartUpdated() {
+      void loadActiveCart();
+    }
+
+    window.addEventListener("yummydoors:cart-updated", handleCartUpdated);
+    return () =>
+      window.removeEventListener("yummydoors:cart-updated", handleCartUpdated);
+  }, [loadActiveCart]);
+
+  const handleAddToCart = useCallback(
+    async (itemId: number, quantity: number, _modifierIds: number[]) => {
+      const restaurantId = detail?.restaurant?.id;
+      if (!restaurantId) return;
+
+      if (!accessToken) {
+        window.location.href = "/login";
+        return;
+      }
+
+      setCartSyncing(true);
+      setCartError(null);
+      try {
+        const response = await apiFetch(`/carts/${restaurantId}/items`, {
+          method: "POST",
+          auth: true,
+          body: JSON.stringify({
+            menu_item_id: itemId,
+            quantity,
+          }),
+        });
+        const payload = await readJsonSafely<ActiveCart>(response);
+        if (!response.ok) {
+          throw new Error(
+            extractApiErrorMessage(payload, "Failed to add item to cart."),
+          );
+        }
+        setActiveCart(payload);
+        window.dispatchEvent(new CustomEvent("yummydoors:cart-updated"));
+      } catch (caught) {
+        setCartError(
+          caught instanceof Error
+            ? caught.message
+            : "Failed to add item to cart.",
+        );
+      } finally {
+        setCartSyncing(false);
+      }
+    },
+    [accessToken, detail?.restaurant?.id],
+  );
+
+  const handleRemoveFromCart = useCallback(
+    async (cartItemId: string) => {
+      const restaurantId = detail?.restaurant?.id;
+      if (!restaurantId) return;
+
+      setCartSyncing(true);
+      setCartError(null);
+      try {
+        const response = await apiFetch(`/carts/${restaurantId}/items/${cartItemId}`, {
+          method: "DELETE",
+          auth: true,
+        });
+        const payload = await readJsonSafely<ActiveCart>(response);
+        if (!response.ok) {
+          throw new Error(
+            extractApiErrorMessage(payload, "Failed to update cart."),
+          );
+        }
+        setActiveCart(payload);
+        window.dispatchEvent(new CustomEvent("yummydoors:cart-updated"));
+      } catch (caught) {
+        setCartError(
+          caught instanceof Error ? caught.message : "Failed to update cart.",
+        );
+      } finally {
+        setCartSyncing(false);
+      }
+    },
+    [detail?.restaurant?.id],
+  );
 
   const loadRestaurant = useCallback(
     async (signal?: AbortSignal) => {
@@ -803,16 +883,30 @@ export default function RestaurantDetailPage() {
                   </div>
 
                   {sidebarTab === "order" ? (
-                    <OrderSummaryPanel
-                      restaurantId={restaurant.id}
-                      items={cartItems}
-                      pricing={cartPricing}
-                      isCalculating={isCalculating}
-                      onRemoveItem={handleRemoveFromCart}
-                      onCheckout={() => {
-                        window.location.href = `/checkout/${restaurant.id}`;
-                      }}
-                    />
+                    <div className="space-y-3">
+                      {cartError ? (
+                        <div className="rounded-[3px] border border-[#fecdd3] bg-[#fff1f2] px-4 py-3 text-[13px] text-[#be123c]">
+                          {cartError}
+                        </div>
+                      ) : null}
+                      <OrderSummaryPanel
+                        restaurantId={restaurant.id}
+                        items={(activeCart?.items ?? []).map((item) => ({
+                          cartItemId: String(item.id),
+                          menu_item_id: item.menu_item_id,
+                          name: item.name,
+                          price: item.price,
+                          quantity: item.quantity,
+                          modifier_ids: [],
+                        }))}
+                        pricing={activeCart?.pricing ?? null}
+                        isCalculating={cartSyncing}
+                        onRemoveItem={handleRemoveFromCart}
+                        onCheckout={() => {
+                          window.location.href = `/checkout/${restaurant.id}`;
+                        }}
+                      />
+                    </div>
                   ) : (
                     <CustomerBookingPanel
                       restaurantSlug={restaurant.slug}

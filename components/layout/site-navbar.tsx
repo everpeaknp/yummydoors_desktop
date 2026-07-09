@@ -146,12 +146,14 @@ export function SiteNavbar({ className, variant = "light" }: SiteNavbarProps) {
                   )}
                 >
                   {user?.avatarUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={user.avatarUrl}
-                      alt={displayName}
-                      className="h-11 w-11 rounded-full object-cover"
-                    />
+                    <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-full">
+                      <Image
+                        fill
+                        src={user.avatarUrl}
+                        alt={displayName}
+                        className="object-cover"
+                      />
+                    </div>
                   ) : (
                     <span className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-sm font-bold text-[#1f2937] shadow-[0_4px_14px_rgba(15,23,42,0.12)]">
                       {initials}

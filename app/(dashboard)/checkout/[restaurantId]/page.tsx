@@ -126,6 +126,7 @@ export default function CheckoutPage() {
   const [placingOrder, setPlacingOrder] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [cartMissing, setCartMissing] = useState(false);
   const [successOrder, setSuccessOrder] = useState<OrderResponse | null>(null);
 
   const loadCheckoutState = useCallback(async () => {
@@ -137,6 +138,7 @@ export default function CheckoutPage() {
 
     setLoading(true);
     setError(null);
+    setCartMissing(false);
 
     const [cartResponse, addressesResponse] = await Promise.all([
       apiFetch(`/carts/${restaurantId}`, { auth: true }),
@@ -145,6 +147,19 @@ export default function CheckoutPage() {
 
     const cartPayload = await readJsonSafely<Cart>(cartResponse);
     const addressesPayload = await readJsonSafely(addressesResponse);
+
+    if (cartResponse.status === 404) {
+      setCart(null);
+      setAddresses([]);
+      setSelectedAddressId(null);
+      setCouponCode("");
+      setNeedsCutlery(true);
+      setCookingRequest("");
+      setDeliveryInstruction("");
+      setCartMissing(true);
+      setLoading(false);
+      return;
+    }
 
     if (!cartResponse.ok) {
       setLoading(false);
@@ -159,11 +174,20 @@ export default function CheckoutPage() {
     }
 
     const nextCart = cartPayload;
-    const nextAddresses = (addressesPayload as { data?: Address[] } | null)?.data ?? [];
+    const nextAddresses = Array.isArray(addressesPayload)
+      ? addressesPayload
+      : Array.isArray((addressesPayload as { data?: unknown } | null)?.data)
+        ? ((addressesPayload as { data: Address[] }).data ?? [])
+        : [];
 
     setCart(nextCart);
     setAddresses(nextAddresses);
-    setSelectedAddressId(nextCart?.address?.id ?? nextAddresses.find((item) => item.is_default)?.id ?? null);
+    setSelectedAddressId(
+      nextCart?.address?.id ??
+        nextAddresses.find((item) => item.is_default)?.id ??
+        nextAddresses[0]?.id ??
+        null,
+    );
     setCouponCode(nextCart?.coupon_code ?? "");
     setNeedsCutlery(nextCart?.needs_cutlery ?? true);
     setCookingRequest(nextCart?.cooking_request ?? "");
@@ -308,6 +332,30 @@ export default function CheckoutPage() {
           <div className="rounded-3xl border border-border bg-white px-6 py-10 text-sm text-muted-foreground">
             Loading checkout...
           </div>
+        ) : cartMissing ? (
+          <Card>
+            <CardContent className="flex flex-col items-start gap-4 py-10">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+                  Checkout cart
+                </p>
+                <h2 className="mt-2 text-3xl font-semibold text-foreground">
+                  Cart no longer active
+                </h2>
+                <p className="mt-3 text-sm text-muted-foreground">
+                  This restaurant does not have an active cart right now. Add items again from the restaurant page or return to your cart list.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <Link href="/cart">
+                  <Button>Return to cart</Button>
+                </Link>
+                <Link href="/restaurants">
+                  <Button variant="secondary">Browse restaurants</Button>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
         ) : error ? (
           <div className="rounded-3xl border border-[#fbcfe8] bg-[#fff1f2] px-6 py-5 text-sm text-[#be123c]">
             {error}
@@ -416,7 +464,12 @@ export default function CheckoutPage() {
                     </div>
                   ) : (
                     <div className="rounded-2xl border border-border bg-[#fcfcfd] px-4 py-4 text-sm text-muted-foreground">
-                      No saved addresses found. Add one from the homepage location flow first.
+                      <p>No saved addresses found. Add one from the homepage location flow first.</p>
+                      <Link href="/" className="mt-3 inline-flex">
+                        <Button variant="secondary" className="h-10 px-3">
+                          Add address
+                        </Button>
+                      </Link>
                     </div>
                   )}
                 </CardContent>

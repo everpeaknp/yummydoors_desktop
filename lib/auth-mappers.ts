@@ -6,6 +6,24 @@ import type {
   StoredWorkspace,
 } from "@/lib/auth-storage";
 
+function normalizeAvatarUrl(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  let cleaned = value.trim();
+  while (
+    cleaned.startsWith("https://https://") ||
+    cleaned.startsWith("http://http://") ||
+    cleaned.startsWith("https://http://") ||
+    cleaned.startsWith("http://https://")
+  ) {
+    cleaned = cleaned.slice(cleaned.indexOf("://") + 3);
+  }
+
+  return cleaned || null;
+}
+
 function mapPosLinkStatus(payload: any): PosLinkStatus {
   return {
     enabled: Boolean(payload?.enabled),
@@ -98,7 +116,7 @@ export function mapStoredUser(data: any): StoredUser {
     phoneIsPresent: Boolean(data.phone_is_present ?? data.phone),
     phoneCanEdit: data.phone_can_edit !== false,
     phoneCountry,
-    avatarUrl: data.avatar_url ?? null,
+    avatarUrl: normalizeAvatarUrl(data.avatar_url),
     status: data.status ?? "unknown",
     isVerified: Boolean(data.is_verified),
     roles: Array.isArray(data.roles) ? data.roles.map((role: { code: string }) => role.code) : [],
@@ -149,7 +167,7 @@ export function mergeStoredUserWithProfile(
     phoneCanEdit:
       typeof payload.phone_can_edit === "boolean" ? payload.phone_can_edit : user.phoneCanEdit,
     phoneCountry,
-    avatarUrl: payload.avatar_url ?? user.avatarUrl,
+    avatarUrl: normalizeAvatarUrl(payload.avatar_url) ?? user.avatarUrl,
     status: payload.status ?? user.status,
     isVerified:
       typeof payload.is_verified === "boolean" ? payload.is_verified : user.isVerified,

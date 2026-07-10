@@ -14,7 +14,7 @@ interface ImageUploadProps {
   disabled?: boolean;
 }
 
-export function ImageUpload({ value, onChange, folderType, clientScope = "desktop", disabled }: ImageUploadProps) {
+export function ImageUpload({ value, onChange, folderType, clientScope = "web", disabled }: ImageUploadProps) {
   const [uploading, setUploading] = useState(false);
 
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {

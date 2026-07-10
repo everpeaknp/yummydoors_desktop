@@ -133,6 +133,7 @@ export default function EditProfilePage() {
     try {
       const formData = new FormData();
       formData.append("file", file);
+      formData.append("client_scope", "web");
       const response = await apiFetch("/me/profile/avatar", {
         auth: true,
         method: "POST",

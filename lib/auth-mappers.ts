@@ -12,13 +12,15 @@ function normalizeAvatarUrl(value: unknown): string | null {
   }
 
   let cleaned = value.trim();
-  while (
-    cleaned.startsWith("https://https://") ||
-    cleaned.startsWith("http://http://") ||
-    cleaned.startsWith("https://http://") ||
-    cleaned.startsWith("http://https://")
-  ) {
-    cleaned = cleaned.slice(cleaned.indexOf("://") + 3);
+  for (const prefix of [
+    "https://https://",
+    "http://http://",
+    "https://http://",
+    "http://https://",
+  ]) {
+    while (cleaned.startsWith(prefix)) {
+      cleaned = `${prefix.split("://")[0]}://${cleaned.slice(prefix.length)}`;
+    }
   }
 
   return cleaned || null;

@@ -217,7 +217,7 @@ function collectGalleryImages(detail: RestaurantDetail) {
 }
 
 export default function RestaurantDetailPage() {
-  const { accessToken } = useAuth();
+  const { accessToken, hydrated } = useAuth();
   const params = useParams<{ slug: string }>();
   const searchParams = useSearchParams();
   const slug = typeof params?.slug === "string" ? params.slug : "";
@@ -387,7 +387,7 @@ export default function RestaurantDetailPage() {
 
   const loadRestaurant = useCallback(
     async (signal?: AbortSignal) => {
-      if (!slug) {
+      if (!slug || !hydrated) {
         return;
       }
 
@@ -401,7 +401,7 @@ export default function RestaurantDetailPage() {
         }
         const response = await apiFetch(
           `/restaurants/${slug}${query.size ? `?${query.toString()}` : ""}`,
-          { signal },
+          { signal, auth: Boolean(accessToken) },
         );
         const payload = (await readJsonSafely(response)) as
           RestaurantDetail | { data: RestaurantDetail };
@@ -430,7 +430,7 @@ export default function RestaurantDetailPage() {
         }
       }
     },
-    [selectedCoords, slug],
+    [accessToken, hydrated, selectedCoords, slug],
   );
 
   useEffect(() => {

@@ -9,7 +9,15 @@ import { extractApiErrorMessage, readJsonSafely } from "@/lib/api-utils";
 interface ImageUploadProps {
   value: string | null;
   onChange: (url: string | null) => void;
-  folderType: "restaurant_covers" | "restaurant_logos" | "menu_items" | "categories" | "promos" | "avatars" | "restaurant_gallery";
+  folderType:
+    | "restaurant_covers"
+    | "restaurant_logos"
+    | "menu_items"
+    | "categories"
+    | "promos"
+    | "avatars"
+    | "restaurant_gallery"
+    | "restaurant_reviews";
   clientScope?: "desktop" | "mobile" | "web";
   disabled?: boolean;
 }

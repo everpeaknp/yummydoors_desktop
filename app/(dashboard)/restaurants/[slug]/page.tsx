@@ -136,6 +136,7 @@ type RestaurantDetail = {
     created_at: string;
     is_mine: boolean;
     can_edit: boolean;
+    image_urls: string[];
   }>;
   viewer_review: ReviewPayload | null;
   review_eligibility: {
@@ -860,6 +861,23 @@ export default function RestaurantDetailPage() {
                                 {review.comment ??
                                   "No written note left for this review."}
                               </p>
+                              {review.image_urls.length > 0 ? (
+                                <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                                  {review.image_urls.map((url, index) => (
+                                    <div
+                                      key={`${review.id}-${index}`}
+                                      className="aspect-square overflow-hidden rounded-xl border border-gray-100 bg-gray-50"
+                                    >
+                                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                                      <img
+                                        src={url}
+                                        alt={`${review.author_name} review photo ${index + 1}`}
+                                        className="h-full w-full object-cover"
+                                      />
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : null}
                               <div className="flex gap-2">
                                 <button className="rounded-[3px] border border-gray-200 bg-[#f8f8f8] px-3 py-1.5 text-[12px] font-bold text-gray-600 transition hover:bg-gray-100">
                                   Helpful

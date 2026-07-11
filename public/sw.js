@@ -2,8 +2,8 @@ self.addEventListener("push", (event) => {
   const payload = event.data ? event.data.json() : {};
   const title = payload.title || "YummyDoors update";
   const body = payload.body || "You have a new notification.";
-  const url = payload.deep_link || "/orders";
-  const tag = payload.tag || "yummydoors-order-update";
+  const url = payload.deep_link || "/";
+  const tag = payload.tag || "yummydoors-notification";
 
   event.waitUntil(
     self.registration.showNotification(title, {

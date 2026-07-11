@@ -36,6 +36,16 @@ import { SiteNavbar } from "@/components/layout/site-navbar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import {
+  ANALYTICS_PERIOD_OPTIONS,
+  buildAnalyticsQuery,
+  formatAnalyticsDateLabel,
+  formatAnalyticsShortDate,
+  formatMoney,
+  getDefaultCustomRange,
+  type AnalyticsPeriod,
+  type MerchantAnalyticsResponse,
+} from "@/lib/analytics";
 import { useAuth } from "@/hooks/use-auth";
 import { mapStoredUser } from "@/lib/auth-mappers";
 import { apiFetch } from "@/lib/http";
@@ -118,7 +128,7 @@ type PublicRestaurant = {
   logo_url: string | null;
 };
 
-function extractErrorMessage(payload: any) {
+function extractErrorMessage(payload: any, fallback = "Something went wrong.") {
   if (typeof payload?.detail === "string" && payload.detail.trim()) {
     return payload.detail;
   }
@@ -134,7 +144,7 @@ function extractErrorMessage(payload: any) {
     return payload.message;
   }
 
-  return "Something went wrong.";
+  return fallback;
 }
 
 function formatStatus(value: string) {
@@ -210,6 +220,12 @@ export default function MerchantPage() {
 
   const [stats, setStats] = useState<any>(null);
   const [loadingStats, setLoadingStats] = useState(false);
+  const [merchantAnalyticsPeriod, setMerchantAnalyticsPeriod] =
+    useState<AnalyticsPeriod>("last_7_days");
+  const [merchantAnalyticsRange, setMerchantAnalyticsRange] = useState(() => getDefaultCustomRange());
+  const [merchantAnalytics, setMerchantAnalytics] = useState<MerchantAnalyticsResponse | null>(null);
+  const [loadingMerchantAnalytics, setLoadingMerchantAnalytics] = useState(false);
+  const [merchantAnalyticsError, setMerchantAnalyticsError] = useState<string | null>(null);
 
   const [requestType, setRequestType] = useState<RequestType>("create_external");
   const [businessName, setBusinessName] = useState("");
@@ -383,6 +399,62 @@ export default function MerchantPage() {
       cancelled = true;
     };
   }, [hasApprovedMerchant, activeRestaurant]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadMerchantAnalytics() {
+      if (!hasApprovedMerchant || !activeRestaurant) {
+        setMerchantAnalytics(null);
+        return;
+      }
+
+      setLoadingMerchantAnalytics(true);
+      setMerchantAnalyticsError(null);
+
+      try {
+        const query = buildAnalyticsQuery({
+          period: merchantAnalyticsPeriod,
+          startDate: merchantAnalyticsRange.startDate,
+          endDate: merchantAnalyticsRange.endDate,
+        });
+        const response = await apiFetch(`/merchant/restaurants/me/analytics?${query.toString()}`, {
+          auth: true,
+        });
+        const payload = await response.json().catch(() => null);
+        if (!response.ok) {
+          throw new Error(extractErrorMessage(payload, "Failed to load merchant analytics."));
+        }
+
+        if (!cancelled) {
+          setMerchantAnalytics(payload?.data ?? payload);
+        }
+      } catch (caught) {
+        if (!cancelled) {
+          setMerchantAnalytics(null);
+          setMerchantAnalyticsError(
+            caught instanceof Error ? caught.message : "Failed to load merchant analytics.",
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingMerchantAnalytics(false);
+        }
+      }
+    }
+
+    void loadMerchantAnalytics();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    activeRestaurant,
+    hasApprovedMerchant,
+    merchantAnalyticsPeriod,
+    merchantAnalyticsRange.endDate,
+    merchantAnalyticsRange.startDate,
+  ]);
 
   async function handleRestaurantSwitch(restaurantId: number) {
     setError(null);
@@ -559,10 +631,48 @@ export default function MerchantPage() {
 
   const selectedRequestMeta = requestTypeMeta(requestType);
 
-  const dynamicChartData = stats?.order_volume_14d?.map((d: any) => ({
-    name: new Date(d.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-    value: d.count,
-  })) || [];
+  const merchantAnalyticsChartData =
+    merchantAnalytics?.daily_sales?.map((point) => ({
+      name: formatAnalyticsShortDate(point.date),
+      gross_spend: point.gross_spend,
+      net_spend: point.net_spend,
+      orders_count: point.orders_count,
+    })) ?? [];
+
+  const merchantAnalyticsSummaryCards = merchantAnalytics
+    ? [
+        {
+          label: "Gross sales",
+          value: formatMoney(merchantAnalytics.summary.gross_spend),
+          note: "Includes delivered, cancelled, pending, and refunded orders.",
+        },
+        {
+          label: "Net sales",
+          value: formatMoney(merchantAnalytics.summary.net_spend),
+          note: "Excludes cancelled and refunded reversals.",
+        },
+        {
+          label: "Total orders",
+          value: String(merchantAnalytics.summary.orders_count),
+          note: "All order statuses in the selected window.",
+        },
+        {
+          label: "Delivered orders",
+          value: String(merchantAnalytics.summary.delivered_orders_count),
+          note: "Completed sales that earned loyalty points.",
+        },
+        {
+          label: "Cancelled orders",
+          value: String(merchantAnalytics.summary.cancelled_orders_count),
+          note: formatMoney(merchantAnalytics.summary.cancelled_spend),
+        },
+        {
+          label: "Average order value",
+          value: formatMoney(merchantAnalytics.summary.average_order_value),
+          note: "Net average across the selected range.",
+        },
+      ]
+    : [];
 
   if (hasApprovedMerchant) {
     return (
@@ -576,6 +686,20 @@ export default function MerchantPage() {
             </div>
             
             {/* 4 Stat Cards */}
+            <div className="mb-4 flex items-center justify-between gap-4">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-primary">
+                  Live merchant activity
+                </p>
+                <h3 className="mt-2 text-lg font-semibold text-[#1f2937]">
+                  Messages, reviews, orders, and bookmarks
+                </h3>
+              </div>
+              {loadingStats ? (
+                <span className="text-sm font-medium text-[#6b7280]">Refreshing...</span>
+              ) : null}
+            </div>
+
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-8">
               {[
                 { label: `${stats?.unread_messages ?? 0} New Messages!`, bgColor: "bg-[#0d84ff]", icon: Mail, link: "/merchant/messages" },
@@ -599,27 +723,269 @@ export default function MerchantPage() {
               })}
             </div>
             
-            {/* Statistic Graph */}
-            <div className="bg-white rounded shadow-sm border border-[#e9ecef] overflow-hidden">
-               <div className="border-b border-[#e9ecef] px-6 py-4 flex items-center gap-3 justify-between">
-                 <div className="flex items-center gap-3">
-                   <Store className="w-5 h-5 text-[#868e96]" />
-                   <h3 className="text-[18px] font-semibold text-[#495057]">Order Volume (Last 14 Days)</h3>
-                 </div>
-                 {loadingStats && <span className="text-[13px] text-[#868e96]">Loading...</span>}
-               </div>
-               <div className="p-6 h-[400px]">
-                 <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={dynamicChartData}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f8f9fa" />
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#868e96' }} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#868e96' }} />
-                      <Tooltip />
-                      <Area type="monotone" dataKey="value" stroke="#0d84ff" strokeWidth={2} fill="#0d84ff" fillOpacity={0.2} />
-                    </AreaChart>
-                 </ResponsiveContainer>
-               </div>
-            </div>
+            <Card className="mb-8 rounded-[28px] border border-[#efe4d8] bg-white shadow-[0_24px_70px_rgba(15,23,42,0.06)]">
+              <CardContent className="space-y-6 p-0">
+                <div className="flex flex-col gap-4 border-b border-[#f2e8de] px-7 py-6 xl:flex-row xl:items-end xl:justify-between">
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-[0.24em] text-primary">
+                      Sales analytics
+                    </p>
+                    <h3 className="mt-3 text-[28px] font-semibold tracking-tight text-[#1f2937]">
+                      Daily sales, status, and category breakdowns
+                    </h3>
+                    <p className="mt-3 max-w-3xl text-sm leading-7 text-[#6b7280]">
+                      Gross spend includes cancelled and refunded orders. Net spend excludes reversals,
+                      which is the number the loyalty system uses for delivered-order accrual.
+                    </p>
+                    {merchantAnalytics?.period ? (
+                      <p className="mt-3 text-xs font-medium uppercase tracking-[0.16em] text-[#9ca3af]">
+                        Window: {merchantAnalytics.period.label}{" "}
+                        {formatAnalyticsDateLabel(merchantAnalytics.period.start_date)} to{" "}
+                        {formatAnalyticsDateLabel(merchantAnalytics.period.end_date)}
+                      </p>
+                    ) : null}
+                  </div>
+                  <div className="space-y-3 xl:min-w-[280px]">
+                    <select
+                      value={merchantAnalyticsPeriod}
+                      onChange={(event) => setMerchantAnalyticsPeriod(event.target.value as AnalyticsPeriod)}
+                      className="flex h-12 w-full rounded-xl border border-input bg-white px-4 text-sm text-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/15"
+                    >
+                      {ANALYTICS_PERIOD_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                    {merchantAnalyticsPeriod === "custom" ? (
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Input
+                          type="date"
+                          value={merchantAnalyticsRange.startDate}
+                          onChange={(event) =>
+                            setMerchantAnalyticsRange((current) => ({
+                              ...current,
+                              startDate: event.target.value,
+                            }))
+                          }
+                        />
+                        <Input
+                          type="date"
+                          value={merchantAnalyticsRange.endDate}
+                          onChange={(event) =>
+                            setMerchantAnalyticsRange((current) => ({
+                              ...current,
+                              endDate: event.target.value,
+                            }))
+                          }
+                        />
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="space-y-6 px-7 pb-7">
+                  {loadingMerchantAnalytics ? (
+                    <p className="text-sm text-muted-foreground">Loading merchant analytics...</p>
+                  ) : merchantAnalyticsError ? (
+                    <div className="rounded-2xl border border-[#ffd8cc] bg-[#fff4ef] px-4 py-3 text-sm text-[#9a3412]">
+                      {merchantAnalyticsError}
+                    </div>
+                  ) : merchantAnalytics ? (
+                    <>
+                      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                        {merchantAnalyticsSummaryCards.map((card) => (
+                          <div
+                            key={card.label}
+                            className="rounded-[22px] border border-[#efe4d8] bg-[#fcfaf7] px-5 py-5"
+                          >
+                            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-primary">
+                              {card.label}
+                            </p>
+                            <p className="mt-3 text-2xl font-semibold tracking-tight text-[#1f2937]">
+                              {card.value}
+                            </p>
+                            <p className="mt-2 text-sm leading-6 text-[#6b7280]">{card.note}</p>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="grid gap-6 xl:grid-cols-[1.35fr_0.65fr]">
+                        <div className="rounded-[22px] border border-[#efe4d8] bg-[#fcfaf7] px-5 py-5">
+                          <div className="flex items-center justify-between gap-3">
+                            <div>
+                              <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-primary">
+                                Daily sales
+                              </p>
+                              <h4 className="mt-2 text-lg font-semibold text-[#1f2937]">
+                                Gross vs net spend by day
+                              </h4>
+                            </div>
+                            <span className="text-xs font-medium uppercase tracking-[0.16em] text-[#9ca3af]">
+                              {merchantAnalytics.daily_sales.length} day window
+                            </span>
+                          </div>
+                          <div className="mt-5 h-[320px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <AreaChart data={merchantAnalyticsChartData}>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                                <XAxis
+                                  dataKey="name"
+                                  axisLine={false}
+                                  tickLine={false}
+                                  tick={{ fontSize: 12, fill: "#6b7280" }}
+                                />
+                                <YAxis
+                                  axisLine={false}
+                                  tickLine={false}
+                                  tick={{ fontSize: 12, fill: "#6b7280" }}
+                                  tickFormatter={(value) => formatMoney(Number(value)).replace(/\.00$/, "")}
+                                />
+                                <Tooltip
+                                  formatter={(value, name) => [
+                                    formatMoney(Number(value)),
+                                    name === "gross_spend" ? "Gross spend" : "Net spend",
+                                  ]}
+                                  labelStyle={{ color: "#1f2937" }}
+                                />
+                                <Area
+                                  type="monotone"
+                                  dataKey="gross_spend"
+                                  name="Gross spend"
+                                  stroke="#f97316"
+                                  strokeWidth={2}
+                                  fill="#f97316"
+                                  fillOpacity={0.18}
+                                />
+                                <Area
+                                  type="monotone"
+                                  dataKey="net_spend"
+                                  name="Net spend"
+                                  stroke="#0d84ff"
+                                  strokeWidth={2}
+                                  fill="#0d84ff"
+                                  fillOpacity={0.18}
+                                />
+                              </AreaChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </div>
+
+                        <div className="space-y-4">
+                          <div className="rounded-[22px] border border-[#efe4d8] bg-[#fcfaf7] px-5 py-5">
+                            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-primary">
+                              Status breakdown
+                            </p>
+                            <h4 className="mt-2 text-lg font-semibold text-[#1f2937]">Orders by state</h4>
+                            <div className="mt-4 space-y-3">
+                              {merchantAnalytics.status_breakdown.length > 0 ? (
+                                merchantAnalytics.status_breakdown.map((item) => (
+                                  <div
+                                    key={item.status}
+                                    className="rounded-2xl border border-[#f1e7dc] bg-white px-4 py-3"
+                                  >
+                                    <div className="flex items-center justify-between gap-3">
+                                      <p className="text-sm font-semibold text-[#1f2937]">
+                                        {item.status.replace(/_/g, " ")}
+                                      </p>
+                                      <span className="text-sm font-semibold text-[#1f2937]">
+                                        {item.orders_count}
+                                      </span>
+                                    </div>
+                                    <p className="mt-1 text-sm text-[#6b7280]">
+                                      {formatMoney(item.spend)} in this window
+                                    </p>
+                                  </div>
+                                ))
+                              ) : (
+                                <p className="text-sm text-muted-foreground">No status breakdown yet.</p>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="rounded-[22px] border border-[#efe4d8] bg-[#fcfaf7] px-5 py-5">
+                            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-primary">
+                              Range note
+                            </p>
+                            <p className="mt-2 text-sm leading-7 text-[#6b7280]">
+                              Use custom dates when you need a specific audit window. The backend accepts
+                              both delivered sales and reversal states, so the numbers here line up with
+                              the financial view instead of the simplified 7/14/30 day dashboard.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid gap-6 xl:grid-cols-2">
+                        <div className="rounded-[22px] border border-[#efe4d8] bg-[#fcfaf7] px-5 py-5">
+                          <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-primary">
+                            Top selling items
+                          </p>
+                          <h4 className="mt-2 text-lg font-semibold text-[#1f2937]">Most ordered menu items</h4>
+                          <div className="mt-4 space-y-3">
+                            {merchantAnalytics.top_selling_items.length > 0 ? (
+                              merchantAnalytics.top_selling_items.map((item, index) => (
+                                <div
+                                  key={`${item.id ?? item.name}-${index}`}
+                                  className="rounded-2xl border border-[#f1e7dc] bg-white px-4 py-3"
+                                >
+                                  <div className="flex items-start justify-between gap-4">
+                                    <div>
+                                      <p className="text-sm font-semibold text-[#1f2937]">{item.name}</p>
+                                      <p className="mt-1 text-xs uppercase tracking-[0.16em] text-[#9ca3af]">
+                                        {item.orders_count} orders • {item.quantity} qty
+                                      </p>
+                                    </div>
+                                    <p className="text-sm font-semibold text-[#1f2937]">
+                                      {formatMoney(item.net_spend)}
+                                    </p>
+                                  </div>
+                                </div>
+                              ))
+                            ) : (
+                              <p className="text-sm text-muted-foreground">No item activity in this range.</p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="rounded-[22px] border border-[#efe4d8] bg-[#fcfaf7] px-5 py-5">
+                          <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-primary">
+                            Category breakdown
+                          </p>
+                          <h4 className="mt-2 text-lg font-semibold text-[#1f2937]">Spend by category</h4>
+                          <div className="mt-4 space-y-3">
+                            {merchantAnalytics.category_breakdown.length > 0 ? (
+                              merchantAnalytics.category_breakdown.map((item, index) => (
+                                <div
+                                  key={`${item.id ?? item.name}-${index}`}
+                                  className="rounded-2xl border border-[#f1e7dc] bg-white px-4 py-3"
+                                >
+                                  <div className="flex items-start justify-between gap-4">
+                                    <div>
+                                      <p className="text-sm font-semibold text-[#1f2937]">{item.name}</p>
+                                      <p className="mt-1 text-xs uppercase tracking-[0.16em] text-[#9ca3af]">
+                                        {item.orders_count} orders • {item.quantity} qty
+                                      </p>
+                                    </div>
+                                    <p className="text-sm font-semibold text-[#1f2937]">
+                                      {formatMoney(item.net_spend)}
+                                    </p>
+                                  </div>
+                                </div>
+                              ))
+                            ) : (
+                              <p className="text-sm text-muted-foreground">No category activity in this range.</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Analytics will appear once the restaurant has activity.</p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </div>
         ) : (
           <div className="flex h-[60vh] flex-col items-center justify-center text-center">

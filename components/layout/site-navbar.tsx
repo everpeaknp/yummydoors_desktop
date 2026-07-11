@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   CalendarDays,
+  Bike,
   ChevronDown,
   Heart,
   LayoutDashboard,
@@ -134,6 +135,12 @@ export function SiteNavbar({ className, variant = "light" }: SiteNavbarProps) {
         <nav className={cn("hidden md:flex items-center gap-8 text-[15px] font-semibold", textClass)}>
           <Link href="/" className={linkClass}>Home</Link>
           <Link href="/restaurants" className={linkClass}>Restaurants</Link>
+          <Link href="/become-a-rider" className={linkClass}>
+            <span className="inline-flex items-center gap-2">
+              <Bike className="h-4 w-4" />
+              Become a rider
+            </span>
+          </Link>
           {hydrated && accessToken ? (
             <>
               <Link href="/merchant" className={linkClass}>

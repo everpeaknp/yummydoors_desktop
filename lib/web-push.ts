@@ -1,6 +1,7 @@
 "use client";
 
 export const ORDER_EVENT_NAME = "yummydoors:order-event";
+export const MESSAGE_EVENT_NAME = "yummydoors:message-event";
 export const WEB_PUSH_ENABLE_EVENT = "yummydoors:webpush:enable";
 export const WEB_PUSH_STATUS_EVENT = "yummydoors:webpush:status";
 const WEB_PUSH_PROMPT_KEY = "yummydoors.webpush.prompted.v1";
@@ -14,6 +15,23 @@ export type OrderNotificationPayload = {
   restaurant_id?: number | null;
   restaurant_name?: string;
   status?: string;
+  title?: string;
+  body?: string;
+  deep_link?: string;
+  tag?: string;
+};
+
+export type MessageNotificationPayload = {
+  event?: string;
+  event_id?: string;
+  audience?: string;
+  message_id?: number;
+  restaurant_id?: number | null;
+  restaurant_name?: string;
+  customer_id?: number | null;
+  customer_name?: string;
+  sender_name?: string;
+  is_from_merchant?: boolean;
   title?: string;
   body?: string;
   deep_link?: string;

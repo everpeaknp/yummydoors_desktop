@@ -643,7 +643,7 @@ export default function RestaurantDetailPage() {
                     View photos
                   </a>
                   <Link
-                    href="/messages"
+                    href={`/messages?restaurant_id=${restaurant.id}&restaurant_name=${encodeURIComponent(restaurant.name)}`}
                     className="inline-flex items-center gap-2 rounded-[4px] border border-white/30 bg-white px-4 py-2 text-[13px] font-medium text-[#333] shadow-sm transition hover:bg-gray-50"
                   >
                     <MessageSquareText

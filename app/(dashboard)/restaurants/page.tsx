@@ -6,6 +6,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { GoogleMap, MarkerF, OverlayViewF } from "@react-google-maps/api";
 import {
   ArrowUpDown,
+  ArrowRight,
+  Bike,
   Clock3,
   Heart,
   MapPin,
@@ -18,6 +20,7 @@ import {
 
 import { SiteNavbar } from "@/components/layout/site-navbar";
 import { FavoriteToggleButton } from "@/components/customer/favorite-toggle-button";
+import { Card, CardContent } from "@/components/ui/card";
 import { useGoogleMaps } from "@/hooks/use-google-maps";
 import { apiFetch } from "@/lib/http";
 import {
@@ -480,6 +483,40 @@ export default function RestaurantsPage() {
                 </div>
               </>
             )}
+
+            <Card className="border border-[#f1dfd5] bg-gradient-to-r from-[#fff8f3] via-white to-[#fef7ed] shadow-none">
+              <CardContent className="flex flex-col gap-3 p-4">
+                <div className="flex items-start gap-3">
+                  <div className="rounded-2xl bg-[#fff0e6] p-3 text-[#ff6f2c]">
+                    <Bike className="h-5 w-5" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#ff6f2c]">
+                      Want to work with YummyDoors?
+                    </p>
+                    <h2 className="text-sm font-bold text-[#111827]">Become a rider</h2>
+                    <p className="text-xs leading-relaxed text-[#6b7280]">
+                      Apply from the customer app. We will review your details and contact you before any rider access is enabled.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Link
+                    href="/become-a-rider"
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-primary px-4 text-sm font-medium text-primary-foreground shadow-panel transition-colors hover:bg-[#dd451a]"
+                  >
+                    Apply now
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                  <Link
+                    href="/become-a-rider"
+                    className="inline-flex h-11 items-center justify-center rounded-xl border border-[#f1cbb4] bg-secondary px-4 text-sm font-medium text-[#c05816] transition-colors hover:bg-[#fff7f2]"
+                  >
+                    Learn more
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
           {/* List Area */}

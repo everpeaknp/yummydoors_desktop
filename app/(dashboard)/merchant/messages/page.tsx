@@ -2,10 +2,10 @@
 
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { MerchantDashboardLayout } from "@/components/merchant/merchant-dashboard-layout";
 import { apiFetch } from "@/lib/http";
-import { config } from "@/lib/config";
-import { loadStoredAuth } from "@/lib/auth-storage";
+import { MESSAGE_EVENT_NAME } from "@/lib/web-push";
 
 type Conversation = {
   customer_id: number;
@@ -22,7 +22,65 @@ type Message = {
   is_from_merchant: boolean;
   sender_name: string;
   created_at: string;
+  read_at: string | null;
 };
+
+type MessageEventPayload = {
+  event?: string;
+  customer_id?: number;
+  restaurant_id?: number;
+  message_id?: number;
+  customer_name?: string;
+  restaurant_name?: string;
+  sender_name?: string;
+  is_from_merchant?: boolean;
+  body?: string;
+  deep_link?: string;
+  tag?: string;
+  message?: Message;
+};
+
+function normalizeMessage(value: unknown): Message | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const raw = value as Record<string, unknown>;
+  const nested = raw.message && typeof raw.message === "object" ? (raw.message as Record<string, unknown>) : null;
+  const source = nested ?? raw;
+
+  const id = typeof source.id === "number" ? source.id : null;
+  const content = typeof source.content === "string" ? source.content : "";
+  const isFromMerchant = typeof source.is_from_merchant === "boolean" ? source.is_from_merchant : null;
+  const senderName = typeof source.sender_name === "string" ? source.sender_name : "";
+  const createdAt = typeof source.created_at === "string" ? source.created_at : "";
+
+  if (id === null || !content || isFromMerchant === null || !senderName || !createdAt) {
+    return null;
+  }
+
+  return {
+    id,
+    content,
+    is_from_merchant: isFromMerchant,
+    sender_name: senderName,
+    created_at: createdAt,
+    read_at: typeof source.read_at === "string" || source.read_at === null ? (source.read_at as string | null) : null,
+  };
+}
+
+function mergeMessages(existing: Message[], incoming: Message[]) {
+  const merged = new Map<number, Message>();
+  for (const message of existing) merged.set(message.id, message);
+  for (const message of incoming) merged.set(message.id, message);
+
+  return Array.from(merged.values()).sort((left, right) => {
+    const leftTime = new Date(left.created_at).getTime();
+    const rightTime = new Date(right.created_at).getTime();
+    if (leftTime !== rightTime) return leftTime - rightTime;
+    return left.id - right.id;
+  });
+}
 
 function timeAgo(dateStr: string): string {
   const diff = Date.now() - new Date(dateStr).getTime();
@@ -35,6 +93,7 @@ function timeAgo(dateStr: string): string {
 }
 
 export default function MerchantMessagesPage() {
+  const searchParams = useSearchParams();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -44,7 +103,9 @@ export default function MerchantMessagesPage() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const wsRef = useRef<WebSocket | null>(null);
+  const customerIdFromUrl = searchParams?.get("customer_id");
+  const customerNameFromUrl = searchParams?.get("customer_name");
+  const parsedCustomerId = customerIdFromUrl ? Number(customerIdFromUrl) : null;
 
   const loadConversations = useCallback(async () => {
     setLoadingConvs(true);
@@ -66,7 +127,7 @@ export default function MerchantMessagesPage() {
       const res = await apiFetch(`/messages/merchant/${customerId}`, { auth: true });
       if (!res.ok) throw new Error("Failed to load messages");
       const data: Message[] = await res.json();
-      setMessages(data);
+      setMessages((prev) => mergeMessages(prev, data));
       // Mark as read locally
       setConversations((prev) =>
         prev.map((c) => (c.customer_id === customerId ? { ...c, unread_count: 0 } : c))
@@ -83,6 +144,14 @@ export default function MerchantMessagesPage() {
   }, [loadConversations]);
 
   useEffect(() => {
+    if (!Number.isFinite(parsedCustomerId)) {
+      return;
+    }
+
+    setSelectedId(parsedCustomerId);
+  }, [parsedCustomerId]);
+
+  useEffect(() => {
     if (selectedId !== null) {
       loadMessages(selectedId);
     }
@@ -92,51 +161,61 @@ export default function MerchantMessagesPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // WebSocket for real-time new messages
   useEffect(() => {
-    const stored = loadStoredAuth();
-    if (!stored?.accessToken) return;
+    function handleMessageEvent(event: Event) {
+      const payload = (event as CustomEvent<MessageEventPayload>).detail;
+      const message = normalizeMessage(payload?.message);
+      const customerId = payload?.customer_id;
+      const messageId = payload?.message_id ?? message?.id;
+      if (payload?.event !== "new_message" || !customerId || !messageId) {
+        return;
+      }
 
-    const wsBase = config.apiBaseUrl
-      .replace("https://", "wss://")
-      .replace("http://", "ws://");
-    const ws = new WebSocket(
-      `${wsBase}${config.apiPrefix}/messages/ws/merchant?token=${stored.accessToken}`
-    );
-    wsRef.current = ws;
+      const nextContent = payload?.body ?? message?.content ?? "";
+      const nextName = payload?.customer_name ?? customerNameFromUrl ?? "this customer";
+      const nextTimestamp = message?.created_at ?? new Date().toISOString();
 
-    ws.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data);
-        if (msg.event === "new_message") {
-          const cid = msg.customer_id as number;
-          const m = msg.message as Message;
-          if (selectedId === cid) {
-            setMessages((prev) => [...prev, m]);
-          }
-          // Update conversation list
-          setConversations((prev) => {
-            const existing = prev.find((c) => c.customer_id === cid);
-            if (existing) {
-              return prev.map((c) =>
-                c.customer_id === cid
-                  ? {
-                      ...c,
-                      last_message: m.content,
-                      last_message_at: m.created_at,
-                      unread_count: selectedId === cid ? 0 : c.unread_count + 1,
-                    }
-                  : c
-              );
-            }
-            return prev;
-          });
+      setConversations((prev) => {
+        const existing = prev.find((c) => c.customer_id === customerId);
+        const nextConversation: Conversation = {
+          customer_id: customerId,
+          customer_name: existing?.customer_name ?? nextName,
+          customer_avatar: existing?.customer_avatar ?? null,
+          last_message: nextContent || existing?.last_message || "",
+          last_message_at: nextTimestamp,
+          unread_count: selectedId === customerId ? 0 : (existing?.unread_count ?? 0) + 1,
+        };
+
+        if (!existing) {
+          return [nextConversation, ...prev];
         }
-      } catch {}
-    };
 
-    return () => ws.close();
-  }, [selectedId]);
+        return prev.map((c) => (c.customer_id === customerId ? nextConversation : c));
+      });
+
+      if (selectedId === customerId) {
+        setMessages((prev) => {
+          const nextMessage = message ?? {
+            id: messageId,
+            content: payload?.body ?? "",
+            is_from_merchant: payload?.is_from_merchant ?? true,
+            sender_name: payload?.sender_name ?? payload?.customer_name ?? "Merchant",
+            created_at: new Date().toISOString(),
+            read_at: null,
+          };
+
+          if (prev.some((entry) => entry.id === nextMessage.id)) {
+            return prev.map((entry) => (entry.id === nextMessage.id ? nextMessage : entry));
+          }
+
+          return [...prev, nextMessage];
+        });
+      }
+    }
+
+    window.addEventListener(MESSAGE_EVENT_NAME, handleMessageEvent);
+    return () => window.removeEventListener(MESSAGE_EVENT_NAME, handleMessageEvent);
+  }, [customerNameFromUrl, selectedId]);
 
   const sendMessage = async () => {
     if (!newMessage.trim() || selectedId === null) return;
@@ -148,8 +227,22 @@ export default function MerchantMessagesPage() {
         body: JSON.stringify({ content: newMessage.trim() }),
       });
       if (!res.ok) throw new Error("Failed to send");
-      const sent: Message = await res.json();
-      setMessages((prev) => [...prev, sent]);
+      const sent = normalizeMessage(await res.json());
+      if (sent) {
+        setMessages((prev) => mergeMessages(prev, [sent]));
+      }
+      setConversations((prev) =>
+        prev.map((conv) =>
+          conv.customer_id === selectedId
+            ? {
+                ...conv,
+                last_message: sent?.content ?? conv.last_message,
+                last_message_at: sent?.created_at ?? new Date().toISOString(),
+                unread_count: 0,
+              }
+            : conv,
+        ),
+      );
       setNewMessage("");
     } catch (e) {
       alert(e instanceof Error ? e.message : "Send failed");
@@ -159,6 +252,7 @@ export default function MerchantMessagesPage() {
   };
 
   const selectedConv = conversations.find((c) => c.customer_id === selectedId);
+  const selectedConversationName = selectedConv?.customer_name ?? customerNameFromUrl ?? "this customer";
 
   return (
     <MerchantDashboardLayout>
@@ -238,21 +332,23 @@ export default function MerchantMessagesPage() {
                     <Image src={selectedConv.customer_avatar} alt="" fill className="object-cover" sizes="36px" />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center text-[14px] font-bold text-gray-400">
-                      {selectedConv?.customer_name.charAt(0)}
+                      {selectedConversationName.charAt(0)}
                     </div>
                   )}
                 </div>
                 <span className="font-semibold text-[15px] text-[#212529]">
-                  {selectedConv?.customer_name}
+                  {selectedConversationName}
                 </span>
               </div>
 
               {/* Messages */}
               <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-3">
-                {loadingMsgs ? (
+                {loadingMsgs && messages.length === 0 ? (
                   <div className="text-center text-[#868e96] text-[13px]">Loading messages…</div>
                 ) : messages.length === 0 ? (
-                  <div className="text-center text-[#868e96] text-[13px]">No messages yet. Say hi!</div>
+                  <div className="text-center text-[#868e96] text-[13px]">
+                    No messages yet. Say hi to {selectedConversationName}!
+                  </div>
                 ) : (
                   messages.map((msg) => (
                     <div

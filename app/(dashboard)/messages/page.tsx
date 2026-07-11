@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
+import { useSearchParams } from "next/navigation";
 import { Send, Store, MessageSquareText } from "lucide-react";
 import { SiteNavbar } from "@/components/layout/site-navbar";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { apiFetch } from "@/lib/http";
 import { useAuthStore } from "@/stores/auth-store";
-import { config } from "@/lib/config";
+import { MESSAGE_EVENT_NAME } from "@/lib/web-push";
 
 type Conversation = {
   customer_id: number; // For customer, this is actually the restaurant_id
@@ -27,7 +28,64 @@ type Message = {
   read_at: string | null;
 };
 
+type MessageEventPayload = {
+  event?: string;
+  restaurant_id?: number;
+  customer_id?: number;
+  message_id?: number;
+  restaurant_name?: string;
+  sender_name?: string;
+  is_from_merchant?: boolean;
+  body?: string;
+  deep_link?: string;
+  tag?: string;
+  message?: Message;
+};
+
+function normalizeMessage(value: unknown): Message | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const raw = value as Record<string, unknown>;
+  const nested = raw.message && typeof raw.message === "object" ? (raw.message as Record<string, unknown>) : null;
+  const source = nested ?? raw;
+
+  const id = typeof source.id === "number" ? source.id : null;
+  const content = typeof source.content === "string" ? source.content : "";
+  const isFromMerchant = typeof source.is_from_merchant === "boolean" ? source.is_from_merchant : null;
+  const senderName = typeof source.sender_name === "string" ? source.sender_name : "";
+  const createdAt = typeof source.created_at === "string" ? source.created_at : "";
+
+  if (id === null || !content || isFromMerchant === null || !senderName || !createdAt) {
+    return null;
+  }
+
+  return {
+    id,
+    content,
+    is_from_merchant: isFromMerchant,
+    sender_name: senderName,
+    created_at: createdAt,
+    read_at: typeof source.read_at === "string" || source.read_at === null ? (source.read_at as string | null) : null,
+  };
+}
+
+function mergeMessages(existing: Message[], incoming: Message[]) {
+  const merged = new Map<number, Message>();
+  for (const message of existing) merged.set(message.id, message);
+  for (const message of incoming) merged.set(message.id, message);
+
+  return Array.from(merged.values()).sort((left, right) => {
+    const leftTime = new Date(left.created_at).getTime();
+    const rightTime = new Date(right.created_at).getTime();
+    if (leftTime !== rightTime) return leftTime - rightTime;
+    return left.id - right.id;
+  });
+}
+
 export default function CustomerMessagesPage() {
+  const searchParams = useSearchParams();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loadingConvs, setLoadingConvs] = useState(true);
   
@@ -39,6 +97,9 @@ export default function CustomerMessagesPage() {
   
   const token = useAuthStore((s) => s.accessToken);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const restaurantIdFromUrl = searchParams?.get("restaurant_id");
+  const restaurantNameFromUrl = searchParams?.get("restaurant_name");
+  const parsedRestaurantId = restaurantIdFromUrl ? Number(restaurantIdFromUrl) : null;
 
   const loadConversations = useCallback(async () => {
     setLoadingConvs(true);
@@ -60,7 +121,7 @@ export default function CustomerMessagesPage() {
       const res = await apiFetch(`/messages/customer/${restaurantId}`, { auth: true });
       if (!res.ok) throw new Error("Failed to load messages");
       const data: Message[] = await res.json();
-      setMessages(data);
+      setMessages((prev) => mergeMessages(prev, data));
       // clear unread count locally
       setConversations((prev) => 
         prev.map(c => c.customer_id === restaurantId ? { ...c, unread_count: 0 } : c)
@@ -77,32 +138,73 @@ export default function CustomerMessagesPage() {
   }, [loadConversations, token]);
 
   useEffect(() => {
+    if (!Number.isFinite(parsedRestaurantId)) {
+      return;
+    }
+
+    setSelectedId(parsedRestaurantId);
+  }, [parsedRestaurantId]);
+
+  useEffect(() => {
     if (selectedId) loadMessages(selectedId);
   }, [selectedId, loadMessages]);
 
   useEffect(() => {
-    if (!token) return;
-    const wsBase = config.apiBaseUrl.replace(/^http/, "ws");
-    const ws = new WebSocket(
-      `${wsBase}${config.apiPrefix}/messages/ws/customer?token=${token}`
-    );
+    function handleMessageEvent(event: Event) {
+      const payload = (event as CustomEvent<MessageEventPayload>).detail;
+      const message = normalizeMessage(payload?.message);
+      const messageId = payload?.message_id ?? message?.id;
+      const restaurantId = payload?.restaurant_id;
+      if (payload?.event !== "new_message" || !restaurantId || !messageId) {
+        return;
+      }
 
-    ws.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data);
-        if (msg.event === "new_message") {
-          loadConversations();
-          if (selectedId && msg.restaurant_id === selectedId) {
-            setMessages((prev) => [...prev, msg.message]);
-          }
+      const nextContent = payload?.body ?? message?.content ?? "";
+      const nextName = payload?.restaurant_name ?? restaurantNameFromUrl ?? "this restaurant";
+      const nextTimestamp = message?.created_at ?? new Date().toISOString();
+      const nextUnread = selectedId === restaurantId ? 0 : 1;
+
+      setConversations((prev) => {
+        const existing = prev.find((conv) => conv.customer_id === restaurantId);
+        const nextConversation: Conversation = {
+          customer_id: restaurantId,
+          customer_name: existing?.customer_name ?? nextName,
+          customer_avatar: existing?.customer_avatar ?? null,
+          last_message: nextContent || existing?.last_message || "",
+          last_message_at: nextTimestamp,
+          unread_count: selectedId === restaurantId ? 0 : (existing?.unread_count ?? 0) + nextUnread,
+        };
+
+        if (!existing) {
+          return [nextConversation, ...prev];
         }
-      } catch {}
-    };
 
-    return () => {
-      ws.close();
-    };
-  }, [token, selectedId, loadConversations]);
+        return prev.map((conv) => (conv.customer_id === restaurantId ? nextConversation : conv));
+      });
+
+      if (selectedId && restaurantId === selectedId) {
+        setMessages((prev) => {
+          const nextMessage = message ?? {
+            id: messageId,
+            content: payload?.body ?? "",
+            is_from_merchant: payload?.is_from_merchant ?? false,
+            sender_name: payload?.sender_name ?? payload?.restaurant_name ?? "Restaurant",
+            created_at: new Date().toISOString(),
+            read_at: null,
+          };
+
+          if (prev.some((entry) => entry.id === nextMessage.id)) {
+            return prev.map((entry) => (entry.id === nextMessage.id ? nextMessage : entry));
+          }
+
+          return [...prev, nextMessage];
+        });
+      }
+    }
+
+    window.addEventListener(MESSAGE_EVENT_NAME, handleMessageEvent);
+    return () => window.removeEventListener(MESSAGE_EVENT_NAME, handleMessageEvent);
+  }, [loadConversations, restaurantNameFromUrl, selectedId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -118,10 +220,23 @@ export default function CustomerMessagesPage() {
         body: JSON.stringify({ content: newMessage.trim() }),
       });
       if (!res.ok) throw new Error("Failed to send message");
-      const savedMsg = await res.json();
-      setMessages((prev) => [...prev, savedMsg]);
+      const savedMsg = normalizeMessage(await res.json());
+      if (savedMsg) {
+        setMessages((prev) => mergeMessages(prev, [savedMsg]));
+      }
+      setConversations((prev) =>
+        prev.map((conv) =>
+          conv.customer_id === selectedId
+            ? {
+                ...conv,
+                last_message: savedMsg?.content ?? conv.last_message,
+                last_message_at: savedMsg?.created_at ?? new Date().toISOString(),
+                unread_count: 0,
+              }
+            : conv,
+        ),
+      );
       setNewMessage("");
-      loadConversations();
     } catch (e) {
       console.error(e);
     } finally {
@@ -129,7 +244,8 @@ export default function CustomerMessagesPage() {
     }
   };
 
-  const selectedConv = conversations.find(c => c.customer_id === selectedId);
+  const selectedConv = conversations.find((c) => c.customer_id === selectedId);
+  const selectedConversationName = selectedConv?.customer_name ?? restaurantNameFromUrl ?? "this restaurant";
 
   return (
     <div className="flex min-h-screen flex-col bg-[#f8f9fa]">
@@ -197,15 +313,17 @@ export default function CustomerMessagesPage() {
               <>
                 <div className="p-4 border-b border-[#e9ecef] flex items-center gap-3">
                   <div className="font-semibold text-[16px] text-[#212529]">
-                    {selectedConv?.customer_name}
+                    {selectedConversationName}
                   </div>
                 </div>
                 
                 <div className="flex-1 p-6 overflow-y-auto flex flex-col gap-4 bg-[#f8f9fa]">
-                  {loadingMsgs ? (
+                  {loadingMsgs && messages.length === 0 ? (
                     <div className="text-center text-[#868e96] text-[13px] mt-4">Loading messages...</div>
                   ) : messages.length === 0 ? (
-                    <div className="text-center text-[#868e96] text-[13px] mt-4">Say hello to {selectedConv?.customer_name}!</div>
+                    <div className="text-center text-[#868e96] text-[13px] mt-4">
+                      Say hello to {selectedConversationName}!
+                    </div>
                   ) : (
                     messages.map((msg) => {
                       const isMe = !msg.is_from_merchant;

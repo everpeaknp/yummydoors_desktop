@@ -8,12 +8,14 @@ import { config } from "@/lib/config";
 import {
   markWebPushPrompted,
   ORDER_EVENT_NAME,
+  MESSAGE_EVENT_NAME,
   WEB_PUSH_ENABLE_EVENT,
   WEB_PUSH_STATUS_EVENT,
   shouldPromptForWebPushPermission,
   areUint8ArraysEqual,
   bufferSourceToUint8Array,
   type OrderNotificationPayload,
+  type MessageNotificationPayload,
   type WebPushStatusPayload,
   resetWebPushPrompted,
   urlBase64ToUint8Array,
@@ -21,8 +23,9 @@ import {
 
 export function OrderNotificationManager() {
   const { hydrated, accessToken, user } = useAuth();
-  const wsRef = useRef<WebSocket | null>(null);
-  const latestEventIdRef = useRef<string | null>(null);
+  const latestOrderEventIdRef = useRef<string | null>(null);
+  const latestMessageEventIdRef = useRef<string | null>(null);
+  const webPushReadyRef = useRef(false);
   const setupWebPushRef = useRef<(() => Promise<void>) | null>(null);
 
   const wsUrl = useMemo(() => {
@@ -52,13 +55,15 @@ export function OrderNotificationManager() {
           return;
         }
 
-        if (Notification.permission !== "granted") {
+        const notificationPermission = String(Notification.permission);
+
+        if (notificationPermission !== "granted") {
           if (shouldPromptForWebPushPermission()) {
             markWebPushPrompted();
             await Notification.requestPermission();
           }
 
-          if (Notification.permission !== "granted") {
+          if (String(Notification.permission) !== "granted") {
             return;
           }
         }
@@ -103,6 +108,7 @@ export function OrderNotificationManager() {
           auth: true,
           body: JSON.stringify(subscription),
         });
+        webPushReadyRef.current = true;
 
         window.dispatchEvent(
           new CustomEvent<WebPushStatusPayload>(WEB_PUSH_STATUS_EVENT, {
@@ -110,6 +116,7 @@ export function OrderNotificationManager() {
           }),
         );
       } catch {
+        webPushReadyRef.current = false;
         window.dispatchEvent(
           new CustomEvent<WebPushStatusPayload>(WEB_PUSH_STATUS_EVENT, {
             detail: { subscribed: false, source: "sync" },
@@ -144,21 +151,21 @@ export function OrderNotificationManager() {
     }
 
     const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
 
     ws.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data) as OrderNotificationPayload;
-        if (payload.event_id && latestEventIdRef.current === payload.event_id) {
+        if (payload.event_id && latestOrderEventIdRef.current === payload.event_id) {
           return;
         }
-        latestEventIdRef.current = payload.event_id ?? null;
+        latestOrderEventIdRef.current = payload.event_id ?? null;
 
         window.dispatchEvent(new CustomEvent<OrderNotificationPayload>(ORDER_EVENT_NAME, { detail: payload }));
 
         if (
+          !webPushReadyRef.current &&
           typeof Notification !== "undefined" &&
-          Notification.permission === "granted" &&
+          String(Notification.permission) === "granted" &&
           document.hidden &&
           payload.title &&
           payload.body
@@ -183,6 +190,66 @@ export function OrderNotificationManager() {
       ws.close();
     };
   }, [wsUrl]);
+
+  const messageWsUrl = useMemo(() => {
+    if (!accessToken || !user) {
+      return null;
+    }
+
+    const wsBase = config.apiBaseUrl.replace("https://", "wss://").replace("http://", "ws://");
+    const workspaceType = user.activeWorkspace?.workspaceType;
+    const endpoint =
+      workspaceType === "merchant" ? "/messages/ws/merchant" : "/messages/ws/customer";
+    return `${wsBase}${config.apiPrefix}${endpoint}?token=${accessToken}`;
+  }, [accessToken, user]);
+
+  useEffect(() => {
+    if (!messageWsUrl) {
+      return;
+    }
+
+    const ws = new WebSocket(messageWsUrl);
+
+    ws.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data) as MessageNotificationPayload;
+        if (payload.event_id && latestMessageEventIdRef.current === payload.event_id) {
+          return;
+        }
+        latestMessageEventIdRef.current = payload.event_id ?? null;
+
+        window.dispatchEvent(
+          new CustomEvent<MessageNotificationPayload>(MESSAGE_EVENT_NAME, { detail: payload }),
+        );
+
+        if (
+          !webPushReadyRef.current &&
+          typeof Notification !== "undefined" &&
+          String(Notification.permission) === "granted" &&
+          document.hidden &&
+          payload.title &&
+          payload.body
+        ) {
+          const notification = new Notification(payload.title, {
+            body: payload.body,
+            tag: payload.tag,
+            icon: "/Yummy_Doors-Png.png",
+          });
+          notification.onclick = () => {
+            window.focus();
+            window.location.href = payload.deep_link ?? "/messages";
+            notification.close();
+          };
+        }
+      } catch {
+        // Ignore malformed payloads.
+      }
+    };
+
+    return () => {
+      ws.close();
+    };
+  }, [messageWsUrl]);
 
   return null;
 }

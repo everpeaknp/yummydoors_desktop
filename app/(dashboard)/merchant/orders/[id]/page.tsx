@@ -466,14 +466,19 @@ export default function MerchantOrderDetailPage() {
                           </option>
                         ))}
                       </select>
-                      <Button
-                        type="button"
-                        disabled={!selectedRiderId || assigningRider}
-                        onClick={() => void assignRider()}
-                        className="w-full"
-                      >
-                        {assigningRider ? "Assigning..." : "Assign rider"}
-                      </Button>
+                      {(() => {
+                        const isFreelance = availableRiders.find(r => r.id.toString() === selectedRiderId)?.rider_work_mode === "freelance";
+                        return (
+                          <Button
+                            type="button"
+                            disabled={!selectedRiderId || assigningRider}
+                            onClick={() => void assignRider()}
+                            className="w-full"
+                          >
+                            {assigningRider ? (isFreelance ? "Sending request..." : "Assigning...") : (isFreelance ? "Send assign request" : "Assign rider")}
+                          </Button>
+                        );
+                      })()}
                     </div>
                   ) : (
                     <p className="text-[13px] text-[#868e96]">

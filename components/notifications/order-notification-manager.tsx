@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useRef } from "react";
+import { usePathname } from "next/navigation";
 
 import { useAuth } from "@/hooks/use-auth";
 import { apiFetch } from "@/lib/http";
@@ -20,25 +21,19 @@ import {
   resetWebPushPrompted,
   urlBase64ToUint8Array,
 } from "@/lib/web-push";
+import { loadStoredAuth } from "@/lib/auth-storage";
+import { canUseDirectBackendWebSocket } from "@/lib/realtime";
 
 export function OrderNotificationManager() {
+  const pathname = usePathname();
   const { hydrated, accessToken, user } = useAuth();
   const latestOrderEventIdRef = useRef<string | null>(null);
   const latestMessageEventIdRef = useRef<string | null>(null);
   const webPushReadyRef = useRef(false);
   const setupWebPushRef = useRef<(() => Promise<void>) | null>(null);
-
-  const wsUrl = useMemo(() => {
-    if (!accessToken || !user) {
-      return null;
-    }
-
-    const wsBase = config.apiBaseUrl.replace("https://", "wss://").replace("http://", "ws://");
-    const workspaceType = user.activeWorkspace?.workspaceType;
-    const endpoint =
-      workspaceType === "merchant" ? "/orders/ws/merchant" : "/orders/ws/customer";
-    return `${wsBase}${config.apiPrefix}${endpoint}?token=${accessToken}`;
-  }, [accessToken, user]);
+  const allowDirectSocket = canUseDirectBackendWebSocket();
+  const onMessagePage = pathname === "/messages" || pathname === "/merchant/messages";
+  const onMerchantOrderPage = pathname.startsWith("/merchant/orders");
 
   useEffect(() => {
     if (!hydrated || !accessToken || !("serviceWorker" in navigator) || !("PushManager" in window)) {
@@ -103,10 +98,25 @@ export function OrderNotificationManager() {
           return;
         }
 
+        const serializedSubscription = subscription.toJSON();
+        const endpoint = serializedSubscription.endpoint;
+        const p256dh = serializedSubscription.keys?.p256dh;
+        const auth = serializedSubscription.keys?.auth;
+
+        if (!endpoint || !p256dh || !auth) {
+          throw new Error("Web push subscription is missing endpoint or keys.");
+        }
+
         await apiFetch("/notifications/webpush/subscribe", {
           method: "POST",
           auth: true,
-          body: JSON.stringify(subscription),
+          body: JSON.stringify({
+            endpoint,
+            keys: {
+              p256dh,
+              auth,
+            },
+          }),
         });
         webPushReadyRef.current = true;
 
@@ -146,11 +156,22 @@ export function OrderNotificationManager() {
   }, []);
 
   useEffect(() => {
-    if (!wsUrl) {
+    if (!allowDirectSocket || onMerchantOrderPage) {
       return;
     }
 
-    const ws = new WebSocket(wsUrl);
+    let ws: WebSocket | null = null;
+    const storedToken = loadStoredAuth()?.accessToken ?? accessToken;
+    if (!storedToken) {
+      return;
+    }
+
+    const wsBase = config.apiBaseUrl.replace("https://", "wss://").replace("http://", "ws://");
+    const workspaceType = user?.activeWorkspace?.workspaceType;
+    const endpoint =
+      workspaceType === "merchant" ? "/orders/ws/merchant" : "/orders/ws/customer";
+    const nextUrl = `${wsBase}${config.apiPrefix}${endpoint}?token=${storedToken}`;
+    ws = new WebSocket(nextUrl);
 
     ws.onmessage = (event) => {
       try {
@@ -187,28 +208,29 @@ export function OrderNotificationManager() {
     };
 
     return () => {
-      ws.close();
+      if (ws?.readyState === WebSocket.OPEN) {
+        ws.close();
+      }
     };
-  }, [wsUrl]);
+  }, [accessToken, allowDirectSocket, onMerchantOrderPage, user]);
 
-  const messageWsUrl = useMemo(() => {
-    if (!accessToken || !user) {
-      return null;
+  useEffect(() => {
+    if (!allowDirectSocket || onMessagePage) {
+      return;
+    }
+
+    let ws: WebSocket | null = null;
+    const storedToken = loadStoredAuth()?.accessToken ?? accessToken;
+    if (!storedToken || !user) {
+      return;
     }
 
     const wsBase = config.apiBaseUrl.replace("https://", "wss://").replace("http://", "ws://");
     const workspaceType = user.activeWorkspace?.workspaceType;
     const endpoint =
       workspaceType === "merchant" ? "/messages/ws/merchant" : "/messages/ws/customer";
-    return `${wsBase}${config.apiPrefix}${endpoint}?token=${accessToken}`;
-  }, [accessToken, user]);
-
-  useEffect(() => {
-    if (!messageWsUrl) {
-      return;
-    }
-
-    const ws = new WebSocket(messageWsUrl);
+    const nextUrl = `${wsBase}${config.apiPrefix}${endpoint}?token=${storedToken}`;
+    ws = new WebSocket(nextUrl);
 
     ws.onmessage = (event) => {
       try {
@@ -247,9 +269,11 @@ export function OrderNotificationManager() {
     };
 
     return () => {
-      ws.close();
+      if (ws?.readyState === WebSocket.OPEN) {
+        ws.close();
+      }
     };
-  }, [messageWsUrl]);
+  }, [accessToken, allowDirectSocket, onMessagePage, user]);
 
   return null;
 }

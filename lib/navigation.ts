@@ -33,3 +33,7 @@ export function getSiteNavItems(user: StoredUser | null): NavItem[] {
 export function hasMerchantWorkspace(user: StoredUser | null): boolean {
   return Boolean((user?.workspaces ?? []).some((workspace) => workspace.workspaceType === "merchant"));
 }
+
+export function hasRiderRole(user: StoredUser | null): boolean {
+  return Boolean(user?.roles?.includes("rider"));
+}

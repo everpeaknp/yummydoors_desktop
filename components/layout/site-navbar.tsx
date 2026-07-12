@@ -21,7 +21,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useAuthStore } from "@/stores/auth-store";
-import { hasMerchantWorkspace } from "@/lib/navigation";
+import { hasMerchantWorkspace, hasRiderRole } from "@/lib/navigation";
 import { OrderNotificationManager } from "@/components/notifications/order-notification-manager";
 
 type SiteNavbarProps = {
@@ -38,6 +38,7 @@ export function SiteNavbar({ className, variant = "light" }: SiteNavbarProps) {
   const menuRef = useRef<HTMLDivElement>(null);
 
   const merchantReady = hydrated && hasMerchantWorkspace(user);
+  const riderReady = hydrated && hasRiderRole(user);
   const displayName = user?.fullName?.trim() || user?.email?.trim() || "Account";
   const initials = displayName
     .split(" ")
@@ -135,12 +136,14 @@ export function SiteNavbar({ className, variant = "light" }: SiteNavbarProps) {
         <nav className={cn("hidden md:flex items-center gap-8 text-[15px] font-semibold", textClass)}>
           <Link href="/" className={linkClass}>Home</Link>
           <Link href="/restaurants" className={linkClass}>Restaurants</Link>
-          <Link href="/become-a-rider" className={linkClass}>
-            <span className="inline-flex items-center gap-2">
-              <Bike className="h-4 w-4" />
-              Become a rider
-            </span>
-          </Link>
+          {riderReady ? null : (
+            <Link href="/become-a-rider" className={linkClass}>
+              <span className="inline-flex items-center gap-2">
+                <Bike className="h-4 w-4" />
+                Become a rider
+              </span>
+            </Link>
+          )}
           {hydrated && accessToken ? (
             <>
               <Link href="/merchant" className={linkClass}>

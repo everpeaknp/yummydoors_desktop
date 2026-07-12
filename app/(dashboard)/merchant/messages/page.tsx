@@ -1,11 +1,14 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { MerchantDashboardLayout } from "@/components/merchant/merchant-dashboard-layout";
+import { useAuth } from "@/hooks/use-auth";
+import { config } from "@/lib/config";
+import { loadStoredAuth } from "@/lib/auth-storage";
 import { apiFetch } from "@/lib/http";
-import { MESSAGE_EVENT_NAME } from "@/lib/web-push";
+import { canUseDirectBackendWebSocket } from "@/lib/realtime";
 
 type Conversation = {
   customer_id: number;
@@ -40,6 +43,13 @@ type MessageEventPayload = {
   message?: Message;
 };
 
+type MessagePageResponse = {
+  items: Message[];
+  has_more: boolean;
+};
+
+const MESSAGE_PAGE_SIZE = 30;
+
 function normalizeMessage(value: unknown): Message | null {
   if (!value || typeof value !== "object") {
     return null;
@@ -69,6 +79,25 @@ function normalizeMessage(value: unknown): Message | null {
   };
 }
 
+function normalizeMessagePageResponse(value: unknown): MessagePageResponse {
+  if (Array.isArray(value)) {
+    const items = value.map(normalizeMessage).filter((message): message is Message => message !== null);
+    return { items, has_more: items.length >= MESSAGE_PAGE_SIZE };
+  }
+
+  if (!value || typeof value !== "object") {
+    return { items: [], has_more: false };
+  }
+
+  const raw = value as Record<string, unknown>;
+  const nestedData = raw.data && typeof raw.data === "object" ? (raw.data as Record<string, unknown>) : null;
+  const source = nestedData ?? raw;
+  const rawItems = Array.isArray(source.items) ? source.items : [];
+  const items = rawItems.map(normalizeMessage).filter((message): message is Message => message !== null);
+  const hasMore = typeof source.has_more === "boolean" ? source.has_more : items.length >= MESSAGE_PAGE_SIZE;
+  return { items, has_more: hasMore };
+}
+
 function mergeMessages(existing: Message[], incoming: Message[]) {
   const merged = new Map<number, Message>();
   for (const message of existing) merged.set(message.id, message);
@@ -80,6 +109,10 @@ function mergeMessages(existing: Message[], incoming: Message[]) {
     if (leftTime !== rightTime) return leftTime - rightTime;
     return left.id - right.id;
   });
+}
+
+function isNearBottom(element: HTMLDivElement, threshold = 96) {
+  return element.scrollHeight - element.scrollTop - element.clientHeight <= threshold;
 }
 
 function timeAgo(dateStr: string): string {
@@ -94,21 +127,32 @@ function timeAgo(dateStr: string): string {
 
 export default function MerchantMessagesPage() {
   const searchParams = useSearchParams();
+  const { accessToken } = useAuth();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [loadingConvs, setLoadingConvs] = useState(true);
   const [loadingMsgs, setLoadingMsgs] = useState(false);
+  const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
+  const [hasOlderMessages, setHasOlderMessages] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [usePollingFallback, setUsePollingFallback] = useState<boolean>(() => !canUseDirectBackendWebSocket());
+  const messagesScrollRef = useRef<HTMLDivElement>(null);
+  const topSentinelRef = useRef<HTMLDivElement>(null);
+  const selectedIdRef = useRef<number | null>(null);
+  const reconnectTimerRef = useRef<number | null>(null);
+  const pendingScrollRestoreRef = useRef<{ scrollHeight: number; scrollTop: number } | null>(null);
+  const shouldPinToBottomRef = useRef(false);
   const customerIdFromUrl = searchParams?.get("customer_id");
   const customerNameFromUrl = searchParams?.get("customer_name");
   const parsedCustomerId = customerIdFromUrl ? Number(customerIdFromUrl) : null;
 
-  const loadConversations = useCallback(async () => {
-    setLoadingConvs(true);
+  const loadConversations = useCallback(async (background = false) => {
+    if (!background) {
+      setLoadingConvs(true);
+    }
     try {
       const res = await apiFetch("/messages/merchant/conversations", { auth: true });
       if (!res.ok) throw new Error("Failed to load conversations");
@@ -117,17 +161,41 @@ export default function MerchantMessagesPage() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error loading conversations");
     } finally {
-      setLoadingConvs(false);
+      if (!background) {
+        setLoadingConvs(false);
+      }
     }
   }, []);
 
-  const loadMessages = useCallback(async (customerId: number) => {
-    setLoadingMsgs(true);
+  const fetchMessagePage = useCallback(async (customerId: number, beforeMessageId?: number) => {
+    const params = new URLSearchParams({ limit: String(MESSAGE_PAGE_SIZE) });
+    if (beforeMessageId) {
+      params.set("before_message_id", String(beforeMessageId));
+    }
+
+    const res = await apiFetch(`/messages/merchant/${customerId}?${params.toString()}`, { auth: true });
+    if (!res.ok) throw new Error("Failed to load messages");
+    return normalizeMessagePageResponse(await res.json());
+  }, []);
+
+  const loadLatestMessages = useCallback(async (customerId: number, background = false) => {
+    if (!background) {
+      setLoadingMsgs(true);
+    }
     try {
-      const res = await apiFetch(`/messages/merchant/${customerId}`, { auth: true });
-      if (!res.ok) throw new Error("Failed to load messages");
-      const data: Message[] = await res.json();
-      setMessages((prev) => mergeMessages(prev, data));
+      const page = await fetchMessagePage(customerId);
+      if (selectedIdRef.current !== customerId) {
+        return;
+      }
+      const container = messagesScrollRef.current;
+      if (!background || !container || isNearBottom(container)) {
+        shouldPinToBottomRef.current = true;
+      }
+
+      setMessages((prev) => (background ? mergeMessages(prev, page.items) : page.items));
+      if (!background) {
+        setHasOlderMessages(page.has_more);
+      }
       // Mark as read locally
       setConversations((prev) =>
         prev.map((c) => (c.customer_id === customerId ? { ...c, unread_count: 0 } : c))
@@ -135,9 +203,45 @@ export default function MerchantMessagesPage() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error loading messages");
     } finally {
-      setLoadingMsgs(false);
+      if (!background) {
+        setLoadingMsgs(false);
+      }
     }
-  }, []);
+  }, [fetchMessagePage]);
+
+  const loadOlderMessages = useCallback(async (customerId: number) => {
+    if (loadingOlderMessages || !hasOlderMessages) {
+      return;
+    }
+
+    const oldestMessageId = messages[0]?.id;
+    if (!oldestMessageId) {
+      return;
+    }
+
+    const container = messagesScrollRef.current;
+    if (container) {
+      pendingScrollRestoreRef.current = {
+        scrollHeight: container.scrollHeight,
+        scrollTop: container.scrollTop,
+      };
+    }
+
+    setLoadingOlderMessages(true);
+    try {
+      const page = await fetchMessagePage(customerId, oldestMessageId);
+      if (selectedIdRef.current !== customerId) {
+        return;
+      }
+      setMessages((prev) => mergeMessages(page.items, prev));
+      setHasOlderMessages(page.has_more);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error loading older messages");
+      pendingScrollRestoreRef.current = null;
+    } finally {
+      setLoadingOlderMessages(false);
+    }
+  }, [fetchMessagePage, hasOlderMessages, loadingOlderMessages, messages]);
 
   useEffect(() => {
     loadConversations();
@@ -152,18 +256,49 @@ export default function MerchantMessagesPage() {
   }, [parsedCustomerId]);
 
   useEffect(() => {
-    if (selectedId !== null) {
-      loadMessages(selectedId);
-    }
-  }, [selectedId, loadMessages]);
+    selectedIdRef.current = selectedId;
+  }, [selectedId]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (selectedId !== null) {
+      setMessages([]);
+      setHasOlderMessages(false);
+      setLoadingOlderMessages(false);
+      pendingScrollRestoreRef.current = null;
+      shouldPinToBottomRef.current = true;
+      void loadLatestMessages(selectedId);
+    }
+  }, [loadLatestMessages, selectedId]);
+
+  useLayoutEffect(() => {
+    const container = messagesScrollRef.current;
+    if (!container) {
+      return;
+    }
+
+    const pendingRestore = pendingScrollRestoreRef.current;
+    if (pendingRestore) {
+      pendingScrollRestoreRef.current = null;
+      container.scrollTop = container.scrollHeight - pendingRestore.scrollHeight + pendingRestore.scrollTop;
+      return;
+    }
+
+    if (shouldPinToBottomRef.current) {
+      shouldPinToBottomRef.current = false;
+      container.scrollTop = container.scrollHeight;
+    }
   }, [messages]);
 
   useEffect(() => {
-    function handleMessageEvent(event: Event) {
-      const payload = (event as CustomEvent<MessageEventPayload>).detail;
+    if (!accessToken || usePollingFallback) {
+      return;
+    }
+
+    let cancelled = false;
+    let ws: WebSocket | null = null;
+    let opened = false;
+
+    const applyMessageEvent = (payload: MessageEventPayload) => {
       const message = normalizeMessage(payload?.message);
       const customerId = payload?.customer_id;
       const messageId = payload?.message_id ?? message?.id;
@@ -174,6 +309,7 @@ export default function MerchantMessagesPage() {
       const nextContent = payload?.body ?? message?.content ?? "";
       const nextName = payload?.customer_name ?? customerNameFromUrl ?? "this customer";
       const nextTimestamp = message?.created_at ?? new Date().toISOString();
+      const activeId = selectedIdRef.current;
 
       setConversations((prev) => {
         const existing = prev.find((c) => c.customer_id === customerId);
@@ -183,7 +319,7 @@ export default function MerchantMessagesPage() {
           customer_avatar: existing?.customer_avatar ?? null,
           last_message: nextContent || existing?.last_message || "",
           last_message_at: nextTimestamp,
-          unread_count: selectedId === customerId ? 0 : (existing?.unread_count ?? 0) + 1,
+          unread_count: activeId === customerId ? 0 : (existing?.unread_count ?? 0) + 1,
         };
 
         if (!existing) {
@@ -193,7 +329,11 @@ export default function MerchantMessagesPage() {
         return prev.map((c) => (c.customer_id === customerId ? nextConversation : c));
       });
 
-      if (selectedId === customerId) {
+      if (activeId === customerId) {
+        const container = messagesScrollRef.current;
+        if (!container || isNearBottom(container)) {
+          shouldPinToBottomRef.current = true;
+        }
         setMessages((prev) => {
           const nextMessage = message ?? {
             id: messageId,
@@ -211,11 +351,103 @@ export default function MerchantMessagesPage() {
           return [...prev, nextMessage];
         });
       }
+    };
+
+    const connect = () => {
+      if (cancelled) {
+        return;
+      }
+
+      const storedToken = loadStoredAuth()?.accessToken ?? accessToken;
+      if (!storedToken) {
+        return;
+      }
+      const wsBase = config.apiBaseUrl.replace("https://", "wss://").replace("http://", "ws://");
+      const wsUrl = `${wsBase}${config.apiPrefix}/messages/ws/merchant?token=${storedToken}`;
+      ws = new WebSocket(wsUrl);
+      ws.onopen = () => {
+        opened = true;
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          applyMessageEvent(JSON.parse(event.data) as MessageEventPayload);
+        } catch {
+          // Ignore malformed websocket payloads.
+        }
+      };
+
+      ws.onerror = () => {
+        if (!opened) {
+          setUsePollingFallback(true);
+        }
+      };
+
+      ws.onclose = () => {
+        if (!opened && !cancelled) {
+          setUsePollingFallback(true);
+        }
+      };
+    };
+
+    connect();
+
+    return () => {
+      cancelled = true;
+      if (ws?.readyState === WebSocket.OPEN) {
+        ws.close();
+      }
+    };
+  }, [accessToken, customerNameFromUrl, usePollingFallback]);
+
+  useEffect(() => {
+    if (!accessToken || !usePollingFallback) {
+      return;
     }
 
-    window.addEventListener(MESSAGE_EVENT_NAME, handleMessageEvent);
-    return () => window.removeEventListener(MESSAGE_EVENT_NAME, handleMessageEvent);
-  }, [customerNameFromUrl, selectedId]);
+    const intervalId = window.setInterval(() => {
+      void loadConversations(true);
+      const activeId = selectedIdRef.current;
+      if (activeId !== null) {
+        void loadLatestMessages(activeId, true);
+      }
+    }, 2000);
+
+    return () => window.clearInterval(intervalId);
+  }, [accessToken, loadConversations, loadLatestMessages, usePollingFallback]);
+
+  useEffect(() => {
+    const root = messagesScrollRef.current;
+    const target = topSentinelRef.current;
+    const activeId = selectedIdRef.current;
+    if (!root || !target || activeId === null || !hasOlderMessages) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (!entry.isIntersecting) {
+          return;
+        }
+
+        const latestActiveId = selectedIdRef.current;
+        if (latestActiveId === null || loadingOlderMessages || !hasOlderMessages) {
+          return;
+        }
+
+        void loadOlderMessages(latestActiveId);
+      },
+      {
+        root,
+        rootMargin: "96px 0px 0px 0px",
+        threshold: 0.01,
+      },
+    );
+
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [hasOlderMessages, loadOlderMessages, loadingOlderMessages, selectedId]);
 
   const sendMessage = async () => {
     if (!newMessage.trim() || selectedId === null) return;
@@ -229,6 +461,7 @@ export default function MerchantMessagesPage() {
       if (!res.ok) throw new Error("Failed to send");
       const sent = normalizeMessage(await res.json());
       if (sent) {
+        shouldPinToBottomRef.current = true;
         setMessages((prev) => mergeMessages(prev, [sent]));
       }
       setConversations((prev) =>
@@ -262,9 +495,9 @@ export default function MerchantMessagesPage() {
         <span>Messages</span>
       </div>
 
-      <div className="bg-white rounded shadow-sm border border-[#e9ecef] overflow-hidden flex h-[calc(100vh-200px)]">
+      <div className="flex h-full min-h-0 overflow-hidden rounded border border-[#e9ecef] bg-white shadow-sm">
         {/* Sidebar */}
-        <div className="w-[320px] border-r border-[#e9ecef] flex flex-col">
+        <div className="flex min-h-0 w-[320px] flex-col border-r border-[#e9ecef]">
           <div className="px-4 py-3 border-b border-[#e9ecef]">
             <h2 className="text-[18px] font-semibold text-[#495057]">Inbox</h2>
           </div>
@@ -318,7 +551,7 @@ export default function MerchantMessagesPage() {
         </div>
 
         {/* Chat panel */}
-        <div className="flex-1 flex flex-col">
+        <div className="flex h-full min-h-0 flex-1 flex-col">
           {selectedId === null ? (
             <div className="flex-1 flex items-center justify-center text-[#868e96] text-[14px]">
               Select a conversation to start chatting
@@ -342,31 +575,38 @@ export default function MerchantMessagesPage() {
               </div>
 
               {/* Messages */}
-              <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-3">
-                {loadingMsgs && messages.length === 0 ? (
-                  <div className="text-center text-[#868e96] text-[13px]">Loading messages…</div>
-                ) : messages.length === 0 ? (
-                  <div className="text-center text-[#868e96] text-[13px]">
-                    No messages yet. Say hi to {selectedConversationName}!
+              <div ref={messagesScrollRef} className="relative flex min-h-0 flex-1 overflow-y-auto p-5">
+                {loadingOlderMessages ? (
+                  <div className="pointer-events-none absolute left-1/2 top-4 z-20 -translate-x-1/2 rounded-full border border-[#e9ecef] bg-white/95 px-3 py-1 text-[12px] text-[#98a2b3] shadow-sm backdrop-blur">
+                    Loading older messages...
                   </div>
-                ) : (
-                  messages.map((msg) => (
-                    <div
-                      key={msg.id}
-                      className={`max-w-[70%] px-4 py-2.5 rounded-2xl text-[13px] leading-relaxed ${
-                        msg.is_from_merchant
-                          ? "self-end bg-[#e53e4f] text-white rounded-br-sm"
-                          : "self-start bg-[#f1f3f5] text-[#212529] rounded-bl-sm"
-                      }`}
-                    >
-                      {msg.content}
-                      <div className={`text-[10px] mt-1 opacity-70 text-right`}>
-                        {timeAgo(msg.created_at)}
-                      </div>
+                ) : null}
+                <div ref={topSentinelRef} className="h-px w-full" aria-hidden="true" />
+                <div className="flex min-h-full w-full flex-col justify-end gap-3">
+                  {loadingMsgs && messages.length === 0 ? (
+                    <div className="py-8 text-center text-[13px] text-[#868e96]">Loading messages…</div>
+                  ) : messages.length === 0 ? (
+                    <div className="py-8 text-center text-[13px] text-[#868e96]">
+                      No messages yet. Say hi to {selectedConversationName}!
                     </div>
-                  ))
-                )}
-                <div ref={messagesEndRef} />
+                  ) : (
+                    messages.map((msg) => (
+                      <div
+                        key={msg.id}
+                        className={`max-w-[70%] px-4 py-2.5 rounded-2xl text-[13px] leading-relaxed ${
+                          msg.is_from_merchant
+                            ? "self-end bg-[#e53e4f] text-white rounded-br-sm"
+                            : "self-start bg-[#f1f3f5] text-[#212529] rounded-bl-sm"
+                        }`}
+                      >
+                        {msg.content}
+                        <div className="mt-1 text-right text-[10px] opacity-70">
+                          {timeAgo(msg.created_at)}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
 
               {/* Input */}

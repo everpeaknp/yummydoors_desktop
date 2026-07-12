@@ -22,6 +22,17 @@ type OrderItem = {
   quantity: number;
 };
 
+type RiderSummary = {
+  id: number;
+  full_name: string;
+  phone: string | null;
+  avatar_url: string | null;
+  busy: boolean;
+  assignment_type: string;
+  rider_work_mode: string;
+  restaurant_ids: number[];
+};
+
 type MerchantOrder = {
   id: number;
   orderNumber: string;
@@ -31,6 +42,13 @@ type MerchantOrder = {
   status: OrderStatus;
   totalPrice: number;
   items: OrderItem[];
+  rider?: {
+    id: number;
+    full_name: string;
+    phone: string | null;
+    avatar_url: string | null;
+  } | null;
+  riderAssignedAt?: string | null;
 };
 
 const STATUS_META: Record<
@@ -86,8 +104,11 @@ export default function MerchantOrderDetailPage() {
   const merchantWorkspaceReady = user?.activeWorkspace?.workspaceType === "merchant";
 
   const [order, setOrder] = useState<MerchantOrder | null>(null);
+  const [riders, setRiders] = useState<RiderSummary[]>([]);
+  const [selectedRiderId, setSelectedRiderId] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [savingStatus, setSavingStatus] = useState<OrderStatus | null>(null);
+  const [assigningRider, setAssigningRider] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadOrder = useCallback(async () => {
@@ -108,6 +129,7 @@ export default function MerchantOrderDetailPage() {
       const payload = (await response.json()) as MerchantOrder[];
       const nextOrder = payload.find((item) => item.id === orderId) ?? null;
       setOrder(nextOrder);
+      setSelectedRiderId(nextOrder?.rider?.id ? String(nextOrder.rider.id) : "");
       if (!nextOrder) {
         setError("Order not found.");
       }
@@ -118,9 +140,29 @@ export default function MerchantOrderDetailPage() {
     }
   }, [orderId]);
 
+  const loadRiders = useCallback(async () => {
+    try {
+      const response = await apiFetch("/orders/merchant/riders", { auth: true });
+      if (!response.ok) {
+        return;
+      }
+
+      const payload = await response.json().catch(() => null);
+      const nextRiders = Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload?.data)
+          ? payload.data
+          : [];
+      setRiders(nextRiders);
+    } catch {
+      // Best effort: the page still works without the picker.
+    }
+  }, []);
+
   useEffect(() => {
     void loadOrder();
-  }, [loadOrder]);
+    void loadRiders();
+  }, [loadOrder, loadRiders]);
 
   useEffect(() => {
     if (!merchantWorkspaceReady) {
@@ -190,6 +232,44 @@ export default function MerchantOrderDetailPage() {
       setSavingStatus(null);
     }
   }
+
+  async function assignRider() {
+    if (!order || !selectedRiderId) return;
+
+    setAssigningRider(true);
+    setError(null);
+    try {
+      const response = await apiFetch(`/orders/merchant/${order.id}/assign-rider`, {
+        method: "POST",
+        auth: true,
+        body: JSON.stringify({ rider_user_id: Number(selectedRiderId) }),
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(
+          extractApiErrorMessage(payload, "Failed to assign rider."),
+        );
+      }
+
+      if (payload) {
+        setOrder(payload);
+        setSelectedRiderId(payload?.rider?.id ? String(payload.rider.id) : selectedRiderId);
+      } else {
+        await loadOrder();
+      }
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Failed to assign rider.");
+    } finally {
+      setAssigningRider(false);
+    }
+  }
+
+  const availableRiders = useMemo(() => {
+    if (!order) return riders;
+    return riders.filter(
+      (rider) => rider.restaurant_ids.length === 0 || rider.restaurant_ids.includes(order.restaurantId),
+    );
+  }, [order, riders]);
 
   return (
     <MerchantDashboardLayout>
@@ -349,27 +429,88 @@ export default function MerchantOrderDetailPage() {
               </CardContent>
             </Card>
 
-            <Card>
-              <CardContent className="space-y-3 p-6">
-                <h3 className="text-[18px] font-semibold text-[#495057]">Summary</h3>
-                <div className="flex justify-between text-[14px] text-[#868e96]">
-                  <span>Items</span>
-                  <span>{order.items.length}</span>
-                </div>
-                <div className="flex justify-between text-[14px] text-[#868e96]">
-                  <span>Status</span>
-                  <span className="font-semibold text-[#495057]">
-                    {STATUS_META[order.status].label}
-                  </span>
-                </div>
-                <div className="border-t border-[#e9ecef] pt-3">
-                  <div className="flex justify-between text-[14px] font-semibold text-[#495057]">
-                    <span>Total</span>
-                    <span>{formatMoney(order.totalPrice)}</span>
+            <div className="space-y-6">
+              <Card>
+                <CardContent className="space-y-4 p-6">
+                  <h3 className="text-[18px] font-semibold text-[#495057]">Rider assignment</h3>
+                  <div className="rounded border border-[#e9ecef] bg-[#f8f9fa] p-4">
+                    <div className="text-[14px] font-semibold text-[#495057]">
+                      {order.rider?.full_name ?? "No rider assigned yet"}
+                    </div>
+                    <div className="mt-1 text-[13px] text-[#868e96]">
+                      {order.rider?.phone ?? "Assign a rider to start live delivery tracking."}
+                    </div>
+                    {order.riderAssignedAt ? (
+                      <div className="mt-2 text-[12px] text-[#868e96]">
+                        Assigned at {new Date(order.riderAssignedAt).toLocaleString()}
+                      </div>
+                    ) : null}
                   </div>
-                </div>
-              </CardContent>
-            </Card>
+
+                  {order.status !== "cancelled" && order.status !== "delivered" ? (
+                    <div className="space-y-3">
+                      <label className="block text-[13px] font-semibold text-[#495057]">
+                        Assign rider to this order
+                      </label>
+                      <select
+                        value={selectedRiderId}
+                        onChange={(event) => setSelectedRiderId(event.target.value)}
+                        className="h-11 w-full rounded border border-[#dee2e6] bg-white px-3 text-[14px] text-[#495057]"
+                      >
+                        <option value="">Choose a rider</option>
+                        {availableRiders.map((rider) => (
+                          <option key={rider.id} value={rider.id}>
+                            {rider.full_name}
+                            {rider.busy ? " (busy)" : ""}
+                            {rider.rider_work_mode ? ` - ${rider.rider_work_mode}` : ""}
+                          </option>
+                        ))}
+                      </select>
+                      <Button
+                        type="button"
+                        disabled={!selectedRiderId || assigningRider}
+                        onClick={() => void assignRider()}
+                        className="w-full"
+                      >
+                        {assigningRider ? "Assigning..." : "Assign rider"}
+                      </Button>
+                    </div>
+                  ) : (
+                    <p className="text-[13px] text-[#868e96]">
+                      Rider assignment is locked once the order is delivered or cancelled.
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardContent className="space-y-3 p-6">
+                  <h3 className="text-[18px] font-semibold text-[#495057]">Summary</h3>
+                  <div className="flex justify-between text-[14px] text-[#868e96]">
+                    <span>Items</span>
+                    <span>{order.items.length}</span>
+                  </div>
+                  <div className="flex justify-between text-[14px] text-[#868e96]">
+                    <span>Status</span>
+                    <span className="font-semibold text-[#495057]">
+                      {STATUS_META[order.status].label}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-[14px] text-[#868e96]">
+                    <span>Rider</span>
+                    <span className="font-semibold text-[#495057]">
+                      {order.rider?.full_name ?? "Unassigned"}
+                    </span>
+                  </div>
+                  <div className="border-t border-[#e9ecef] pt-3">
+                    <div className="flex justify-between text-[14px] font-semibold text-[#495057]">
+                      <span>Total</span>
+                      <span>{formatMoney(order.totalPrice)}</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </div>
         </div>
       ) : null}

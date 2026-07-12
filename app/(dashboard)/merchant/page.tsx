@@ -49,6 +49,7 @@ import {
 import { useAuth } from "@/hooks/use-auth";
 import { mapStoredUser } from "@/lib/auth-mappers";
 import { apiFetch } from "@/lib/http";
+import { MESSAGE_EVENT_NAME, ORDER_EVENT_NAME, type MessageNotificationPayload, type OrderNotificationPayload } from "@/lib/web-push";
 import { useAuthStore } from "@/stores/auth-store";
 
 type RequestType = "create_external" | "claim_existing" | "pos_link";
@@ -260,6 +261,65 @@ export default function MerchantPage() {
 
   const posMatchedRestaurants = user?.posLinkStatus?.matchedRestaurants ?? [];
 
+  const loadStats = useCallback(async () => {
+    if (!hasApprovedMerchant || !activeRestaurant) {
+      return;
+    }
+
+    setLoadingStats(true);
+    try {
+      const response = await apiFetch("/merchant/restaurants/me/stats", { auth: true });
+      if (response.ok) {
+        const payload = await response.json();
+        setStats(payload);
+      }
+    } catch (err) {
+      console.error("Failed to fetch stats", err);
+    } finally {
+      setLoadingStats(false);
+    }
+  }, [activeRestaurant, hasApprovedMerchant]);
+
+  const loadMerchantAnalytics = useCallback(async () => {
+    if (!hasApprovedMerchant || !activeRestaurant) {
+      setMerchantAnalytics(null);
+      return;
+    }
+
+    setLoadingMerchantAnalytics(true);
+    setMerchantAnalyticsError(null);
+
+    try {
+      const query = buildAnalyticsQuery({
+        period: merchantAnalyticsPeriod,
+        startDate: merchantAnalyticsRange.startDate,
+        endDate: merchantAnalyticsRange.endDate,
+      });
+      const response = await apiFetch(`/merchant/restaurants/me/analytics?${query.toString()}`, {
+        auth: true,
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(extractErrorMessage(payload, "Failed to load merchant analytics."));
+      }
+
+      setMerchantAnalytics(payload?.data ?? payload);
+    } catch (caught) {
+      setMerchantAnalytics(null);
+      setMerchantAnalyticsError(
+        caught instanceof Error ? caught.message : "Failed to load merchant analytics.",
+      );
+    } finally {
+      setLoadingMerchantAnalytics(false);
+    }
+  }, [
+    activeRestaurant,
+    hasApprovedMerchant,
+    merchantAnalyticsPeriod,
+    merchantAnalyticsRange.endDate,
+    merchantAnalyticsRange.startDate,
+  ]);
+
   const resetRequestFields = useCallback(() => {
     setRestaurantName("");
     setCity("");
@@ -378,83 +438,46 @@ export default function MerchantPage() {
   }, [accessToken, hydrated, loadMerchantState, router]);
 
   useEffect(() => {
-    let cancelled = false;
-    async function loadStats() {
-      if (!hasApprovedMerchant || !activeRestaurant) return;
-      setLoadingStats(true);
-      try {
-        const response = await apiFetch("/merchant/restaurants/me/stats", { auth: true });
-        if (response.ok) {
-          const payload = await response.json();
-          if (!cancelled) setStats(payload);
-        }
-      } catch (err) {
-        console.error("Failed to fetch stats", err);
-      } finally {
-        if (!cancelled) setLoadingStats(false);
-      }
-    }
-    loadStats();
-    return () => {
-      cancelled = true;
-    };
-  }, [hasApprovedMerchant, activeRestaurant]);
+    void loadStats();
+  }, [loadStats]);
 
   useEffect(() => {
-    let cancelled = false;
+    void loadMerchantAnalytics();
+  }, [loadMerchantAnalytics]);
 
-    async function loadMerchantAnalytics() {
-      if (!hasApprovedMerchant || !activeRestaurant) {
-        setMerchantAnalytics(null);
-        return;
-      }
-
-      setLoadingMerchantAnalytics(true);
-      setMerchantAnalyticsError(null);
-
-      try {
-        const query = buildAnalyticsQuery({
-          period: merchantAnalyticsPeriod,
-          startDate: merchantAnalyticsRange.startDate,
-          endDate: merchantAnalyticsRange.endDate,
-        });
-        const response = await apiFetch(`/merchant/restaurants/me/analytics?${query.toString()}`, {
-          auth: true,
-        });
-        const payload = await response.json().catch(() => null);
-        if (!response.ok) {
-          throw new Error(extractErrorMessage(payload, "Failed to load merchant analytics."));
-        }
-
-        if (!cancelled) {
-          setMerchantAnalytics(payload?.data ?? payload);
-        }
-      } catch (caught) {
-        if (!cancelled) {
-          setMerchantAnalytics(null);
-          setMerchantAnalyticsError(
-            caught instanceof Error ? caught.message : "Failed to load merchant analytics.",
-          );
-        }
-      } finally {
-        if (!cancelled) {
-          setLoadingMerchantAnalytics(false);
-        }
-      }
+  useEffect(() => {
+    if (!hasApprovedMerchant || !activeRestaurant) {
+      return;
     }
 
-    void loadMerchantAnalytics();
-
-    return () => {
-      cancelled = true;
+    const refreshDashboard = () => {
+      void loadStats();
+      void loadMerchantAnalytics();
     };
-  }, [
-    activeRestaurant,
-    hasApprovedMerchant,
-    merchantAnalyticsPeriod,
-    merchantAnalyticsRange.endDate,
-    merchantAnalyticsRange.startDate,
-  ]);
+
+    function handleOrderEvent(event: Event) {
+      const detail = (event as CustomEvent<OrderNotificationPayload>).detail;
+      if (!detail?.order_id || !detail.status) {
+        return;
+      }
+      refreshDashboard();
+    }
+
+    function handleMessageEvent(event: Event) {
+      const detail = (event as CustomEvent<MessageNotificationPayload>).detail;
+      if (!detail?.message_id) {
+        return;
+      }
+      void loadStats();
+    }
+
+    window.addEventListener(ORDER_EVENT_NAME, handleOrderEvent as EventListener);
+    window.addEventListener(MESSAGE_EVENT_NAME, handleMessageEvent as EventListener);
+    return () => {
+      window.removeEventListener(ORDER_EVENT_NAME, handleOrderEvent as EventListener);
+      window.removeEventListener(MESSAGE_EVENT_NAME, handleMessageEvent as EventListener);
+    };
+  }, [activeRestaurant, hasApprovedMerchant, loadMerchantAnalytics, loadStats]);
 
   async function handleRestaurantSwitch(restaurantId: number) {
     setError(null);

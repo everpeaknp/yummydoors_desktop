@@ -35,5 +35,7 @@ export function hasMerchantWorkspace(user: StoredUser | null): boolean {
 }
 
 export function hasRiderRole(user: StoredUser | null): boolean {
-  return Boolean(user?.roles?.includes("rider"));
+  const hasRole = Boolean(user?.roles?.includes("rider"));
+  const hasWorkspace = Boolean((user?.workspaces ?? []).some((workspace) => workspace.workspaceType === "courier"));
+  return hasRole || hasWorkspace;
 }

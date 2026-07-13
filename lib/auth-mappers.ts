@@ -121,6 +121,8 @@ export function mapStoredUser(data: any): StoredUser {
     avatarUrl: normalizeAvatarUrl(data.avatar_url),
     status: data.status ?? "unknown",
     isVerified: Boolean(data.is_verified),
+    riderWorkMode: data.rider_work_mode ?? "freelance",
+    isAcceptingOffers: Boolean(data.is_accepting_offers),
     roles: Array.isArray(data.roles) ? data.roles.map((role: { code: string }) => role.code) : [],
     posLinkStatus: mapPosLinkStatus(data.pos_link_status),
     defaultAddressId: data.default_address_id ?? null,
@@ -173,6 +175,11 @@ export function mergeStoredUserWithProfile(
     status: payload.status ?? user.status,
     isVerified:
       typeof payload.is_verified === "boolean" ? payload.is_verified : user.isVerified,
+    riderWorkMode: payload.rider_work_mode ?? user.riderWorkMode,
+    isAcceptingOffers:
+      typeof payload.is_accepting_offers === "boolean"
+        ? payload.is_accepting_offers
+        : user.isAcceptingOffers,
     defaultAddressId: payload.default_address_id ?? null,
     savedAddressesCount: payload.saved_addresses_count ?? 0,
     defaultAddress: payload.default_address ? mapStoredAddress(payload.default_address) : null,

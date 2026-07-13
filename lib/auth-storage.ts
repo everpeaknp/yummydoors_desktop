@@ -77,6 +77,8 @@ export type StoredUser = {
   avatarUrl: string | null;
   status: string;
   isVerified: boolean;
+  riderWorkMode: string;
+  isAcceptingOffers: boolean;
   roles: string[];
   posLinkStatus: PosLinkStatus;
   defaultAddressId: number | null;

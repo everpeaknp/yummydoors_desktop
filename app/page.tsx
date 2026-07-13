@@ -87,31 +87,6 @@ function useDraggableScroll() {
   };
 }
 
-function useAutoPager(length: number, delay = 3000) {
-  const [index, setIndex] = useState(0);
-
-  useEffect(() => {
-    if (length <= 1) {
-      setIndex(0);
-      return;
-    }
-
-    const timer = window.setInterval(() => {
-      setIndex((current) => (current + 1) % length);
-    }, delay);
-
-    return () => window.clearInterval(timer);
-  }, [length, delay]);
-
-  useEffect(() => {
-    if (index >= length) {
-      setIndex(0);
-    }
-  }, [index, length]);
-
-  return { index, setIndex };
-}
-
 type HomeCategory = {
   id: number;
   slug: string;
@@ -242,39 +217,6 @@ function isMeaningfulLocationLabel(value: string | null | undefined) {
   return !LOCATION_PLACEHOLDER_LABELS.has(normalized);
 }
 
-const heroSlides = [
-  {
-    id: "sushi",
-    titleLines: ["Start to Enjoy", "unique food"],
-    subtitle: "The best restaurants at the best price",
-    titleMaxWidth: "max-w-[650px]",
-    subtitleMaxWidth: "max-w-[640px]",
-    stackShift: "-translate-y-[26px]",
-    image:
-      "https://images.unsplash.com/photo-1579871494447-9811cf80d66c?q=80&w=2200&auto=format&fit=crop",
-  },
-  {
-    id: "burger",
-    titleLines: ["Discover", "and Reserve"],
-    subtitle: "The best restaurants at the best price",
-    titleMaxWidth: "max-w-[660px]",
-    subtitleMaxWidth: "max-w-[640px]",
-    stackShift: "-translate-y-[18px]",
-    image:
-      "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?q=80&w=2200&auto=format&fit=crop",
-  },
-  {
-    id: "pizza",
-    titleLines: ["Finally...", "it's time to relax"],
-    subtitle: "The best restaurants at the best price",
-    titleMaxWidth: "max-w-[760px]",
-    subtitleMaxWidth: "max-w-[640px]",
-    stackShift: "-translate-y-[8px]",
-    image:
-      "https://images.unsplash.com/photo-1513104890138-7c749659a591?q=80&w=2200&auto=format&fit=crop",
-  },
-];
-
 export default function LandingPage() {
   const { isLoaded: googleMapsReady } = useGoogleMaps();
   const [hydrated, setHydrated] = useState(false);
@@ -308,8 +250,6 @@ export default function LandingPage() {
   );
   const [foodSearch, setFoodSearch] = useState("");
   const locationDropdownRef = useRef<HTMLDivElement | null>(null);
-  const heroSlider = useAutoPager(heroSlides.length, 5000);
-
   useEffect(() => {
     setHydrated(true);
     if (typeof window === "undefined") {
@@ -575,15 +515,6 @@ export default function LandingPage() {
       categories: [],
     },
   ];
-  const fallbackPromos: HomePromo[] = [
-    {
-      id: 1,
-      title: "Free delivery week",
-      subtitle: "Across selected Pokhara favorites",
-      image_url: FALLBACK_RESTAURANT_COVER,
-      cta_text: "Explore now",
-    },
-  ];
   const fallbackRecommendedItems: HomeMenuItem[] = [
     {
       id: 1,
@@ -631,11 +562,6 @@ export default function LandingPage() {
   const restaurants = feed?.restaurants?.length
     ? feed.restaurants
     : fallbackRestaurants;
-  const promos = feed?.promos?.length ? feed.promos : fallbackPromos;
-  const heroPromos = feed?.hero_promos?.length ? feed.hero_promos : promos;
-  const bannerPromos = feed?.banner_promos?.length
-    ? feed.banner_promos
-    : promos;
   const recommendedItems = feed?.recommended_items ?? [];
   const popularFoods = feed?.popular_foods ?? [];
   const featuredVideos = feed?.featured_videos ?? [];
@@ -645,21 +571,10 @@ export default function LandingPage() {
   const exploreRestaurants = feed?.explore_restaurants?.length
     ? (feed.explore_restaurants as HomeRestaurant[])
     : safeRestaurants;
-  const activeHeroPromos = heroPromos.length ? heroPromos : fallbackPromos;
-  const activeBannerPromos = bannerPromos.length
-    ? bannerPromos
-    : activeHeroPromos;
   const trendingTerms = [...recommendedItems, ...popularFoods]
     .map((item) => item.name)
     .filter((value, index, array) => array.indexOf(value) === index)
     .slice(0, 4);
-  const heroPager = useAutoPager(activeHeroPromos.length, 3000);
-  const bannerPager = useAutoPager(activeBannerPromos.length, 3000);
-  const currentHeroPromo =
-    activeHeroPromos[heroPager.index] ?? fallbackPromos[0];
-  const currentBannerPromo =
-    activeBannerPromos[bannerPager.index] ?? currentHeroPromo;
-  const currentHeroSlide = heroSlides[heroSlider.index];
 
   useEffect(() => {
     if (coords && !selectedCoords) {
@@ -741,25 +656,6 @@ export default function LandingPage() {
     selectedCoords,
     selectedLocationLabel,
   ]);
-
-  function getPromoImage(promo: HomePromo | undefined) {
-    if (!promo) {
-      return FALLBACK_RESTAURANT_COVER;
-    }
-
-    if (
-      isCompactViewport &&
-      isUsableImageUrl(promo.image_url_mobile ?? undefined)
-    ) {
-      return promo.image_url_mobile!;
-    }
-
-    if (isUsableImageUrl(promo.image_url)) {
-      return promo.image_url;
-    }
-
-    return FALLBACK_RESTAURANT_COVER;
-  }
 
   async function resolveAddressLabel(lat: number, lng: number) {
     if (
@@ -1334,6 +1230,7 @@ export default function LandingPage() {
       </section>
 
       <main className="bg-white">
+        {/*
         <section className="relative z-20 py-12 md:py-16">
           <div className="pl-[100px] pr-6">
             <Link
@@ -1364,6 +1261,7 @@ export default function LandingPage() {
             </div>
           </div>
         </section>
+        */}
 
         {safeCategories.length > 0 && (
           <section className="pt-16 pb-12 overflow-hidden">
@@ -1494,6 +1392,7 @@ export default function LandingPage() {
           </div>
         </section>
 
+        {/*
         <section className="pb-12">
           <div className="pl-[100px] pr-6">
             <Link
@@ -1524,6 +1423,7 @@ export default function LandingPage() {
             </div>
           </div>
         </section>
+        */}
 
         {recommendedItems.length > 0 && (
           <section className="py-12 bg-white">

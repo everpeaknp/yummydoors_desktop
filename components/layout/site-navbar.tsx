@@ -241,6 +241,16 @@ export function SiteNavbar({ className, variant = "light" }: SiteNavbarProps) {
                         <ShoppingCart className="h-5 w-5 text-[#444]" />
                         Cart
                       </Link>
+                      {riderReady ? (
+                        <Link
+                          href="/rider"
+                          onClick={() => setMenuOpen(false)}
+                          className="flex items-center gap-3 rounded-[8px] px-4 py-3 text-[15px] font-medium text-[#2f3137] transition hover:bg-[#fff5ef]"
+                        >
+                          <Bike className="h-5 w-5 text-[#444]" />
+                          Rider Portal
+                        </Link>
+                      ) : null}
                       <Link
                         href="/merchant"
                         onClick={() => setMenuOpen(false)}

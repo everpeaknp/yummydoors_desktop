@@ -1,6 +1,6 @@
 "use client";
 
-import { MinusCircle, Calendar, Clock } from "lucide-react";
+import { MinusCircle } from "lucide-react";
 type OrderItem = {
   cartItemId: string; // temporary id for UI
   menu_item_id: number;
@@ -111,23 +111,11 @@ export function OrderSummaryPanel({
             </label>
           </div>
 
-          <div className="space-y-3 mb-6">
-            <div className="relative border border-gray-200 rounded-[3px]">
-              <select className="w-full appearance-none bg-transparent py-2.5 px-3 text-[14px] text-[#444] outline-none">
-                <option>Day</option>
-                <option>Today</option>
-                <option>Tomorrow</option>
-              </select>
-              <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500 pointer-events-none" />
-            </div>
-            <div className="relative border border-gray-200 rounded-[3px]">
-              <select className="w-full appearance-none bg-transparent py-2.5 px-3 text-[14px] text-[#444] outline-none">
-                <option>Time</option>
-                <option>Lunch</option>
-                <option>Dinner</option>
-              </select>
-              <Clock className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500 pointer-events-none" />
-            </div>
+          <div className="mb-6 rounded-[10px] border border-[#f1f3f5] bg-[#f8f9fa] px-4 py-3">
+            <p className="text-[13px] font-semibold text-[#111]">Scheduling</p>
+            <p className="mt-1 text-[12px] leading-5 text-[#666]">
+              Delivery timing is confirmed in the checkout flow. This sidebar only keeps your live cart and pricing in view.
+            </p>
           </div>
 
           <button

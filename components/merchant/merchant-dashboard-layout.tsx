@@ -28,6 +28,7 @@ import {
   ChevronDown,
   ArrowUp,
   ArrowDown,
+  Bike,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { apiFetch } from "@/lib/http";
@@ -249,6 +250,7 @@ export function MerchantDashboardLayout({ children }: { children: React.ReactNod
           <SidebarLink href="/menu-items" icon={PanelTop} label="Menu catalog" active={pathname === "/menu-items"} />
           <SidebarLink href="/merchant/reservations" icon={CalendarDays} label="Reservation queue" active={pathname === "/merchant/reservations"} />
           <SidebarLink href="/merchant/tables" icon={Table2} label="Reservation tables" active={pathname === "/merchant/tables"} />
+          <SidebarLink href="/merchant/rider-team" icon={Bike} label="Rider team" active={pathname === "/merchant/rider-team"} />
           <SidebarLink href="/promos" icon={LinkIcon} label="Promos and merchandising" active={pathname === "/promos"} />
         </nav>
 

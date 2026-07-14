@@ -71,10 +71,7 @@ const STATUS_META: Record<
   preparing: {
     label: "Preparing",
     tone: "bg-[#f5b800]",
-    nextActions: [
-      { label: "Mark delivered", nextStatus: "delivered" },
-      { label: "Cancel order", nextStatus: "cancelled" },
-    ],
+    nextActions: [],
   },
   delivered: {
     label: "Delivered",
@@ -94,6 +91,32 @@ function formatMoney(value: number) {
 
 function formatOrderDate(date: string) {
   return date || "Unknown";
+}
+
+function hasAssignedRider(order: MerchantOrder) {
+  return Boolean(order.rider?.id);
+}
+
+function getMerchantActions(order: MerchantOrder) {
+  if (order.status === "placed") {
+    return [
+      { label: "Start preparing", nextStatus: "preparing" as const },
+      { label: "Cancel order", nextStatus: "cancelled" as const },
+    ];
+  }
+
+  if (order.status === "preparing" && !hasAssignedRider(order)) {
+    return [
+      { label: "Complete without rider", nextStatus: "delivered" as const },
+      { label: "Cancel order", nextStatus: "cancelled" as const },
+    ];
+  }
+
+  if (order.status === "toPay") {
+    return [{ label: "Mark placed", nextStatus: "placed" as const }];
+  }
+
+  return [];
 }
 
 export default function MerchantOrderDetailPage() {
@@ -201,7 +224,7 @@ export default function MerchantOrderDetailPage() {
     if (!order) {
       return [];
     }
-    return STATUS_META[order.status].nextActions;
+    return getMerchantActions(order);
   }, [order]);
 
   async function changeStatus(nextStatus: OrderStatus) {
@@ -392,7 +415,9 @@ export default function MerchantOrderDetailPage() {
                   <h3 className="text-[18px] font-semibold text-[#495057]">Workflow</h3>
                 </div>
                 <p className="text-[14px] text-[#868e96]">
-                  Status changes are sent to the backend and will update the live merchant dashboard.
+                  {order.status === "preparing" && hasAssignedRider(order)
+                    ? "The restaurant is done cooking. Rider pickup and delivery now continue from the rider side in real time."
+                    : "Status changes are sent to the backend and will update the live merchant dashboard."}
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {order.status === "placed" ? (
@@ -406,17 +431,21 @@ export default function MerchantOrderDetailPage() {
                         Cancel
                       </Button>
                     </>
-                  ) : order.status === "preparing" ? (
+                  ) : order.status === "preparing" && !hasAssignedRider(order) ? (
                     <>
                       <Button type="button" onClick={() => void changeStatus("delivered")}>
                         <Check className="h-4 w-4" />
-                        Mark delivered
+                        Complete without rider
                       </Button>
                       <Button type="button" variant="secondary" onClick={() => void changeStatus("cancelled")}>
                         <CircleX className="h-4 w-4" />
                         Cancel
                       </Button>
                     </>
+                  ) : order.status === "preparing" && hasAssignedRider(order) ? (
+                    <div className="rounded-lg border border-[#dbe4ff] bg-[#f8fbff] px-4 py-3 text-[14px] text-[#495057]">
+                      Waiting for {order.rider?.full_name ?? "the assigned rider"} to accept pickup and continue delivery tracking.
+                    </div>
                   ) : order.status === "toPay" ? (
                     <Button type="button" onClick={() => void changeStatus("placed")}>
                       <Check className="h-4 w-4" />
@@ -433,22 +462,34 @@ export default function MerchantOrderDetailPage() {
               <Card>
                 <CardContent className="space-y-4 p-6">
                   <h3 className="text-[18px] font-semibold text-[#495057]">Rider assignment</h3>
-                  <div className="rounded border border-[#e9ecef] bg-[#f8f9fa] p-4">
-                    <div className="text-[14px] font-semibold text-[#495057]">
-                      {order.rider?.full_name ?? "No rider assigned yet"}
-                    </div>
-                    <div className="mt-1 text-[13px] text-[#868e96]">
-                      {order.rider?.phone ?? "Assign a rider to start live delivery tracking."}
-                    </div>
-                    {order.riderAssignedAt ? (
-                      <div className="mt-2 text-[12px] text-[#868e96]">
-                        Assigned at {new Date(order.riderAssignedAt).toLocaleString()}
+                    <div className="rounded border border-[#e9ecef] bg-[#f8f9fa] p-4">
+                      <div className="text-[14px] font-semibold text-[#495057]">
+                        {order.rider?.full_name ?? "No rider assigned yet"}
                       </div>
-                    ) : null}
-                  </div>
+                      <div className="mt-1 text-[13px] text-[#868e96]">
+                        {order.rider?.phone ??
+                          "Assign a rider to hand off delivery and unlock live tracking."}
+                      </div>
+                      {order.riderAssignedAt ? (
+                        <div className="mt-2 text-[12px] text-[#868e96]">
+                          Assigned at {new Date(order.riderAssignedAt).toLocaleString()}
+                        </div>
+                      ) : null}
+                      {order.status === "preparing" && hasAssignedRider(order) ? (
+                        <div className="mt-2 text-[12px] font-semibold text-[#0d84ff]">
+                          Merchant side stays in preparing until the rider picks up and completes the delivery flow.
+                        </div>
+                      ) : null}
+                    </div>
 
                   {order.status !== "cancelled" && order.status !== "delivered" ? (
                     <div className="space-y-3">
+                      <Link
+                        href="/merchant/rider-team"
+                        className="inline-flex text-[13px] font-semibold text-[#e53e4f] hover:text-[#c92a2a]"
+                      >
+                        Manage private rider team and dispatch policy
+                      </Link>
                       <label className="block text-[13px] font-semibold text-[#495057]">
                         Assign rider to this order
                       </label>

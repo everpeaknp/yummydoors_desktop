@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { Check, CircleX, PencilLine, Send } from "lucide-react";
+import { DirectionsRenderer, DirectionsService, GoogleMap, MarkerF } from "@react-google-maps/api";
 
 import { MerchantDashboardLayout } from "@/components/merchant/merchant-dashboard-layout";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,8 @@ import { extractApiErrorMessage } from "@/lib/api-utils";
 import { apiFetch } from "@/lib/http";
 import { config } from "@/lib/config";
 import { loadStoredAuth } from "@/lib/auth-storage";
+import { getMerchantOrderStatusMeta } from "@/lib/merchant-order-status";
+import { useGoogleMaps } from "@/hooks/use-google-maps";
 
 type OrderStatus = "toPay" | "placed" | "preparing" | "delivered" | "cancelled";
 
@@ -35,11 +38,14 @@ type RiderSummary = {
 
 type MerchantOrder = {
   id: number;
+  restaurantId: number;
   orderNumber: string;
   restaurantName: string;
+  riderDispatchPolicy?: "ranked" | "private_only";
   customerName: string;
   date: string;
   status: OrderStatus;
+  riderAssignmentState?: string;
   totalPrice: number;
   items: OrderItem[];
   rider?: {
@@ -47,6 +53,8 @@ type MerchantOrder = {
     full_name: string;
     phone: string | null;
     avatar_url: string | null;
+    current_latitude?: number | null;
+    current_longitude?: number | null;
   } | null;
   riderAssignedAt?: string | null;
 };
@@ -97,6 +105,10 @@ function hasAssignedRider(order: MerchantOrder) {
   return Boolean(order.rider?.id);
 }
 
+function usesPrivateDispatch(order: MerchantOrder) {
+  return order.riderDispatchPolicy === "private_only" || order.riderAssignmentState === "offered_rider_private";
+}
+
 function getMerchantActions(order: MerchantOrder) {
   if (order.status === "placed") {
     return [
@@ -125,6 +137,7 @@ export default function MerchantOrderDetailPage() {
   const { user } = useAuth();
   const orderId = Number(params?.id);
   const merchantWorkspaceReady = user?.activeWorkspace?.workspaceType === "merchant";
+  const { isLoaded: mapsLoaded } = useGoogleMaps();
 
   const [order, setOrder] = useState<MerchantOrder | null>(null);
   const [riders, setRiders] = useState<RiderSummary[]>([]);
@@ -133,6 +146,7 @@ export default function MerchantOrderDetailPage() {
   const [savingStatus, setSavingStatus] = useState<OrderStatus | null>(null);
   const [assigningRider, setAssigningRider] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [directions, setDirections] = useState<google.maps.DirectionsResult | null>(null);
 
   const loadOrder = useCallback(async () => {
     if (!Number.isFinite(orderId)) {
@@ -203,12 +217,19 @@ export default function MerchantOrderDetailPage() {
 
     ws.onmessage = (event) => {
       try {
-        const msg = JSON.parse(event.data) as { event?: string; order_id?: number; status?: OrderStatus };
-        if (msg.event === "order_update" && msg.order_id === orderId && msg.status) {
-          setOrder((current) => (current ? { ...current, status: msg.status } : current));
+        const msg = JSON.parse(event.data) as { event?: string; order_id?: number; status?: OrderStatus; latitude?: number; longitude?: number };
+        const nextStatus = msg.status;
+        if (msg.event === "order_update" && msg.order_id === orderId && nextStatus) {
+          setOrder((current) => (current ? { ...current, status: nextStatus } : current));
         }
         if (msg.event === "new_order" && msg.order_id === orderId) {
           void loadOrder();
+        }
+        if (msg.event === "rider_location_update" && msg.order_id === orderId && msg.latitude != null && msg.longitude != null) {
+          setOrder((current) => current?.rider ? {
+            ...current,
+            rider: { ...current.rider, current_latitude: msg.latitude, current_longitude: msg.longitude },
+          } : current);
         }
       } catch {
         // Ignore malformed websocket payloads.
@@ -219,6 +240,10 @@ export default function MerchantOrderDetailPage() {
       ws.close();
     };
   }, [loadOrder, merchantWorkspaceReady, orderId]);
+
+  useEffect(() => {
+    setDirections(null);
+  }, [order?.id, order?.address?.latitude, order?.address?.longitude]);
 
   const nextActions = useMemo(() => {
     if (!order) {
@@ -328,11 +353,14 @@ export default function MerchantOrderDetailPage() {
                 <h2 className="text-[22px] font-semibold text-[#495057]">
                   Order {order.orderNumber}
                 </h2>
-                <span
-                  className={`rounded px-2 py-0.5 text-[11px] font-bold text-white ${STATUS_META[order.status].tone}`}
-                >
-                  {STATUS_META[order.status].label}
-                </span>
+                {(() => {
+                  const statusMeta = getMerchantOrderStatusMeta(order.status);
+                  return (
+                    <span className={`rounded px-2 py-0.5 text-[11px] font-bold text-white ${statusMeta.tone}`}>
+                      {statusMeta.label}
+                    </span>
+                  );
+                })()}
               </div>
               <div className="grid gap-2 text-[14px] text-[#868e96] md:grid-cols-2">
                 <div>
@@ -484,15 +512,21 @@ export default function MerchantOrderDetailPage() {
 
                   {order.status !== "cancelled" && order.status !== "delivered" ? (
                     <div className="space-y-3">
+                      {usesPrivateDispatch(order) ? (
+                        <p className="text-[13px] text-[#868e96]">
+                          Private rider dispatch is enabled. This order is sent to the accepted private rider team automatically when preparation starts.
+                        </p>
+                      ) : null}
                       <Link
                         href="/merchant/rider-team"
                         className="inline-flex text-[13px] font-semibold text-[#e53e4f] hover:text-[#c92a2a]"
                       >
                         Manage private rider team and dispatch policy
                       </Link>
-                      <label className="block text-[13px] font-semibold text-[#495057]">
+                      {!usesPrivateDispatch(order) ? <label className="block text-[13px] font-semibold text-[#495057]">
                         Assign rider to this order
-                      </label>
+                      </label> : null}
+                      {!usesPrivateDispatch(order) ? <>
                       <select
                         value={selectedRiderId}
                         onChange={(event) => setSelectedRiderId(event.target.value)}
@@ -520,6 +554,7 @@ export default function MerchantOrderDetailPage() {
                           </Button>
                         );
                       })()}
+                      </> : null}
                     </div>
                   ) : (
                     <p className="text-[13px] text-[#868e96]">
@@ -528,6 +563,37 @@ export default function MerchantOrderDetailPage() {
                   )}
                 </CardContent>
               </Card>
+
+              {order.rider && order.rider.current_latitude != null && order.rider.current_longitude != null ? (
+                <Card>
+                  <CardContent className="space-y-3 p-6">
+                    <h3 className="text-[18px] font-semibold text-[#495057]">Live rider location</h3>
+                    {mapsLoaded ? (
+                      <GoogleMap
+                        mapContainerStyle={{ width: "100%", height: "260px", borderRadius: "12px" }}
+                        center={{ lat: order.rider.current_latitude, lng: order.rider.current_longitude }}
+                        zoom={15}
+                        options={{ streetViewControl: false, mapTypeControl: false, fullscreenControl: false }}
+                      >
+                        <MarkerF position={{ lat: order.rider.current_latitude, lng: order.rider.current_longitude }} />
+                        {order.restaurantLatitude != null && order.restaurantLongitude != null && order.address?.latitude != null && order.address.longitude != null ? <>
+                          <DirectionsService
+                            options={{
+                              origin: { lat: order.restaurantLatitude, lng: order.restaurantLongitude },
+                              destination: { lat: order.address.latitude, lng: order.address.longitude },
+                              travelMode: google.maps.TravelMode.DRIVING,
+                            }}
+                            callback={(result, status) => {
+                              if (status === "OK" && result) setDirections(result);
+                            }}
+                          />
+                          {directions ? <DirectionsRenderer directions={directions} options={{ suppressMarkers: true, polylineOptions: { strokeColor: "#f97316", strokeWeight: 5 } }} /> : null}
+                        </> : null}
+                      </GoogleMap>
+                    ) : <p className="text-[13px] text-[#868e96]">Loading live map...</p>}
+                  </CardContent>
+                </Card>
+              ) : null}
 
               <Card>
                 <CardContent className="space-y-3 p-6">
@@ -539,7 +605,7 @@ export default function MerchantOrderDetailPage() {
                   <div className="flex justify-between text-[14px] text-[#868e96]">
                     <span>Status</span>
                     <span className="font-semibold text-[#495057]">
-                      {STATUS_META[order.status].label}
+                      {getMerchantOrderStatusMeta(order.status).label}
                     </span>
                   </div>
                   <div className="flex justify-between text-[14px] text-[#868e96]">

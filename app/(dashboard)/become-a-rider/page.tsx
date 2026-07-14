@@ -85,29 +85,31 @@ export default function BecomeARiderPage() {
   );
 
   useEffect(() => {
-    if (!hydrated || !user) return;
-
+    const authenticatedUser = user;
+    if (!hydrated || !authenticatedUser) return;
     setForm((current) => ({
       ...current,
-      fullName: current.fullName || user.fullName || "",
-      email: current.email || user.email || "",
-      phone: current.phone || user.phone || "",
+      fullName: current.fullName || authenticatedUser.fullName || "",
+      email: current.email || authenticatedUser.email || "",
+      phone: current.phone || authenticatedUser.phone || "",
       address:
         current.address ||
-        user.defaultAddress?.addressSummary ||
-        user.defaultAddress?.locationTitle ||
-        user.defaultAddress?.addressLine1 ||
+        authenticatedUser.defaultAddress?.addressSummary ||
+        authenticatedUser.defaultAddress?.locationTitle ||
+        authenticatedUser.defaultAddress?.addressLine1 ||
         "",
       city:
         current.city ||
-        user.defaultAddress?.city ||
-        user.defaultAddress?.area ||
+        authenticatedUser.defaultAddress?.city ||
+        authenticatedUser.defaultAddress?.area ||
         "",
     }));
   }, [hydrated, user]);
 
   useEffect(() => {
-    if (!hydrated || !user) return;
+    const authenticatedUser = user;
+    if (!hydrated || !authenticatedUser) return;
+    const defaultAddressId = authenticatedUser.defaultAddressId;
 
     let cancelled = false;
 
@@ -135,7 +137,7 @@ export default function BecomeARiderPage() {
         setSavedAddresses(mapped);
         setSelectedAddressId((current) => {
           if (current !== null) return current;
-          if (user.defaultAddressId !== null) return user.defaultAddressId;
+          if (defaultAddressId !== null) return defaultAddressId;
           return mapped.find((address) => address.isDefault)?.id ?? mapped[0]?.id ?? null;
         });
       } catch (caught) {

@@ -96,8 +96,13 @@ export default function MerchantRiderTeamPage() {
         throw new Error(extractApiErrorMessage(profilePayload, "Failed to load rider dispatch policy."));
       }
 
-      const nextInvitations = unwrapApiData(invitationsPayload) ?? [];
-      const nextProfile = unwrapApiData(profilePayload);
+      const nextInvitations = Array.isArray(invitationsPayload)
+        ? invitationsPayload
+        : invitationsPayload?.data ?? [];
+      const nextProfile: MerchantProfile | null =
+        profilePayload && typeof profilePayload === "object" && "data" in profilePayload
+          ? profilePayload.data ?? null
+          : (profilePayload as MerchantProfile | null);
 
       setInvitations(Array.isArray(nextInvitations) ? nextInvitations : []);
       setPolicy(normalizeDispatchPolicy(nextProfile?.rider_dispatch_policy));

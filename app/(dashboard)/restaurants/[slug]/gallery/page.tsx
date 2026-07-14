@@ -25,7 +25,7 @@ export default function RestaurantGalleryPage() {
     setError(null);
     try {
       const response = await apiFetch(`/restaurants/${slug}`, { auth: true });
-      const payload = await readJsonSafely(response);
+      const payload = await readJsonSafely<{ data?: RestaurantDetail }>(response);
       if (!response.ok) {
         throw new Error(extractApiErrorMessage(payload, "Failed to load gallery."));
       }

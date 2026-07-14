@@ -149,7 +149,6 @@ export default function MenuItemsPage() {
       <h2 className="text-[16px] font-semibold">Menu Catalog</h2>
           <button 
           onClick={openCreateModal}
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary/90"
          className="inline-flex items-center justify-center gap-2 rounded bg-[#e53e4f] px-4 py-2 text-[14px] font-semibold text-white transition-colors hover:bg-[#d63a4a]">
           <Plus className="w-4 h-4" />
           Add Item

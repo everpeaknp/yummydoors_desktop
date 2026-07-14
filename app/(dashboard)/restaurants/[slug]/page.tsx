@@ -113,7 +113,7 @@ type RestaurantMenuSection = {
   items: MenuItemSummary[];
 };
 
-type RestaurantDetail = {
+export type RestaurantDetail = {
   restaurant: RestaurantCardSummary;
   menu_sections: RestaurantMenuSection[];
   featured_items: MenuItemSummary[];

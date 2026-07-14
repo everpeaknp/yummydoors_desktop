@@ -1,13 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ArrowLeftRight, Check, CircleX, MapPinned, RefreshCw, Users } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/use-auth";
 import { apiFetch } from "@/lib/http";
 import { config } from "@/lib/config";
 import { loadStoredAuth } from "@/lib/auth-storage";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { GoogleMap, MarkerF, PolylineF } from "@react-google-maps/api";
+import { DirectionsRenderer, DirectionsService, GoogleMap, MarkerF } from "@react-google-maps/api";
 import { useGoogleMaps } from "@/hooks/use-google-maps";
 
 type OrderStatus = "placed" | "preparing" | "picked_up" | "delivered" | "cancelled";
@@ -37,7 +39,16 @@ type RiderOrder = {
   riderOfferTier: string | null;
 };
 
+type RiderInvitation = {
+  id: number;
+  restaurant_name: string | null;
+  invitation_type: "private" | "preferred";
+  status: string;
+  notes: string | null;
+};
+
 export default function RiderDashboardPage() {
+  const router = useRouter();
   const { user, setUser } = useAuth();
   const [orders, setOrders] = useState<RiderOrder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,6 +56,9 @@ export default function RiderDashboardPage() {
   const [activeTab, setActiveTab] = useState<"available" | "active" | "completed">("available");
   const [actionLoading, setActionLoading] = useState<number | null>(null);
   const [availabilityLoading, setAvailabilityLoading] = useState(false);
+  const [directions, setDirections] = useState<google.maps.DirectionsResult | null>(null);
+  const [invitations, setInvitations] = useState<RiderInvitation[]>([]);
+  const [invitationLoading, setInvitationLoading] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const { isLoaded } = useGoogleMaps();
 
@@ -63,9 +77,47 @@ export default function RiderDashboardPage() {
     }
   }, []);
 
+  const loadInvitations = useCallback(async () => {
+    const response = await apiFetch("/rider-dispatch/invitations/me", { auth: true });
+    if (!response.ok) return;
+    const payload = await response.json().catch(() => null);
+    const data = Array.isArray(payload) ? payload : payload?.data;
+    if (Array.isArray(data)) setInvitations(data);
+  }, []);
+
   useEffect(() => {
     loadOrders();
-  }, [loadOrders]);
+    loadInvitations();
+  }, [loadInvitations, loadOrders]);
+
+  async function respondToInvitation(id: number, action: "accept" | "reject") {
+    setInvitationLoading(true);
+    try {
+      const response = await apiFetch(`/rider-dispatch/invitations/${id}/${action}`, {
+        method: "POST",
+        auth: true,
+      });
+      if (response.ok) await loadInvitations();
+    } finally {
+      setInvitationLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) return;
+    const watchId = navigator.geolocation.watchPosition(
+      ({ coords }) => {
+        void apiFetch("/auth/me/rider-location", {
+          method: "PATCH",
+          auth: true,
+          body: JSON.stringify({ latitude: coords.latitude, longitude: coords.longitude }),
+        });
+      },
+      () => undefined,
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 },
+    );
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, []);
 
   useEffect(() => {
     const stored = loadStoredAuth();
@@ -171,19 +223,29 @@ export default function RiderDashboardPage() {
   const doneCount = orders.filter(o => o.deliveredAt).length;
 
   const activeOrder = orders.find(o => o.riderAssignedAt && !o.deliveredAt);
+  useEffect(() => {
+    setDirections(null);
+  }, [activeOrder?.id, activeOrder?.pickedUpAt]);
 
   return (
-    <div className="flex h-screen flex-col bg-[#F6F7FB]">
-      <header className="bg-white border-b border-[#E8EDF6] p-6">
+    <div className="min-h-screen bg-[#f5f7fb] text-[#20252d]">
+      <header className="border-b border-[#e7ebf2] bg-white">
+        <div className="mx-auto max-w-[1500px] px-6 py-8 lg:px-10">
         <div className="flex justify-between items-start">
           <div>
-            <h1 className="text-2xl font-bold text-[#495057]">Rider Dashboard</h1>
-            <p className="text-sm text-[#868e96] mt-1">{user?.fullName || "Rider"}</p>
-            <div className="mt-3 inline-block rounded-full bg-orange-50 border border-orange-200 px-3 py-1">
-              <span className="text-xs font-semibold text-orange-500">Rider mode</span>
+            <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#ff6b3d]">Delivery workspace</p>
+            <h1 className="mt-2 text-4xl font-bold tracking-tight text-[#20252d]">Rider Dashboard</h1>
+            <p className="mt-2 text-base text-[#697386]">{user?.fullName || "Rider"} · manage offers, team requests, and live routes.</p>
+            <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-[#ffd1c2] bg-[#fff4ef] px-3 py-1.5">
+              <span className="h-2 w-2 rounded-full bg-[#ff6b3d]" />
+              <span className="text-xs font-bold text-[#e9572d]">Rider mode</span>
             </div>
           </div>
-          <label className="flex items-center gap-3 rounded-2xl border border-[#E7ECF4] bg-[#F8FAFC] px-4 py-3">
+          <div className="flex items-center gap-3">
+            <Button type="button" variant="secondary" onClick={() => router.push("/")}>
+              <ArrowLeftRight className="h-4 w-4" /> Switch
+            </Button>
+          <label className="flex items-center gap-4 rounded-2xl border border-[#e1e6ef] bg-[#f8fafc] px-5 py-3">
             <span className="text-right">
               <span className="block text-sm font-semibold text-[#495057]">
                 {user?.isAcceptingOffers ? "Online" : "Offline"}
@@ -198,35 +260,53 @@ export default function RiderDashboardPage() {
               className="h-5 w-5 accent-orange-500"
             />
           </label>
+          </div>
         </div>
-        <p className="mt-3 text-xs text-[#868e96]">
+        <p className="mt-4 text-sm text-[#697386]">
           Assigned restaurants can send delivery requests even while you are offline.
         </p>
 
-        <div className="mt-6 flex space-x-4">
-          <Card className="flex-1 rounded-2xl border-[#E7ECF4]">
+        <div className="mt-7 grid grid-cols-3 gap-4">
+          <Card className="rounded-2xl border-[#e7ebf2]">
             <CardContent className="p-4 text-center">
               <div className="text-2xl font-bold text-[#495057]">{activeCount}</div>
               <div className="text-xs text-[#868e96] mt-1">Active</div>
             </CardContent>
           </Card>
-          <Card className="flex-1 rounded-2xl border-[#E7ECF4]">
+          <Card className="rounded-2xl border-[#e7ebf2]">
             <CardContent className="p-4 text-center">
               <div className="text-2xl font-bold text-[#495057]">{assignedCount}</div>
               <div className="text-xs text-[#868e96] mt-1">Assigned</div>
             </CardContent>
           </Card>
-          <Card className="flex-1 rounded-2xl border-[#E7ECF4]">
+          <Card className="rounded-2xl border-[#e7ebf2]">
             <CardContent className="p-4 text-center">
               <div className="text-2xl font-bold text-[#495057]">{doneCount}</div>
               <div className="text-xs text-[#868e96] mt-1">Done</div>
             </CardContent>
           </Card>
         </div>
+        </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto p-6 flex flex-col md:flex-row gap-6">
-        <div className="flex-1 max-w-xl">
+      <main className="mx-auto grid max-w-[1500px] gap-6 px-6 py-8 lg:grid-cols-[minmax(0,1.1fr)_minmax(420px,0.9fr)] lg:px-10">
+        <div className="space-y-6">
+          <Card className="rounded-3xl border-[#e7ebf2] bg-white shadow-[0_18px_50px_rgba(31,41,55,0.06)]">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3"><Users className="h-5 w-5 text-[#ff6b3d]" /><div><h2 className="text-xl font-bold">Restaurant team requests</h2><p className="mt-1 text-sm text-[#697386]">Private restaurants can invite you directly.</p></div></div>
+                <Button type="button" variant="ghost" onClick={() => void loadInvitations()}><RefreshCw className="h-4 w-4" /> Refresh</Button>
+              </div>
+              <div className="mt-5 space-y-3">
+                {invitations.length === 0 ? <p className="rounded-2xl bg-[#f8fafc] px-4 py-5 text-sm text-[#697386]">No restaurant team requests yet.</p> : invitations.map((invitation) => (
+                  <div key={invitation.id} className="rounded-2xl border border-[#e7ebf2] bg-[#fbfcfe] p-4">
+                    <div className="flex items-start justify-between gap-4"><div><p className="font-bold">{invitation.restaurant_name || "Restaurant"}</p><p className="mt-1 text-sm text-[#697386]">{invitation.notes || "This restaurant wants to add you to its rider team."}</p></div><span className="rounded-full bg-[#fff0ea] px-3 py-1 text-xs font-bold text-[#e9572d]">{invitation.invitation_type === "private" ? "Private rider" : "Preferred rider"}</span></div>
+                    {invitation.status === "pending" || invitation.status === "sent" ? <div className="mt-4 flex gap-2"><Button type="button" onClick={() => void respondToInvitation(invitation.id, "accept")} disabled={invitationLoading}><Check className="h-4 w-4" /> Accept</Button><Button type="button" variant="secondary" onClick={() => void respondToInvitation(invitation.id, "reject")} disabled={invitationLoading}><CircleX className="h-4 w-4" /> Decline</Button></div> : <p className="mt-3 text-sm font-semibold text-[#0e9f6e]">Status: {invitation.status}</p>}
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
           <div className="bg-white rounded-full border border-[#E8EDF6] p-1 mb-6 flex">
             {(["available", "active", "completed"] as const).map((tab) => (
               <button
@@ -324,8 +404,9 @@ export default function RiderDashboardPage() {
           )}
         </div>
 
-        <div className="flex-1 min-h-[400px]">
-          <Card className="h-full rounded-2xl border-[#E8EDF6] overflow-hidden">
+        <div className="min-h-[650px]">
+          <Card className="h-full min-h-[650px] overflow-hidden rounded-3xl border-[#e7ebf2] bg-white shadow-[0_18px_50px_rgba(31,41,55,0.06)]">
+            <div className="flex items-center justify-between border-b border-[#edf0f5] px-6 py-5"><div className="flex items-center gap-3"><MapPinned className="h-5 w-5 text-[#ff6b3d]" /><div><h2 className="text-xl font-bold">Live route</h2><p className="text-sm text-[#697386]">Pickup and dropoff route updates in real time.</p></div></div><span className="rounded-full bg-[#edf9f4] px-3 py-1 text-xs font-bold text-[#0e9f6e]">Live</span></div>
             {!isLoaded ? (
               <div className="h-full flex items-center justify-center text-gray-500">Loading map...</div>
             ) : (
@@ -356,16 +437,19 @@ export default function RiderDashboardPage() {
                   />
                 )}
                 {activeOrder?.restaurantLatitude && activeOrder?.restaurantLongitude && activeOrder?.address?.latitude && activeOrder?.address?.longitude && (
-                  <PolylineF 
-                    path={[
-                      { lat: activeOrder.restaurantLatitude, lng: activeOrder.restaurantLongitude },
-                      { lat: activeOrder.address.latitude, lng: activeOrder.address.longitude }
-                    ]}
-                    options={{
-                      strokeColor: "#f97316", // orange-500
-                      strokeWeight: 4,
-                    }}
-                  />
+                  <>
+                    <DirectionsService
+                      options={{
+                        origin: { lat: activeOrder.restaurantLatitude, lng: activeOrder.restaurantLongitude },
+                        destination: { lat: activeOrder.address.latitude, lng: activeOrder.address.longitude },
+                        travelMode: google.maps.TravelMode.DRIVING,
+                      }}
+                      callback={(result, status) => {
+                        if (status === "OK" && result) setDirections(result);
+                      }}
+                    />
+                    {directions ? <DirectionsRenderer directions={directions} options={{ suppressMarkers: true, polylineOptions: { strokeColor: "#f97316", strokeWeight: 5 } }} /> : null}
+                  </>
                 )}
               </GoogleMap>
             )}

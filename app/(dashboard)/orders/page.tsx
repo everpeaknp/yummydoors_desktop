@@ -288,7 +288,7 @@ export default function CustomerOrdersPage() {
                     <div className="flex items-center gap-3">
                       {order.status === "delivered" ? (
                         <Link href={`/restaurants/${order.restaurantSlug}?order_id=${order.id}`}>
-                          <Button size="sm" variant="outline" className="h-7 text-xs">
+                          <Button variant="secondary" className="h-7 text-xs">
                             Leave a review
                           </Button>
                         </Link>

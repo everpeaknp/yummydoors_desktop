@@ -246,7 +246,7 @@ export function MerchantDashboardLayout({ children }: { children: React.ReactNod
           <div className="px-7 py-3 mt-4 text-[11px] font-bold uppercase tracking-wider text-white/30">Management</div>
           <SidebarLink href="/merchant/presence" icon={Store} label="Restaurant presence" active={pathname === "/merchant/presence"} />
           <SidebarLink href="/categories" icon={Layers3} label="Category structure" active={pathname === "/categories"} />
-          <SidebarLink href="/menu-items" icon={PanelTop} label="Menu catalog" active={pathname === "/menu-items"} />
+          <SidebarLink href="/merchant/menu" icon={PanelTop} label="Menu catalog" active={pathname === "/merchant/menu"} />
           <SidebarLink href="/merchant/reservations" icon={CalendarDays} label="Reservation queue" active={pathname === "/merchant/reservations"} />
           <SidebarLink href="/merchant/tables" icon={Table2} label="Reservation tables" active={pathname === "/merchant/tables"} />
           <SidebarLink href="/promos" icon={LinkIcon} label="Promos and merchandising" active={pathname === "/promos"} />

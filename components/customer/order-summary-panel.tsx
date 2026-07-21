@@ -8,6 +8,7 @@ type OrderItem = {
   price: number;
   quantity: number;
   modifier_ids: number[];
+  add_on_selections: Array<{ add_on_id: number; quantity: number }>;
 };
 
 type PricingBreakdown = {
@@ -61,7 +62,7 @@ export function OrderSummaryPanel({
                 >
                   <MinusCircle className="h-4 w-4 font-light" strokeWidth={1.5} />
                 </button>
-                <span className="text-[#444]">{item.quantity}x {item.name}</span>
+                <span className="text-[#444]">{item.quantity}x {item.name}{item.modifier_ids.length || item.add_on_selections.length ? " (customized)" : ""}</span>
               </div>
               <div className="flex flex-col items-end gap-1">
                 <span className="font-bold text-[#111]">${item.price}</span>

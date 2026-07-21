@@ -104,6 +104,7 @@ type MenuItemSummary = {
   rating_count: number;
   is_favorited: boolean;
   modifier_groups?: any[];
+  add_ons?: Array<{ id: number; name: string; price: number; is_available: boolean; max_quantity: number }>;
 };
 
 type RestaurantMenuSection = {
@@ -160,6 +161,8 @@ type ActiveCartItem = {
   name: string;
   price: number;
   image_url: string | null;
+  modifier_ids: number[];
+  add_on_selections: Array<{ add_on_id: number; quantity: number }>;
 };
 
 type ActiveCartPricing = {
@@ -314,7 +317,7 @@ export default function RestaurantDetailPage() {
   }, [loadActiveCart]);
 
   const handleAddToCart = useCallback(
-    async (itemId: number, quantity: number, _modifierIds: number[]) => {
+    async (itemId: number, quantity: number, modifierIds: number[], addOnSelections: Array<{ add_on_id: number; quantity: number }>) => {
       const restaurantId = detail?.restaurant?.id;
       if (!restaurantId) return;
 
@@ -332,6 +335,8 @@ export default function RestaurantDetailPage() {
           body: JSON.stringify({
             menu_item_id: itemId,
             quantity,
+            modifier_ids: modifierIds,
+            add_on_selections: addOnSelections,
           }),
         });
         const payload = await readJsonSafely<ActiveCart>(response);
@@ -925,7 +930,8 @@ export default function RestaurantDetailPage() {
                           name: item.name,
                           price: item.price,
                           quantity: item.quantity,
-                          modifier_ids: [],
+                          modifier_ids: item.modifier_ids ?? [],
+                          add_on_selections: item.add_on_selections ?? [],
                         }))}
                         pricing={activeCart?.pricing ?? null}
                         isCalculating={cartSyncing}

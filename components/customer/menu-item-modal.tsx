@@ -20,6 +20,7 @@ type ModifierGroup = {
   max_selections: number;
   items: ModifierItem[];
 };
+type AddOn = { id: number; name: string; price: number; is_available: boolean; max_quantity: number };
 
 type MenuItemDetail = {
   id: number;
@@ -28,18 +29,20 @@ type MenuItemDetail = {
   image_url: string | null;
   price: number;
   modifier_groups?: ModifierGroup[];
+  add_ons?: AddOn[];
 };
 
 type MenuItemModalProps = {
   isOpen: boolean;
   onClose: () => void;
   item: MenuItemDetail | null;
-  onAddToCart: (itemId: number, quantity: number, modifierIds: number[]) => void;
+  onAddToCart: (itemId: number, quantity: number, modifierIds: number[], addOnSelections: Array<{ add_on_id: number; quantity: number }>) => void;
 };
 
 export function MenuItemModal({ isOpen, onClose, item, onAddToCart }: MenuItemModalProps) {
   const [quantity, setQuantity] = useState(1);
   const [selectedModifiers, setSelectedModifiers] = useState<Record<number, number[]>>({});
+  const [selectedAddOns, setSelectedAddOns] = useState<Record<number, number>>({});
 
   // Reset state when a new item is opened
   if (!item) return null;
@@ -83,6 +86,9 @@ export function MenuItemModal({ isOpen, onClose, item, onAddToCart }: MenuItemMo
         }
       });
     });
+    item.add_ons?.forEach((addOn) => {
+      if (selectedAddOns[addOn.id]) total += addOn.price * selectedAddOns[addOn.id];
+    });
     return total * quantity;
   };
 
@@ -102,11 +108,13 @@ export function MenuItemModal({ isOpen, onClose, item, onAddToCart }: MenuItemMo
     }
 
     const allSelectedModifierIds = Object.values(selectedModifiers).flat();
-    onAddToCart(item.id, quantity, allSelectedModifierIds);
+    const addOnSelections = Object.entries(selectedAddOns).map(([id, addOnQuantity]) => ({ add_on_id: Number(id), quantity: addOnQuantity }));
+    onAddToCart(item.id, quantity, allSelectedModifierIds, addOnSelections);
     onClose();
     // Reset state after add
     setQuantity(1);
     setSelectedModifiers({});
+    setSelectedAddOns({});
   };
 
   return (
@@ -199,6 +207,27 @@ export function MenuItemModal({ isOpen, onClose, item, onAddToCart }: MenuItemMo
             })}
           </div>
         )}
+
+        {item.add_ons?.length ? (
+          <div className="border-t border-gray-100 px-6 py-4">
+            <h3 className="mb-3 font-bold text-[#111]">Add-ons</h3>
+            <div className="space-y-3">
+              {item.add_ons.filter((addOn) => addOn.is_available).map((addOn) => (
+                <label key={addOn.id} className="flex items-center justify-between text-[15px] text-[#444]">
+                  <span className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(selectedAddOns[addOn.id])}
+                      onChange={(event) => setSelectedAddOns((current) => ({ ...current, ...(event.target.checked ? { [addOn.id]: 1 } : (() => { const next = { ...current }; delete next[addOn.id]; return next; })()) }))}
+                    />
+                    {addOn.name}
+                  </span>
+                  <span>+ ${addOn.price.toFixed(2)}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        ) : null}
 
         {/* Footer Actions */}
         <div className="bg-[#f8f8f8] p-5 flex items-center gap-4 border-t border-gray-100">

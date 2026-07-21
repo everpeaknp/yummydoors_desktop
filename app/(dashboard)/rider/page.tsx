@@ -59,6 +59,7 @@ export default function RiderDashboardPage() {
   const [directions, setDirections] = useState<google.maps.DirectionsResult | null>(null);
   const [invitations, setInvitations] = useState<RiderInvitation[]>([]);
   const [invitationLoading, setInvitationLoading] = useState(false);
+  const [clock, setClock] = useState(() => Date.now());
   const wsRef = useRef<WebSocket | null>(null);
   const { isLoaded } = useGoogleMaps();
 
@@ -89,6 +90,11 @@ export default function RiderDashboardPage() {
     loadOrders();
     loadInvitations();
   }, [loadInvitations, loadOrders]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setClock(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   async function respondToInvitation(id: number, action: "accept" | "reject") {
     setInvitationLoading(true);
@@ -223,6 +229,10 @@ export default function RiderDashboardPage() {
   const doneCount = orders.filter(o => o.deliveredAt).length;
 
   const activeOrder = orders.find(o => o.riderAssignedAt && !o.deliveredAt);
+  const offerSecondsLeft = (order: RiderOrder) => {
+    if (!order.riderOfferId || !order.riderOfferExpiresAt) return null;
+    return Math.max(0, Math.ceil((new Date(order.riderOfferExpiresAt).getTime() - clock) / 1000));
+  };
   useEffect(() => {
     setDirections(null);
   }, [activeOrder?.id, activeOrder?.pickedUpAt]);
@@ -350,6 +360,11 @@ export default function RiderDashboardPage() {
                     <div className="text-sm text-[#495057] mb-4 space-y-1">
                       <p><span className="font-semibold text-[#868e96]">Pickup:</span> {order.restaurantName}</p>
                       <p><span className="font-semibold text-[#868e96]">Dropoff:</span> {order.address?.address_text || "No address"}</p>
+                      {order.riderOfferId ? (
+                        <p className={offerSecondsLeft(order) === 0 ? "font-semibold text-red-600" : "font-semibold text-orange-600"}>
+                          {offerSecondsLeft(order) === 0 ? "Offer expired. Refreshing..." : `Private rider offer expires in ${offerSecondsLeft(order)}s`}
+                        </p>
+                      ) : null}
                     </div>
 
                     <div className="flex space-x-3">
@@ -367,7 +382,7 @@ export default function RiderDashboardPage() {
                           ) : null}
                           <Button
                             className="flex-1 bg-orange-500 hover:bg-orange-600 text-white rounded-xl h-11"
-                            disabled={actionLoading === order.id}
+                            disabled={actionLoading === order.id || offerSecondsLeft(order) === 0}
                             onClick={() => handleAction(order.id, "claim")}
                           >
                             {actionLoading === order.id

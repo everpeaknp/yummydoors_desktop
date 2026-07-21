@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Star, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ImageIcon, Star, Trash2, X } from "lucide-react";
 
+import { ImageUpload } from "@/components/ui/image-upload";
 import { Button } from "@/components/ui/button";
 import { extractApiErrorMessage, readJsonSafely, unwrapApiData } from "@/lib/api-utils";
 import { apiFetch } from "@/lib/http";
@@ -17,6 +18,7 @@ export type ReviewPayload = {
   created_at: string;
   is_mine: boolean;
   can_edit: boolean;
+  image_urls: string[];
 };
 
 type ReviewEligibility = {
@@ -43,11 +45,18 @@ export function ReviewEditor({
 }: ReviewEditorProps) {
   const [rating, setRating] = useState(viewerReview?.rating ?? 5);
   const [comment, setComment] = useState(viewerReview?.comment ?? "");
+  const [imageUrls, setImageUrls] = useState<string[]>(viewerReview?.image_urls ?? []);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
   const mode = viewerReview ? "edit" : "create";
+
+  useEffect(() => {
+    setRating(viewerReview?.rating ?? 5);
+    setComment(viewerReview?.comment ?? "");
+    setImageUrls(viewerReview?.image_urls ?? []);
+  }, [viewerReview]);
 
   const blockedReason = useMemo(() => {
     if (viewerReview) {
@@ -77,6 +86,7 @@ export function ReviewEditor({
         body: JSON.stringify({
           rating,
           comment: comment.trim() || null,
+          image_urls: imageUrls,
           ...(mode === "create" && orderId ? { order_id: orderId } : {}),
         }),
       },
@@ -123,6 +133,7 @@ export function ReviewEditor({
     setSubmitting(false);
     setComment("");
     setRating(5);
+    setImageUrls([]);
     setSuccess("Review removed.");
     await onSaved();
   }
@@ -182,6 +193,73 @@ export function ReviewEditor({
             placeholder="What stood out about the food, service, or delivery?"
             className="mt-4 w-full resize-none rounded-2xl border border-input bg-white px-4 py-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/15"
           />
+
+          <div className="mt-5 rounded-2xl border border-border bg-[#fafafa] p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+                  Photos
+                </p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Add up to 5 photos with your review.
+                </p>
+              </div>
+              <div className="inline-flex items-center gap-2 rounded-full border border-border bg-white px-3 py-1 text-xs font-semibold text-muted-foreground">
+                <ImageIcon className="h-4 w-4" />
+                {imageUrls.length}/5
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {imageUrls.map((url, index) => (
+                <div key={`${url}-${index}`} className="space-y-2">
+                  <ImageUpload
+                    value={url}
+                    onChange={(next) => {
+                      setImageUrls((current) =>
+                        next
+                          ? current.map((item, itemIndex) =>
+                              itemIndex === index ? next : item,
+                            )
+                          : current.filter((_, itemIndex) => itemIndex !== index),
+                      );
+                    }}
+                    folderType="restaurant_reviews"
+                    clientScope="web"
+                    disabled={submitting}
+                  />
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setImageUrls((current) =>
+                          current.filter((_, itemIndex) => itemIndex !== index),
+                        )
+                      }
+                      disabled={submitting}
+                      className="inline-flex items-center gap-1 rounded-full border border-border bg-white px-3 py-1 text-xs font-semibold text-muted-foreground transition hover:bg-muted/50 disabled:opacity-60"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              ))}
+
+              {imageUrls.length < 5 ? (
+                <ImageUpload
+                  value={null}
+                  onChange={(next) => {
+                    if (!next) return;
+                    setImageUrls((current) => [...current, next]);
+                  }}
+                  folderType="restaurant_reviews"
+                  clientScope="web"
+                  disabled={submitting}
+                />
+              ) : null}
+            </div>
+          </div>
 
           {error ? (
             <div className="mt-4 rounded-2xl border border-[#fbcfe8] bg-[#fff1f2] px-4 py-3 text-sm text-[#be123c]">

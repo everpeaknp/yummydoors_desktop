@@ -15,7 +15,7 @@ export default function CategoriesPage() {
   const [error, setError] = useState<string | null>(null);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [formData, setFormData] = useState({ name: "", slug: "", icon_url: "", sort_order: 0, is_featured: false });
+  const [formData, setFormData] = useState({ name: "", icon_url: "", sort_order: 0, is_featured: false });
   const [editingId, setEditingId] = useState<number | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -43,7 +43,7 @@ export default function CategoriesPage() {
   }, [loadData]);
 
   function openCreateModal() {
-    setFormData({ name: "", slug: "", icon_url: "", sort_order: 0, is_featured: false });
+    setFormData({ name: "", icon_url: "", sort_order: 0, is_featured: false });
     setEditingId(null);
     setIsModalOpen(true);
   }
@@ -51,7 +51,6 @@ export default function CategoriesPage() {
   function openEditModal(category: any) {
     setFormData({
       name: category.name,
-      slug: category.slug,
       icon_url: category.icon_url || "",
       sort_order: category.sort_order || 0,
       is_featured: category.is_featured || false,
@@ -191,10 +190,11 @@ export default function CategoriesPage() {
                   <label className="block text-[14px] font-medium text-[#495057] mb-1">Name</label>
                   <input required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full rounded border border-[#ced4da] px-3 py-2 text-[14px] focus:border-[#86b7fe] outline-none" />
                 </div>
-                <div>
-                  <label className="block text-[14px] font-medium text-[#495057] mb-1">Slug</label>
-                  <input required value={formData.slug} onChange={e => setFormData({...formData, slug: e.target.value})} className="w-full rounded border border-[#ced4da] px-3 py-2 text-[14px] focus:border-[#86b7fe] outline-none" />
-                </div>
+                {editingId ? (
+                  <p className="text-xs text-[#868e96]">Slug is managed automatically: <span className="font-mono">{categories.find((category) => category.id === editingId)?.slug}</span></p>
+                ) : (
+                  <p className="text-xs text-[#868e96]">The platform will generate the category URL automatically.</p>
+                )}
                 <div>
                   <label className="block text-[14px] font-medium text-[#495057] mb-1">Icon (optional)</label>
                   <ImageUpload 

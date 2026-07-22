@@ -14,7 +14,7 @@ import { apiFetch } from "@/lib/http";
 import { config } from "@/lib/config";
 import { loadStoredAuth } from "@/lib/auth-storage";
 
-type OrderStatus = "toPay" | "placed" | "preparing" | "delivered" | "cancelled";
+type OrderStatus = "toPay" | "placed" | "preparing" | "picked_up" | "delivered" | "cancelled";
 
 type OrderItem = {
   name: string;
@@ -69,6 +69,11 @@ const STATUS_META: Record<
       { label: "Cancel order", nextStatus: "cancelled" },
     ],
   },
+  picked_up: {
+    label: "Picked up",
+    tone: "bg-[#8b5cf6]",
+    nextActions: [],
+  },
   delivered: {
     label: "Delivered",
     tone: "bg-[#25b546]",
@@ -87,6 +92,14 @@ function formatMoney(value: number) {
 
 function formatOrderDate(date: string) {
   return date || "Unknown";
+}
+
+function getStatusMeta(status: string) {
+  return STATUS_META[status as OrderStatus] ?? {
+    label: status.replaceAll("_", " "),
+    tone: "bg-[#6c757d]",
+    nextActions: [],
+  };
 }
 
 export default function MerchantOrderDetailPage() {
@@ -174,7 +187,7 @@ export default function MerchantOrderDetailPage() {
     if (!order) {
       return [];
     }
-    return STATUS_META[order.status].nextActions.filter(
+    return getStatusMeta(order.status).nextActions.filter(
       (action) => action.nextStatus !== "delivered" || !order.riderAssignedAt,
     );
   }, [order]);
@@ -285,9 +298,9 @@ export default function MerchantOrderDetailPage() {
                   Order {order.orderNumber}
                 </h2>
                 <span
-                  className={`rounded px-2 py-0.5 text-[11px] font-bold text-white ${STATUS_META[order.status].tone}`}
+                  className={`rounded px-2 py-0.5 text-[11px] font-bold text-white ${getStatusMeta(order.status).tone}`}
                 >
-                  {STATUS_META[order.status].label}
+                  {getStatusMeta(order.status).label}
                 </span>
               </div>
               <div className="grid gap-2 text-[14px] text-[#868e96] md:grid-cols-2">
@@ -422,7 +435,7 @@ export default function MerchantOrderDetailPage() {
                 <div className="flex justify-between text-[14px] text-[#868e96]">
                   <span>Status</span>
                   <span className="font-semibold text-[#495057]">
-                    {STATUS_META[order.status].label}
+                    {getStatusMeta(order.status).label}
                   </span>
                 </div>
                 <div className="border-t border-[#e9ecef] pt-3">

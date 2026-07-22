@@ -240,8 +240,9 @@ export function MerchantDashboardLayout({ children }: { children: React.ReactNod
         <nav className="flex-1 py-4 space-y-0.5">
           <SidebarLink href="/merchant" icon={Store} label="Dashboard" active={pathname === "/merchant"} />
           <SidebarLink href="/merchant/messages" icon={Mail} label="Messages" active={pathname === "/merchant/messages"} />
-          <SidebarLink href="/merchant/orders" icon={ShoppingBag} label="Orders Page" active={pathname === "/merchant/orders"} />
+  <SidebarLink href="/merchant/orders" icon={ShoppingBag} label="Orders Page" active={pathname === "/merchant/orders"} />
           <SidebarLink href="/merchant/orders/1" icon={Edit} label="Edit Order" active={pathname.includes("/merchant/orders/")} />
+          <SidebarLink href="/merchant/riders" icon={User} label="Rider management" active={pathname === "/merchant/riders"} />
           
           <div className="px-7 py-3 mt-4 text-[11px] font-bold uppercase tracking-wider text-white/30">Management</div>
           <SidebarLink href="/merchant/presence" icon={Store} label="Restaurant presence" active={pathname === "/merchant/presence"} />

@@ -31,6 +31,7 @@ type MerchantOrder = {
   status: OrderStatus;
   totalPrice: number;
   items: OrderItem[];
+  riderAssignedAt: string | null;
 };
 
 const STATUS_META: Record<
@@ -159,7 +160,9 @@ export default function MerchantOrderDetailPage() {
     if (!order) {
       return [];
     }
-    return STATUS_META[order.status].nextActions;
+    return STATUS_META[order.status].nextActions.filter(
+      (action) => action.nextStatus !== "delivered" || !order.riderAssignedAt,
+    );
   }, [order]);
 
   async function changeStatus(nextStatus: OrderStatus) {

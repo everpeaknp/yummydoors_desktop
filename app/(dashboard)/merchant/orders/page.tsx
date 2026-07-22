@@ -21,6 +21,7 @@ type MerchantOrder = {
   status: OrderStatus;
   totalPrice: number;
   items: OrderItem[];
+  riderAssignedAt: string | null;
 };
 
 const STATUS_STYLES: Record<OrderStatus, string> = {
@@ -212,7 +213,9 @@ export default function MerchantOrdersPage() {
                         >
                           View
                         </Link>
-                        {(NEXT_STATUSES[order.status] ?? []).map((ns) => (
+                        {(NEXT_STATUSES[order.status] ?? [])
+                          .filter((ns) => ns !== "delivered" || !order.riderAssignedAt)
+                          .map((ns) => (
                           <button
                             key={ns}
                             disabled={updatingId === order.id}
@@ -221,7 +224,7 @@ export default function MerchantOrdersPage() {
                           >
                             {updatingId === order.id ? "…" : STATUS_LABELS[ns]}
                           </button>
-                        ))}
+                          ))}
                       </div>
                     </td>
                   </tr>

@@ -32,6 +32,16 @@ type MerchantOrder = {
   totalPrice: number;
   items: OrderItem[];
   riderAssignedAt: string | null;
+  rider: { full_name: string } | null;
+};
+
+type RiderCandidate = {
+  id: number;
+  full_name: string;
+  phone: string | null;
+  rider_work_mode: string;
+  is_accepting_offers: boolean;
+  busy: boolean;
 };
 
 const STATUS_META: Record<
@@ -90,6 +100,10 @@ export default function MerchantOrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [savingStatus, setSavingStatus] = useState<OrderStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [riderCandidates, setRiderCandidates] = useState<RiderCandidate[]>([]);
+  const [riderPanelOpen, setRiderPanelOpen] = useState(false);
+  const [loadingRiders, setLoadingRiders] = useState(false);
+  const [assigningRiderId, setAssigningRiderId] = useState<number | null>(null);
 
   const loadOrder = useCallback(async () => {
     if (!Number.isFinite(orderId)) {
@@ -191,6 +205,48 @@ export default function MerchantOrderDetailPage() {
       setError(caught instanceof Error ? caught.message : "Failed to update order status.");
     } finally {
       setSavingStatus(null);
+    }
+  }
+
+  async function openRiderPanel() {
+    if (!order) return;
+    setRiderPanelOpen(true);
+    setLoadingRiders(true);
+    setError(null);
+    try {
+      const response = await apiFetch("/orders/merchant/riders", { auth: true });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(extractApiErrorMessage(payload, "Failed to load riders."));
+      }
+      setRiderCandidates((payload as RiderCandidate[]) ?? []);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Failed to load riders.");
+    } finally {
+      setLoadingRiders(false);
+    }
+  }
+
+  async function assignRider(riderUserId: number) {
+    if (!order) return;
+    setAssigningRiderId(riderUserId);
+    setError(null);
+    try {
+      const response = await apiFetch(`/orders/merchant/${order.id}/assign-rider`, {
+        method: "POST",
+        auth: true,
+        body: JSON.stringify({ rider_user_id: riderUserId }),
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(extractApiErrorMessage(payload, "Failed to assign rider."));
+      }
+      setOrder(payload as MerchantOrder);
+      setRiderPanelOpen(false);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Failed to assign rider.");
+    } finally {
+      setAssigningRiderId(null);
     }
   }
 
@@ -331,10 +387,13 @@ export default function MerchantOrderDetailPage() {
                     </>
                   ) : order.status === "preparing" ? (
                     <>
-                      <Button type="button" onClick={() => void changeStatus("delivered")}>
-                        <Check className="h-4 w-4" />
-                        Mark delivered
-                      </Button>
+                      {!order.riderAssignedAt ? <Button type="button" onClick={() => void changeStatus("delivered")}>
+                          <Check className="h-4 w-4" />
+                          Complete in-house
+                        </Button> : null}
+                      {!order.riderAssignedAt ? <Button type="button" variant="secondary" onClick={() => void openRiderPanel()}>
+                          Assign rider
+                        </Button> : null}
                       <Button type="button" variant="secondary" onClick={() => void changeStatus("cancelled")}>
                         <CircleX className="h-4 w-4" />
                         Cancel
@@ -349,6 +408,7 @@ export default function MerchantOrderDetailPage() {
                     <p className="text-[14px] text-[#868e96]">No further actions available for this order.</p>
                   )}
                 </div>
+                {order.rider ? <p className="text-sm text-[#3559A8]">Assigned rider: {order.rider.full_name}</p> : null}
               </CardContent>
             </Card>
 
@@ -374,6 +434,20 @@ export default function MerchantOrderDetailPage() {
               </CardContent>
             </Card>
           </div>
+          {riderPanelOpen ? (
+            <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center">
+              <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
+                <div className="flex items-center justify-between">
+                  <div><h2 className="text-lg font-semibold text-[#212529]">Assign rider</h2><p className="text-sm text-[#868e96]">Choose a rider for {order.orderNumber}.</p></div>
+                  <button className="text-sm text-[#868e96]" onClick={() => setRiderPanelOpen(false)}>Close</button>
+                </div>
+                <div className="mt-5 space-y-2">
+                  {loadingRiders ? <p className="py-6 text-center text-sm text-[#868e96]">Loading riders...</p> : riderCandidates.map((rider) => <div className="flex items-center justify-between rounded border border-[#e9ecef] p-3" key={rider.id}><div><p className="font-semibold text-[#495057]">{rider.full_name}</p><p className="text-xs text-[#868e96]">{rider.rider_work_mode} · {rider.phone || "No phone"} · {rider.busy ? "Busy" : rider.is_accepting_offers ? "Online" : "Offline"}</p></div><Button type="button" disabled={rider.busy || assigningRiderId !== null} onClick={() => void assignRider(rider.id)}>{assigningRiderId === rider.id ? "Assigning..." : "Assign"}</Button></div>)}
+                  {!loadingRiders && riderCandidates.length === 0 ? <p className="py-6 text-center text-sm text-[#868e96]">No eligible riders found.</p> : null}
+                </div>
+              </div>
+            </div>
+          ) : null}
         </div>
       ) : null}
     </MerchantDashboardLayout>

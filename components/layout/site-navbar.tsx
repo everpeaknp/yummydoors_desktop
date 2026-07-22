@@ -20,7 +20,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useAuthStore } from "@/stores/auth-store";
-import { hasMerchantWorkspace } from "@/lib/navigation";
+import { hasMerchantWorkspace, hasRiderAccess } from "@/lib/navigation";
 import { OrderNotificationManager } from "@/components/notifications/order-notification-manager";
 
 type SiteNavbarProps = {
@@ -37,6 +37,7 @@ export function SiteNavbar({ className, variant = "light" }: SiteNavbarProps) {
   const menuRef = useRef<HTMLDivElement>(null);
 
   const merchantReady = hydrated && hasMerchantWorkspace(user);
+  const riderReady = hydrated && hasRiderAccess(user);
   const displayName = user?.fullName?.trim() || user?.email?.trim() || "Account";
   const initials = displayName
     .split(" ")
@@ -134,6 +135,9 @@ export function SiteNavbar({ className, variant = "light" }: SiteNavbarProps) {
         <nav className={cn("hidden md:flex items-center gap-8 text-[15px] font-semibold", textClass)}>
           <Link href="/" className={linkClass}>Home</Link>
           <Link href="/restaurants" className={linkClass}>Restaurants</Link>
+          <Link href={riderReady ? "/rider" : "/become-a-rider"} className={linkClass}>
+            {riderReady ? "Rider dashboard" : "Become a rider"}
+          </Link>
           {hydrated && accessToken ? (
             <>
               <Link href="/merchant" className={linkClass}>
@@ -238,6 +242,14 @@ export function SiteNavbar({ className, variant = "light" }: SiteNavbarProps) {
                       >
                         <Store className="h-5 w-5 text-[#444]" />
                         {merchantReady ? "Merchant Portal" : "Create business"}
+                      </Link>
+                      <Link
+                        href={riderReady ? "/rider" : "/become-a-rider"}
+                        onClick={() => setMenuOpen(false)}
+                        className="flex items-center gap-3 rounded-[8px] px-4 py-3 text-[15px] font-medium text-[#2f3137] transition hover:bg-[#fff5ef]"
+                      >
+                        <UserCircle2 className="h-5 w-5 text-[#444]" />
+                        {riderReady ? "Rider dashboard" : "Become a rider"}
                       </Link>
                       <Link
                         href="/profile"

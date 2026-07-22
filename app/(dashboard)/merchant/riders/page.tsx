@@ -120,6 +120,22 @@ export default function MerchantRidersPage() {
     if (restaurantId) void load(restaurantId);
   }
 
+  async function invitationAction(invitationId: number, action: "resend" | "cancel") {
+    if (!restaurantId) return;
+    const response = await apiFetch(`/rider-dispatch/restaurants/${restaurantId}/invitations/${invitationId}/${action}`, { method: "POST", auth: true });
+    if (!response.ok) { setError(`Failed to ${action} invitation.`); return; }
+    setMessage(action === "resend" ? "Invitation resent." : "Invitation cancelled.");
+    void load(restaurantId);
+  }
+
+  async function removeRider(riderId: number) {
+    if (!restaurantId || !window.confirm("Remove this rider from the restaurant team?")) return;
+    const response = await apiFetch(`/rider-dispatch/restaurants/${restaurantId}/riders/${riderId}`, { method: "DELETE", auth: true });
+    if (!response.ok) { setError("Failed to remove rider."); return; }
+    setMessage("Rider removed from the restaurant team.");
+    void load(restaurantId);
+  }
+
   return (
     <MerchantDashboardLayout>
       <div className="mb-6 flex items-center justify-between">
@@ -160,13 +176,13 @@ export default function MerchantRidersPage() {
 
         <section className="rounded border border-[#e9ecef] bg-white p-6 lg:col-span-2">
           <h2 className="text-lg font-semibold text-[#212529]">Available riders</h2>
-          <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-3">{candidates.map((rider) => <div className="rounded border border-[#e9ecef] p-4" key={rider.id}><div className="flex justify-between"><span className="font-semibold">{rider.full_name}</span><span className={rider.is_accepting_offers ? "text-green-600" : "text-[#868e96]"}>{rider.is_accepting_offers ? "Online" : "Offline"}</span></div><p className="mt-1 text-sm text-[#868e96]">{rider.phone || "No phone"} · {rider.assignment_type.replace("rider_", "")}</p><p className="mt-2 text-xs text-[#868e96]">{rider.busy ? "Currently busy" : "Available"}{rider.distance_km != null ? ` · ${rider.distance_km.toFixed(1)} km away` : ""}</p></div>)}</div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-3">{candidates.map((rider) => <div className="rounded border border-[#e9ecef] p-4" key={rider.id}><div className="flex justify-between"><span className="font-semibold">{rider.full_name}</span><span className={rider.is_accepting_offers ? "text-green-600" : "text-[#868e96]"}>{rider.is_accepting_offers ? "Online" : "Offline"}</span></div><p className="mt-1 text-sm text-[#868e96]">{rider.phone || "No phone"} · {rider.assignment_type.replace("rider_", "")}</p><p className="mt-2 text-xs text-[#868e96]">{rider.busy ? "Currently busy" : "Available"}{rider.distance_km != null ? ` · ${rider.distance_km.toFixed(1)} km away` : ""}</p>{rider.assignment_type !== "open" ? <button className="mt-3 text-xs font-semibold text-red-600 hover:underline" onClick={() => void removeRider(rider.id)}>Remove from team</button> : null}</div>)}</div>
           {!candidates.length && <p className="mt-4 text-sm text-[#868e96]">No riders are currently available for this restaurant.</p>}
         </section>
 
         <section className="rounded border border-[#e9ecef] bg-white p-6 lg:col-span-2">
           <h2 className="text-lg font-semibold text-[#212529]">Invitations</h2>
-          <div className="mt-4 divide-y divide-[#e9ecef]">{invitations.map((invitation) => <div className="flex items-center justify-between py-3 text-sm" key={invitation.id}><span>{invitation.invited_email}</span><span className="text-[#868e96]">{invitation.invitation_type} · {invitation.status}</span></div>)}</div>
+          <div className="mt-4 divide-y divide-[#e9ecef]">{invitations.map((invitation) => <div className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm" key={invitation.id}><span>{invitation.invited_email}</span><span className="flex items-center gap-3 text-[#868e96]">{invitation.invitation_type} · {invitation.status}{invitation.status === "pending" || invitation.status === "sent" ? <><button className="font-semibold text-[#e9572d] hover:underline" onClick={() => void invitationAction(invitation.id, "resend")}>Resend</button><button className="font-semibold text-red-600 hover:underline" onClick={() => void invitationAction(invitation.id, "cancel")}>Cancel</button></> : null}</span></div>)}</div>
           {!invitations.length && <p className="mt-4 text-sm text-[#868e96]">No rider invitations yet.</p>}
         </section>
       </div>}

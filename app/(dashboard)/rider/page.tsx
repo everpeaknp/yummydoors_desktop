@@ -238,20 +238,20 @@ export default function RiderDashboardPage() {
   }, [activeOrder?.id, activeOrder?.pickedUpAt]);
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb] text-[#20252d]">
+    <div className="min-h-screen overflow-x-hidden bg-[#f5f7fb] text-[#20252d]">
       <header className="border-b border-[#e7ebf2] bg-white">
-        <div className="mx-auto max-w-[1500px] px-6 py-8 lg:px-10">
-        <div className="flex justify-between items-start">
+        <div className="mx-auto max-w-[1440px] px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
+        <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#ff6b3d]">Delivery workspace</p>
-            <h1 className="mt-2 text-4xl font-bold tracking-tight text-[#20252d]">Rider Dashboard</h1>
+            <h1 className="mt-2 text-3xl font-bold tracking-tight text-[#20252d] sm:text-4xl">Rider Dashboard</h1>
             <p className="mt-2 text-base text-[#697386]">{user?.fullName || "Rider"} · manage offers, team requests, and live routes.</p>
             <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-[#ffd1c2] bg-[#fff4ef] px-3 py-1.5">
               <span className="h-2 w-2 rounded-full bg-[#ff6b3d]" />
               <span className="text-xs font-bold text-[#e9572d]">Rider mode</span>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
             <Button type="button" variant="secondary" onClick={() => router.push("/")}>
               <ArrowLeftRight className="h-4 w-4" /> Switch
             </Button>
@@ -276,7 +276,7 @@ export default function RiderDashboardPage() {
           Assigned restaurants can send delivery requests even while you are offline.
         </p>
 
-        <div className="mt-7 grid grid-cols-3 gap-4">
+        <div className="mt-7 grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
           <Card className="rounded-2xl border-[#e7ebf2]">
             <CardContent className="p-4 text-center">
               <div className="text-2xl font-bold text-[#495057]">{activeCount}</div>
@@ -299,11 +299,11 @@ export default function RiderDashboardPage() {
         </div>
       </header>
 
-      <main className="mx-auto grid max-w-[1500px] gap-6 px-6 py-8 lg:grid-cols-[minmax(0,1.1fr)_minmax(420px,0.9fr)] lg:px-10">
+      <main className="mx-auto grid max-w-[1440px] gap-6 px-4 py-6 sm:px-6 lg:px-10 lg:py-8 xl:grid-cols-[minmax(0,1fr)_minmax(380px,0.8fr)]">
         <div className="space-y-6">
           <Card className="rounded-3xl border-[#e7ebf2] bg-white shadow-[0_18px_50px_rgba(31,41,55,0.06)]">
             <CardContent className="p-6">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-3"><Users className="h-5 w-5 text-[#ff6b3d]" /><div><h2 className="text-xl font-bold">Restaurant team requests</h2><p className="mt-1 text-sm text-[#697386]">Private restaurants can invite you directly.</p></div></div>
                 <Button type="button" variant="ghost" onClick={() => void loadInvitations()}><RefreshCw className="h-4 w-4" /> Refresh</Button>
               </div>
@@ -346,13 +346,13 @@ export default function RiderDashboardPage() {
               {filteredOrders.map((order) => (
                 <Card key={order.id} className="rounded-2xl border-[#E8EDF6]">
                   <CardContent className="p-5">
-                    <div className="flex justify-between items-start mb-4">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                       <div>
                         <h3 className="font-semibold text-[#495057]">Order #{order.orderNumber}</h3>
                         <p className="text-sm text-[#868e96]">{order.restaurantName}</p>
                       </div>
                       <div className="text-right">
-                        <div className="font-semibold text-orange-500">${order.totalPrice.toFixed(2)}</div>
+                        <div className="font-semibold text-orange-500">Rs. {order.totalPrice.toFixed(2)}</div>
                         <div className="text-xs text-[#868e96] capitalize">{order.status.replace("_", " ")}</div>
                       </div>
                     </div>
@@ -367,7 +367,7 @@ export default function RiderDashboardPage() {
                       ) : null}
                     </div>
 
-                    <div className="flex space-x-3">
+                    <div className="flex flex-col gap-3 sm:flex-row">
                       {activeTab === "available" && (
                         <>
                           {order.riderOfferId ? (
@@ -419,8 +419,8 @@ export default function RiderDashboardPage() {
           )}
         </div>
 
-        <div className="min-h-[650px]">
-          <Card className="h-full min-h-[650px] overflow-hidden rounded-3xl border-[#e7ebf2] bg-white shadow-[0_18px_50px_rgba(31,41,55,0.06)]">
+        <div className="min-h-0 xl:sticky xl:top-6 xl:self-start">
+          <Card className="h-[520px] overflow-hidden rounded-3xl border-[#e7ebf2] bg-white shadow-[0_18px_50px_rgba(31,41,55,0.06)] sm:h-[620px]">
             <div className="flex items-center justify-between border-b border-[#edf0f5] px-6 py-5"><div className="flex items-center gap-3"><MapPinned className="h-5 w-5 text-[#ff6b3d]" /><div><h2 className="text-xl font-bold">Live route</h2><p className="text-sm text-[#697386]">Pickup and dropoff route updates in real time.</p></div></div><span className="rounded-full bg-[#edf9f4] px-3 py-1 text-xs font-bold text-[#0e9f6e]">Live</span></div>
             {!isLoaded ? (
               <div className="h-full flex items-center justify-center text-gray-500">Loading map...</div>

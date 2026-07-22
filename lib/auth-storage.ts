@@ -1,4 +1,5 @@
 export const AUTH_STORAGE_KEY = "yummydoors.auth";
+const SESSION_AUTH_STORAGE_KEY = "yummydoors.auth.session";
 
 export type PosRestaurantMatch = {
   posRestaurantId: string;
@@ -96,21 +97,31 @@ export type StoredAuth = {
 
 export function loadStoredAuth(): StoredAuth | null {
   if (typeof window === "undefined") return null;
-  const raw = window.localStorage.getItem(AUTH_STORAGE_KEY);
+  const raw = window.localStorage.getItem(AUTH_STORAGE_KEY) ?? window.sessionStorage.getItem(SESSION_AUTH_STORAGE_KEY);
   if (!raw) return null;
   try {
     return JSON.parse(raw) as StoredAuth;
   } catch {
     window.localStorage.removeItem(AUTH_STORAGE_KEY);
+    window.sessionStorage.removeItem(SESSION_AUTH_STORAGE_KEY);
     return null;
   }
 }
 
-export function saveStoredAuth(value: StoredAuth | null) {
+export function saveStoredAuth(value: StoredAuth | null, rememberMe?: boolean) {
   if (typeof window === "undefined") return;
   if (!value) {
     window.localStorage.removeItem(AUTH_STORAGE_KEY);
+    window.sessionStorage.removeItem(SESSION_AUTH_STORAGE_KEY);
     return;
   }
-  window.localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(value));
+  const persist = rememberMe ?? window.localStorage.getItem(AUTH_STORAGE_KEY) !== null;
+  const serialized = JSON.stringify(value);
+  window.sessionStorage.removeItem(SESSION_AUTH_STORAGE_KEY);
+  if (persist) {
+    window.localStorage.setItem(AUTH_STORAGE_KEY, serialized);
+  } else {
+    window.localStorage.removeItem(AUTH_STORAGE_KEY);
+    window.sessionStorage.setItem(SESSION_AUTH_STORAGE_KEY, serialized);
+  }
 }

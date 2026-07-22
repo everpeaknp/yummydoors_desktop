@@ -15,7 +15,7 @@ type AuthState = {
   refreshToken: string | null;
   user: StoredAuth["user"] | null;
   hydrate: () => void;
-  setAuth: (auth: StoredAuth) => void;
+  setAuth: (auth: StoredAuth, rememberMe?: boolean) => void;
   setUser: (user: StoredUser) => void;
   clearAuth: () => void;
 };
@@ -34,8 +34,8 @@ export const useAuthStore = create<AuthState>((set) => ({
       user: stored?.user ?? null,
     });
   },
-  setAuth: (auth) => {
-    saveStoredAuth(auth);
+  setAuth: (auth, rememberMe = true) => {
+    saveStoredAuth(auth, rememberMe);
     set({
       hydrated: true,
       accessToken: auth.accessToken,

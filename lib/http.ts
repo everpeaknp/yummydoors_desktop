@@ -9,6 +9,7 @@ type RequestOptions = RequestInit & {
 
 const DEFAULT_REQUEST_TIMEOUT_MS = 15000;
 const PROXY_BASE = "/api/proxy";
+let refreshPromise: Promise<StoredAuth | null> | null = null;
 
 function isLocalhost() {
   return (
@@ -25,27 +26,34 @@ function buildRequestUrl(path: string) {
 }
 
 async function refreshAccessToken(stored: StoredAuth): Promise<StoredAuth | null> {
-  const response = await fetch(buildRequestUrl("/auth/refresh"), {
+  if (refreshPromise) return refreshPromise;
+
+  refreshPromise = (async () => {
+    const response = await fetch(buildRequestUrl("/auth/refresh"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ refresh_token: stored.refreshToken }),
     cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const payload = await response.json();
+    const data = payload.data;
+    const nextStored: StoredAuth = {
+      accessToken: data.tokens.access_token,
+      refreshToken: data.tokens.refresh_token,
+      user: mapStoredUser(data.user),
+    };
+    saveStoredAuth(nextStored);
+    return nextStored;
+  })().finally(() => {
+    refreshPromise = null;
   });
 
-  if (!response.ok) {
-    saveStoredAuth(null);
-    return null;
-  }
-
-  const payload = await response.json();
-  const data = payload.data;
-  const nextStored: StoredAuth = {
-    accessToken: data.tokens.access_token,
-    refreshToken: data.tokens.refresh_token,
-    user: mapStoredUser(data.user),
-  };
-  saveStoredAuth(nextStored);
-  return nextStored;
+  return refreshPromise;
 }
 
 export async function apiFetch(path: string, options: RequestOptions = {}) {

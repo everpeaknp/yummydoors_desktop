@@ -123,6 +123,7 @@ export function AuthForm({ mode }: AuthFormProps) {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -172,7 +173,7 @@ export function AuthForm({ mode }: AuthFormProps) {
       }
 
       const data = mapStoredAuth(payload.data);
-      setAuth(data);
+      setAuth(data, rememberMe);
       
       if (mode === "signup" && accountType === "restaurant") {
         router.replace("/merchant/onboarding");
@@ -307,6 +308,18 @@ export function AuthForm({ mode }: AuthFormProps) {
               required
             />
           </div>
+
+          {mode === "login" ? (
+            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(event) => setRememberMe(event.target.checked)}
+                className="h-4 w-4 rounded border-gray-300"
+              />
+              Remember me on this device
+            </label>
+          ) : null}
 
           {error ? (
             <div className="rounded-2xl border border-[#ffd8cc] bg-[#fff4ef] px-4 py-3 text-sm text-[#9a3412]">

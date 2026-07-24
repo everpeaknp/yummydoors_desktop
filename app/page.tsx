@@ -1382,7 +1382,7 @@ export default function LandingPage() {
               <div
                 className="relative h-full w-full bg-contain bg-center bg-no-repeat bg-gray-100 transition-all duration-500"
                 style={{
-                  backgroundImage: `url(${currentHeroPromo.image_url_mobile ?? getPromoImage(currentHeroPromo)})`,
+                  backgroundImage: `url(${isUsableImageUrl(currentHeroPromo.image_url_mobile ?? undefined) ? currentHeroPromo.image_url_mobile : getPromoImage(currentHeroPromo)})`,
                   backgroundSize: "auto 100%",
                   backgroundPosition: "right center",
                 }}

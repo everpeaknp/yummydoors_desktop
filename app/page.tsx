@@ -1374,7 +1374,7 @@ export default function LandingPage() {
 
       <main className="bg-white">
         <section className="relative z-20 py-12 md:py-16">
-          <div className="pl-[100px] pr-6">
+          <div className="ml-auto mr-[6%] w-[62%] max-w-[1200px] px-0 sm:w-[62%] max-sm:mx-0 max-sm:w-full max-sm:px-4">
             <Link
               href="/restaurants"
               className="block overflow-hidden rounded-[12px] shadow-[0_18px_60px_rgba(15,23,42,0.10)]"

@@ -159,7 +159,6 @@ export function OrderNotificationManager() {
         if (
           typeof Notification !== "undefined" &&
           Notification.permission === "granted" &&
-          document.hidden &&
           payload.title &&
           payload.body
         ) {

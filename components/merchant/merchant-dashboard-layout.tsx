@@ -33,6 +33,7 @@ import { mapStoredUser } from "@/lib/auth-mappers";
 import { useAuthStore } from "@/stores/auth-store";
 import { OrderNotificationManager } from "@/components/notifications/order-notification-manager";
 import {
+  ORDER_EVENT_NAME,
   WEB_PUSH_ENABLE_EVENT,
   WEB_PUSH_STATUS_EVENT,
   resetWebPushPrompted,
@@ -176,9 +177,14 @@ export function MerchantDashboardLayout({ children }: { children: React.ReactNod
 
     void refreshHeaderData();
     const interval = window.setInterval(() => void refreshHeaderData(), 30_000);
+    const handleOrderEvent = () => {
+      void refreshHeaderData();
+    };
+    window.addEventListener(ORDER_EVENT_NAME, handleOrderEvent);
     return () => {
       cancelled = true;
       window.clearInterval(interval);
+      window.removeEventListener(ORDER_EVENT_NAME, handleOrderEvent);
     };
   }, [hydrated, accessToken]);
 

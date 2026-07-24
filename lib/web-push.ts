@@ -18,6 +18,9 @@ export type OrderNotificationPayload = {
   body?: string;
   deep_link?: string;
   tag?: string;
+  latitude?: number;
+  longitude?: number;
+  updated_at?: string;
 };
 
 export type WebPushStatusPayload = {

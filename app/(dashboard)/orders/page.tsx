@@ -3,16 +3,19 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Clock3, MapPin, ReceiptText, ShoppingBag, Truck } from "lucide-react";
+import { ChevronDown, Clock3, MapPin, ReceiptText, ShoppingBag, Truck } from "lucide-react";
+import { DirectionsRenderer, DirectionsService, GoogleMap, MarkerF } from "@react-google-maps/api";
 
 import { SiteNavbar } from "@/components/layout/site-navbar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
+import { useGoogleMaps } from "@/hooks/use-google-maps";
 import { apiFetch } from "@/lib/http";
 import { ORDER_EVENT_NAME, type OrderNotificationPayload } from "@/lib/web-push";
+import { Modal } from "@/components/ui/modal";
 
-type OrderStatus = "toPay" | "placed" | "preparing" | "delivered" | "cancelled";
+type OrderStatus = "toPay" | "placed" | "preparing" | "rider_assigned" | "picked_up" | "delivered" | "cancelled";
 
 type OrderItem = {
   name: string;
@@ -31,6 +34,8 @@ type OrderTimelineEvent = {
 type OrderAddress = {
   address_text: string | null;
   recipient_name: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
 };
 
 type CustomerOrder = {
@@ -50,12 +55,21 @@ type CustomerOrder = {
   cookingRequest: string | null;
   deliveryInstruction: string | null;
   timeline: OrderTimelineEvent[];
+  restaurantLatitude?: number | null;
+  restaurantLongitude?: number | null;
+  rider?: {
+    full_name: string;
+    current_latitude?: number | null;
+    current_longitude?: number | null;
+  } | null;
 };
 
 const STATUS_TONE: Record<OrderStatus, string> = {
   toPay: "bg-[#6c757d]",
   placed: "bg-[#0d84ff]",
   preparing: "bg-[#f5b800]",
+  rider_assigned: "bg-[#8b5cf6]",
+  picked_up: "bg-[#f97316]",
   delivered: "bg-[#25b546]",
   cancelled: "bg-[#e53e4f]",
 };
@@ -68,12 +82,95 @@ function formatStatus(status: OrderStatus) {
   return status.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+function OrderTrackingMap({ order, customerLocation }: { order: CustomerOrder; customerLocation: { lat: number; lng: number } | null }) {
+  const { isLoaded } = useGoogleMaps();
+  const [directions, setDirections] = useState<google.maps.DirectionsResult | null>(null);
+  const destination = order.address?.latitude != null && order.address.longitude != null
+    ? { lat: order.address.latitude, lng: order.address.longitude }
+    : null;
+  const restaurant = order.restaurantLatitude != null && order.restaurantLongitude != null
+    ? { lat: order.restaurantLatitude, lng: order.restaurantLongitude }
+    : null;
+  const rider = order.rider?.current_latitude != null && order.rider.current_longitude != null
+    ? { lat: order.rider.current_latitude, lng: order.rider.current_longitude }
+    : null;
+  const center = rider ?? customerLocation ?? destination ?? restaurant;
+  const trackingDestination = customerLocation ?? destination;
+
+  useEffect(() => {
+    setDirections(null);
+  }, [rider?.lat, rider?.lng, trackingDestination?.lat, trackingDestination?.lng]);
+
+  if (!rider && !customerLocation) {
+    return (
+      <div className="rounded-[18px] border border-[#efe4d8] bg-[#eff3f7] px-4 py-10 text-center text-sm text-[#6b7280]">
+        Live rider location will appear here after the rider&apos;s GPS is available.
+      </div>
+    );
+  }
+
+  if (!center || !isLoaded) return null;
+
+  return (
+    <div className="overflow-hidden rounded-[18px] border border-[#efe4d8]">
+      <div className="flex items-center justify-between bg-white px-4 py-3">
+        <p className="text-sm font-semibold text-[#1f2937]">Live delivery location</p>
+        <p className="text-xs text-[#6b7280]">{rider ? `Rider: ${order.rider?.full_name}` : "Waiting for rider GPS"}</p>
+      </div>
+      <GoogleMap mapContainerStyle={{ width: "100%", height: "360px" }} center={center} zoom={rider ? 14 : 13} options={{ mapTypeControl: false, streetViewControl: false, fullscreenControl: true, zoomControl: true }}>
+        {trackingDestination ? (
+          <DirectionsService
+            options={{
+              origin: rider,
+              destination: trackingDestination,
+              travelMode: google.maps.TravelMode.WALKING,
+            }}
+            callback={(result, status) => {
+              if (status === "OK" && result) setDirections(result);
+            }}
+          />
+        ) : null}
+        {directions ? (
+          <DirectionsRenderer
+            directions={directions}
+            options={{
+              suppressMarkers: true,
+              polylineOptions: { strokeColor: "#e8505b", strokeOpacity: 0.9, strokeWeight: 5 },
+            }}
+          />
+        ) : null}
+        {restaurant ? <MarkerF position={restaurant} label="R" title="Restaurant" /> : null}
+        {destination ? <MarkerF position={destination} label="D" title="Delivery address" /> : null}
+        {rider ? <MarkerF position={rider} label="Rider" title={order.rider?.full_name ?? "Rider"} /> : null}
+        {customerLocation ? <MarkerF position={customerLocation} label="You" title="Your location" /> : null}
+      </GoogleMap>
+    </div>
+  );
+}
+
 export default function CustomerOrdersPage() {
   const router = useRouter();
   const { hydrated, accessToken } = useAuth();
   const [orders, setOrders] = useState<CustomerOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
+  const [customerLocation, setCustomerLocation] = useState<{ lat: number; lng: number } | null>(null);
+
+  const expandedOrder = orders.find((order) => order.id === expandedOrderId) ?? null;
+
+  useEffect(() => {
+    if (!expandedOrderId || !navigator.geolocation) {
+      return;
+    }
+
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => setCustomerLocation({ lat: position.coords.latitude, lng: position.coords.longitude }),
+      () => setCustomerLocation(null),
+      { enableHighAccuracy: true, maximumAge: 10_000, timeout: 15_000 },
+    );
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, [expandedOrderId]);
 
   const loadOrders = useCallback(async () => {
     const response = await apiFetch("/orders", { auth: true });
@@ -150,7 +247,7 @@ export default function CustomerOrdersPage() {
     function handleOrderEvent(event: Event) {
       const customEvent = event as CustomEvent<OrderNotificationPayload>;
       const detail = customEvent.detail;
-      if (!detail?.order_id || !detail.status) {
+      if (!detail?.order_id || (detail.event !== "rider_location_update" && !detail.status)) {
         return;
       }
 
@@ -164,7 +261,15 @@ export default function CustomerOrdersPage() {
         }
 
         return current.map((order) =>
-          order.id === detail.order_id ? { ...order, status: detail.status as OrderStatus } : order,
+          order.id === detail.order_id
+            ? {
+                ...order,
+                status: detail.status ? detail.status as OrderStatus : order.status,
+                rider: detail.event === "rider_location_update" && detail.latitude != null && detail.longitude != null
+                  ? { ...order.rider, full_name: order.rider?.full_name ?? "Rider", current_latitude: detail.latitude, current_longitude: detail.longitude }
+                  : order.rider,
+              }
+            : order,
         );
       });
     }
@@ -286,6 +391,15 @@ export default function CustomerOrdersPage() {
                       </p>
                     </div>
                     <div className="flex items-center gap-3">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-xs"
+                        onClick={() => setExpandedOrderId(order.id)}
+                      >
+                        Order details
+                        <ChevronDown className="h-3.5 w-3.5" />
+                      </Button>
                       {order.status === "delivered" ? (
                         <Link href={`/restaurants/${order.restaurantSlug}?order_id=${order.id}`}>
                           <Button size="sm" variant="outline" className="h-7 text-xs">
@@ -347,12 +461,51 @@ export default function CustomerOrdersPage() {
                       ))}
                     </div>
                   </div>
+
                 </CardContent>
               </Card>
             ))}
           </div>
         )}
       </main>
+      <Modal
+        isOpen={Boolean(expandedOrder)}
+        onClose={() => setExpandedOrderId(null)}
+        title={expandedOrder ? `Order ${expandedOrder.orderNumber}` : "Order details"}
+      >
+        {expandedOrder ? (
+          <div className="space-y-5 p-5">
+            <div className="rounded-2xl bg-white p-4">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-lg font-semibold text-[#1f2937]">{expandedOrder.restaurantName}</p>
+                  <p className="mt-1 text-sm text-[#6b7280]">{expandedOrder.address?.address_text ?? "Delivery address unavailable"}</p>
+                </div>
+                <span className={`rounded-full px-3 py-1 text-xs font-semibold text-white ${STATUS_TONE[expandedOrder.status]}`}>
+                  {formatStatus(expandedOrder.status)}
+                </span>
+              </div>
+            </div>
+            <div className="rounded-2xl bg-white p-4">
+              <p className="text-sm font-semibold text-[#1f2937]">Items</p>
+              <div className="mt-3 space-y-2 text-sm text-[#6b7280]">
+                {expandedOrder.items.map((item, index) => (
+                  <div key={`${item.name}-${index}`} className="flex justify-between gap-4">
+                    <span>{item.quantity} × {item.name}</span>
+                    <span>{formatMoney(item.price * item.quantity)}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-4 flex justify-between border-t border-[#efe4d8] pt-3 font-semibold text-[#1f2937]">
+                <span>Total</span><span>{formatMoney(expandedOrder.totalPrice)}</span>
+              </div>
+            </div>
+            {expandedOrder.status !== "delivered" && expandedOrder.status !== "cancelled" ? (
+              <OrderTrackingMap order={expandedOrder} customerLocation={customerLocation} />
+            ) : null}
+          </div>
+        ) : null}
+      </Modal>
     </div>
   );
 }

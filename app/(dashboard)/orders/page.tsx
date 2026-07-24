@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, Clock3, MapPin, ReceiptText, ShoppingBag, Truck } from "lucide-react";
 import { GoogleMap, MarkerF, PolylineF } from "@react-google-maps/api";
@@ -86,6 +86,7 @@ function formatStatus(status: OrderStatus) {
 function OrderTrackingMap({ order, customerLocation }: { order: CustomerOrder; customerLocation: { lat: number; lng: number } | null }) {
   const { isLoaded } = useGoogleMaps();
   const [routePath, setRoutePath] = useState<Array<{ lat: number; lng: number }>>([]);
+  const mapRef = useRef<google.maps.Map | null>(null);
   const destination = order.address?.latitude != null && order.address.longitude != null
     ? { lat: order.address.latitude, lng: order.address.longitude }
     : null;
@@ -97,7 +98,10 @@ function OrderTrackingMap({ order, customerLocation }: { order: CustomerOrder; c
   const rider = riderLat != null && riderLng != null
     ? { lat: riderLat, lng: riderLng }
     : null;
-  const center = rider ?? destination ?? restaurant;
+  const points = [restaurant, destination, rider].filter(
+    (point): point is { lat: number; lng: number } => point != null,
+  );
+  const center = rider ?? destination ?? restaurant ?? { lat: 28.2096, lng: 83.9856 };
   const trackingDestination = destination;
   const trackingDestinationLat = trackingDestination?.lat ?? null;
   const trackingDestinationLng = trackingDestination?.lng ?? null;
@@ -125,18 +129,17 @@ function OrderTrackingMap({ order, customerLocation }: { order: CustomerOrder; c
     return () => { cancelled = true; };
   }, [riderLat, riderLng, trackingDestinationLat, trackingDestinationLng]);
 
-  if (!rider) {
-    return (
-      <div className="rounded-[18px] border border-[#efe4d8] bg-[#eff3f7] px-4 py-10 text-center text-sm text-[#6b7280]">
-        Live rider location will appear here after the rider&apos;s GPS is available.
-      </div>
-    );
-  }
+  useEffect(() => {
+    if (!mapRef.current || points.length < 2) return;
+    const bounds = new google.maps.LatLngBounds();
+    points.forEach((point) => bounds.extend(point));
+    mapRef.current.fitBounds(bounds, 64);
+  }, [points]);
 
-  if (!destination || !isLoaded) {
+  if (!isLoaded || points.length === 0) {
     return (
       <div className="rounded-[18px] border border-[#efe4d8] bg-[#eff3f7] px-4 py-10 text-center text-sm text-[#6b7280]">
-        The delivery address does not have map coordinates yet.
+        Location data is not available for this order yet.
       </div>
     );
   }
@@ -147,12 +150,17 @@ function OrderTrackingMap({ order, customerLocation }: { order: CustomerOrder; c
         <p className="text-sm font-semibold text-[#1f2937]">Live delivery location</p>
         <p className="text-xs text-[#6b7280]">{rider ? `Rider: ${order.rider?.full_name}` : "Waiting for rider GPS"}</p>
       </div>
-      <GoogleMap mapContainerStyle={{ width: "100%", height: "360px" }} center={center} zoom={rider ? 14 : 13} options={{ mapTypeControl: false, streetViewControl: false, fullscreenControl: true, zoomControl: true }}>
+      <GoogleMap mapContainerStyle={{ width: "100%", height: "360px" }} center={center} zoom={14} onLoad={(map) => { mapRef.current = map; }} onUnmount={() => { mapRef.current = null; }} options={{ mapTypeControl: false, streetViewControl: false, fullscreenControl: true, zoomControl: true }}>
         {routePath.length > 1 ? <PolylineF path={routePath} options={{ strokeColor: "#e8505b", strokeOpacity: 0.9, strokeWeight: 5 }} /> : null}
-        {restaurant ? <MarkerF position={restaurant} label="R" title="Restaurant" /> : null}
-        <MarkerF position={destination} label="Delivery" title="Delivery address" />
-        {rider ? <MarkerF position={rider} label="Rider" title={order.rider?.full_name ?? "Rider"} /> : null}
+        {restaurant ? <MarkerF position={restaurant} label="R" title="Restaurant pickup" /> : null}
+        {destination ? <MarkerF position={destination} label="D" title="Customer delivery address" /> : null}
+        {rider ? <MarkerF position={rider} label="🚴" title={order.rider?.full_name ?? "Live rider"} /> : null}
       </GoogleMap>
+      <div className="flex flex-wrap gap-4 bg-white px-4 py-3 text-xs text-[#6b7280]">
+        <span><strong className="text-[#1f2937]">R</strong> Restaurant</span>
+        <span><strong className="text-[#1f2937]">D</strong> Customer delivery</span>
+        <span><strong className="text-[#1f2937]">🚴</strong> Live rider</span>
+      </div>
     </div>
   );
 }

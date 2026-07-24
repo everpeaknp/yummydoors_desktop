@@ -1383,7 +1383,7 @@ export default function LandingPage() {
                 className="relative h-[203px] w-full bg-contain bg-center bg-no-repeat bg-gray-100 transition-all duration-500"
                 style={{
                   backgroundImage: `url(${currentHeroPromo.image_url_mobile ?? getPromoImage(currentHeroPromo)})`,
-                  backgroundSize: "cover",
+                  backgroundSize: "contain",
                   backgroundPosition: "center",
                 }}
               />

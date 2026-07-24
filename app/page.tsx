@@ -1380,7 +1380,7 @@ export default function LandingPage() {
               className="block overflow-hidden rounded-[12px] shadow-[0_18px_60px_rgba(15,23,42,0.10)]"
             >
               <div
-                className="relative aspect-[3.82/1] w-full bg-gray-100 transition-all duration-500"
+                className="relative h-[203px] w-full bg-gray-100 transition-all duration-500"
                 style={{
                   backgroundImage: `url(${currentHeroPromo.image_url_mobile ?? getPromoImage(currentHeroPromo)})`,
                   backgroundSize: "cover",
@@ -1543,7 +1543,7 @@ export default function LandingPage() {
               className="block overflow-hidden rounded-[12px] shadow-[0_16px_50px_rgba(15,23,42,0.08)]"
             >
               <div
-                className="aspect-[3.82/1] w-full bg-cover bg-center transition-all duration-500"
+                className="h-[203px] w-full bg-cover bg-center transition-all duration-500"
                 style={{
                   backgroundImage: `url(${getPromoImage(currentBannerPromo)})`,
                 }}

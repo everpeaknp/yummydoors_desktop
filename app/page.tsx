@@ -1051,19 +1051,7 @@ export default function LandingPage() {
       });
 
       if (existingAddress) {
-        const defaultRes = await apiFetch(
-          `/me/addresses/${existingAddress.id}/default`,
-          {
-            method: "POST",
-            auth: true,
-          },
-        );
-        if (!defaultRes.ok) {
-          const payload = await readJsonSafely(defaultRes);
-          throw new Error(
-            extractApiErrorMessage(payload, "Failed to set default address."),
-          );
-        }
+        setSelectedLocationLabel(existingAddress.addressSummary || details.label);
       } else {
         const phoneParts = splitPhoneNumber(sessionUser.phone);
         const phoneNumber =

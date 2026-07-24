@@ -1374,7 +1374,7 @@ export default function LandingPage() {
 
       <main className="bg-white">
         <section className="relative z-20 py-12 md:py-16">
-          <div className="mx-auto max-w-[750px] px-6">
+          <div className="pl-[100px] pr-6">
             <Link
               href="/restaurants"
               className="block overflow-hidden rounded-[12px] shadow-[0_18px_60px_rgba(15,23,42,0.10)]"
@@ -1543,7 +1543,7 @@ export default function LandingPage() {
               className="block overflow-hidden rounded-[12px] shadow-[0_16px_50px_rgba(15,23,42,0.08)]"
             >
               <div
-                className="h-[203px] w-full bg-contain bg-center bg-no-repeat bg-[#f7f7f7] transition-all duration-500"
+                className="aspect-[3.82/1] w-full bg-cover bg-center transition-all duration-500"
                 style={{
                   backgroundImage: `url(${getPromoImage(currentBannerPromo)})`,
                 }}

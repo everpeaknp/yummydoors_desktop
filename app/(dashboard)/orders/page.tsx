@@ -97,8 +97,8 @@ function OrderTrackingMap({ order, customerLocation }: { order: CustomerOrder; c
   const rider = riderLat != null && riderLng != null
     ? { lat: riderLat, lng: riderLng }
     : null;
-  const center = rider ?? customerLocation ?? destination ?? restaurant;
-  const trackingDestination = customerLocation ?? destination;
+  const center = rider ?? destination ?? restaurant;
+  const trackingDestination = destination;
   const trackingDestinationLat = trackingDestination?.lat ?? null;
   const trackingDestinationLng = trackingDestination?.lng ?? null;
 
@@ -125,7 +125,7 @@ function OrderTrackingMap({ order, customerLocation }: { order: CustomerOrder; c
     return () => { cancelled = true; };
   }, [riderLat, riderLng, trackingDestinationLat, trackingDestinationLng]);
 
-  if (!rider && !customerLocation) {
+  if (!rider) {
     return (
       <div className="rounded-[18px] border border-[#efe4d8] bg-[#eff3f7] px-4 py-10 text-center text-sm text-[#6b7280]">
         Live rider location will appear here after the rider&apos;s GPS is available.
@@ -133,7 +133,13 @@ function OrderTrackingMap({ order, customerLocation }: { order: CustomerOrder; c
     );
   }
 
-  if (!center || !isLoaded) return null;
+  if (!destination || !isLoaded) {
+    return (
+      <div className="rounded-[18px] border border-[#efe4d8] bg-[#eff3f7] px-4 py-10 text-center text-sm text-[#6b7280]">
+        The delivery address does not have map coordinates yet.
+      </div>
+    );
+  }
 
   return (
     <div className="overflow-hidden rounded-[18px] border border-[#efe4d8]">
@@ -144,9 +150,8 @@ function OrderTrackingMap({ order, customerLocation }: { order: CustomerOrder; c
       <GoogleMap mapContainerStyle={{ width: "100%", height: "360px" }} center={center} zoom={rider ? 14 : 13} options={{ mapTypeControl: false, streetViewControl: false, fullscreenControl: true, zoomControl: true }}>
         {routePath.length > 1 ? <PolylineF path={routePath} options={{ strokeColor: "#e8505b", strokeOpacity: 0.9, strokeWeight: 5 }} /> : null}
         {restaurant ? <MarkerF position={restaurant} label="R" title="Restaurant" /> : null}
-        {destination ? <MarkerF position={destination} label="D" title="Delivery address" /> : null}
+        <MarkerF position={destination} label="Delivery" title="Delivery address" />
         {rider ? <MarkerF position={rider} label="Rider" title={order.rider?.full_name ?? "Rider"} /> : null}
-        {customerLocation ? <MarkerF position={customerLocation} label="You" title="Your location" /> : null}
       </GoogleMap>
     </div>
   );

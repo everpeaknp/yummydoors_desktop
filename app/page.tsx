@@ -1182,21 +1182,6 @@ export default function LandingPage() {
           <div className="absolute inset-0 bg-gray-900/50" />
         </div>
 
-        <div className="absolute bottom-0 left-0 right-0 z-10 w-full overflow-hidden leading-none">
-          <svg
-            className="relative block h-[60px] w-full md:h-[100px]"
-            data-name="Layer 1"
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 1200 120"
-            preserveAspectRatio="none"
-          >
-            <path
-              d="M321.39,56.44c58-10.79,114.16-30.13,172-41.86,82.39-16.72,168.19-17.73,250.45-.39C823.78,31,906.67,72,985.66,92.83c70.05,18.48,146.53,26.09,214.34,3V120H0V0C73.69,32.39,150.81,59.2,223.4,70.52Z"
-              fill="#ffffff"
-            />
-          </svg>
-        </div>
-
         <SiteNavbar variant="transparent" className="!border-b-0" />
 
         <div className="relative z-20 mt-10 flex w-full max-w-3xl flex-col px-6 md:mt-20">
@@ -1389,15 +1374,17 @@ export default function LandingPage() {
 
       <main className="bg-white">
         <section className="relative z-20 py-12 md:py-16">
-          <div className="pl-[100px] pr-6">
+          <div className="mx-auto max-w-[750px] px-6">
             <Link
               href="/restaurants"
               className="block overflow-hidden rounded-[12px] shadow-[0_18px_60px_rgba(15,23,42,0.10)]"
             >
               <div
-                className="h-[100px] w-full bg-cover bg-center transition-all duration-500 md:h-[112px]"
+                className="relative aspect-[4/5] w-full bg-gray-100 transition-all duration-500"
                 style={{
-                  backgroundImage: `url(${getPromoImage(currentHeroPromo)})`,
+                  backgroundImage: `url(${currentHeroPromo.image_url_mobile ?? getPromoImage(currentHeroPromo)})`,
+                  backgroundSize: "cover",
+                  backgroundPosition: "center",
                 }}
               />
             </Link>

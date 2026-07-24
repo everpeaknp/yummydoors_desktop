@@ -66,7 +66,11 @@ type Address = {
   recipient_name: string;
   phone_number: string;
   is_default: boolean;
+  latitude: number | null;
+  longitude: number | null;
 };
+
+const LOCATION_STORAGE_KEY = "yummydoors.selectedLocation";
 
 type OrderItem = {
   name: string;
@@ -159,6 +163,7 @@ export default function CheckoutPage() {
   const [cart, setCart] = useState<Cart | null>(null);
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null);
+  const [checkoutAddressChosen, setCheckoutAddressChosen] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [couponCode, setCouponCode] = useState("");
   const [needsCutlery, setNeedsCutlery] = useState(true);
@@ -169,6 +174,7 @@ export default function CheckoutPage() {
   const [error, setError] = useState<string | null>(null);
   const [cartMissing, setCartMissing] = useState(false);
   const [successOrder, setSuccessOrder] = useState<OrderResponse | null>(null);
+  const [latestLocation, setLatestLocation] = useState<{ lat: number; lng: number } | null>(null);
 
   const loadCheckoutState = useCallback(async () => {
     if (!Number.isFinite(restaurantId)) {
@@ -221,11 +227,21 @@ export default function CheckoutPage() {
         ? ((addressesPayload as { data: Address[] }).data ?? [])
         : [];
 
+    try {
+      const stored = window.localStorage.getItem(LOCATION_STORAGE_KEY);
+      const parsed = stored ? JSON.parse(stored) : null;
+      if (Number.isFinite(parsed?.coords?.lat) && Number.isFinite(parsed?.coords?.lng)) {
+        setLatestLocation({ lat: parsed.coords.lat, lng: parsed.coords.lng });
+      }
+    } catch {
+      setLatestLocation(null);
+    }
+
     setCart(nextCart);
     setAddresses(nextAddresses);
     setSelectedAddressId(
-      nextCart?.address?.id ??
-        nextAddresses.find((item) => item.is_default)?.id ??
+      nextAddresses.find((item) => item.is_default)?.id ??
+        nextCart?.address?.id ??
         nextAddresses[0]?.id ??
         null,
     );
@@ -353,6 +369,8 @@ export default function CheckoutPage() {
       body: JSON.stringify({
         payment_method: paymentMethod,
         address_id: selectedAddressId,
+        latitude: checkoutAddressChosen ? selectedAddress?.latitude ?? null : latestLocation?.lat ?? selectedAddress?.latitude ?? null,
+        longitude: checkoutAddressChosen ? selectedAddress?.longitude ?? null : latestLocation?.lng ?? selectedAddress?.longitude ?? null,
         coupon_code: couponCode.trim() || null,
         needs_cutlery: needsCutlery,
         cooking_request: cookingRequest.trim() || null,
@@ -504,7 +522,10 @@ export default function CheckoutPage() {
                         <button
                           key={address.id}
                           type="button"
-                          onClick={() => setSelectedAddressId(address.id)}
+                          onClick={() => {
+                            setSelectedAddressId(address.id);
+                            setCheckoutAddressChosen(true);
+                          }}
                           className={`rounded-2xl border px-4 py-4 text-left transition ${
                             selectedAddressId === address.id
                               ? "border-[#ffb085] bg-[#fff7f2]"

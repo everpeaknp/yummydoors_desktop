@@ -958,13 +958,13 @@ export default function LandingPage() {
     setLocationSelectionLocked(true);
     setLocationSaveMessage(null);
 
-    if (accessToken && !address.isDefault) {
-      await apiFetch(`/me/addresses/${address.id}/default`, {
-        method: "POST",
-        auth: true,
-      });
-      await Promise.all([loadSavedAddressesNow(), syncStoredProfile()]);
-    }
+    window.localStorage.setItem(
+      LOCATION_STORAGE_KEY,
+      JSON.stringify({
+        coords: { lat: address.latitude, lng: address.longitude },
+        label: address.addressSummary || address.locationTitle,
+      }),
+    );
 
     setLocationModalOpen(false);
   }

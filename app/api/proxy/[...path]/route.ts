@@ -59,12 +59,27 @@ async function handler(req: NextRequest, ctx: { params: Promise<{ path: string[]
   const body = method === "GET" || method === "HEAD" ? undefined : await req.arrayBuffer();
 
   try {
-    const upstream = await fetch(upstreamUrl.toString(), {
-      method,
-      headers,
-      body,
-      cache: "no-store",
-    });
+    let upstream: Response;
+    try {
+      upstream = await fetch(upstreamUrl.toString(), {
+        method,
+        headers,
+        body,
+        cache: "no-store",
+      });
+    } catch (firstError) {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      try {
+        upstream = await fetch(upstreamUrl.toString(), {
+          method,
+          headers,
+          body,
+          cache: "no-store",
+        });
+      } catch {
+        throw firstError;
+      }
+    }
 
     const resHeaders = filterResponseHeaders(upstream);
     const resBody = await upstream.arrayBuffer();

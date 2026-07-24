@@ -1374,13 +1374,13 @@ export default function LandingPage() {
 
       <main className="bg-white">
         <section className="relative z-20 py-12 md:py-16">
-          <div className="ml-auto mr-[6%] w-[62%] max-w-[1200px] px-0 sm:w-[62%] max-sm:mx-0 max-sm:w-full max-sm:px-4">
+          <div className="ml-auto mr-[12%] h-[100px] w-[382px] max-w-[calc(100vw-2rem)] px-0 max-sm:mx-0 max-sm:h-[100px] max-sm:w-full max-sm:px-4">
             <Link
               href="/restaurants"
               className="block overflow-hidden rounded-[12px] shadow-[0_18px_60px_rgba(15,23,42,0.10)]"
             >
               <div
-                className="relative h-[203px] w-full bg-contain bg-center bg-no-repeat bg-gray-100 transition-all duration-500"
+                className="relative h-full w-full bg-contain bg-center bg-no-repeat bg-gray-100 transition-all duration-500"
                 style={{
                   backgroundImage: `url(${currentHeroPromo.image_url_mobile ?? getPromoImage(currentHeroPromo)})`,
                   backgroundSize: "auto 100%",

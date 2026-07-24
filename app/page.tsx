@@ -1543,7 +1543,7 @@ export default function LandingPage() {
               className="block overflow-hidden rounded-[12px] shadow-[0_16px_50px_rgba(15,23,42,0.08)]"
             >
               <div
-                className="h-[203px] w-full bg-cover bg-center transition-all duration-500"
+                className="h-[203px] w-full bg-contain bg-center bg-no-repeat bg-[#f7f7f7] transition-all duration-500"
                 style={{
                   backgroundImage: `url(${getPromoImage(currentBannerPromo)})`,
                 }}

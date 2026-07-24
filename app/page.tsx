@@ -718,6 +718,11 @@ export default function LandingPage() {
   const bannerPager = useAutoPager(activeBannerPromos.length, 3000);
   const currentHeroPromo =
     activeHeroPromos[heroPager.index] ?? fallbackPromos[0];
+  const currentHeroPromoImage = isUsableImageUrl(
+    currentHeroPromo.image_url_mobile ?? undefined,
+  )
+    ? currentHeroPromo.image_url_mobile!
+    : getPromoImage(currentHeroPromo);
   const currentBannerPromo =
     activeBannerPromos[bannerPager.index] ?? currentHeroPromo;
   const currentHeroSlide = heroSlides[heroSlider.index];
@@ -1381,12 +1386,15 @@ export default function LandingPage() {
             >
               <div
                 className="relative h-full w-full bg-contain bg-center bg-no-repeat bg-gray-100 transition-all duration-500"
-                style={{
-                  backgroundImage: `url(${isUsableImageUrl(currentHeroPromo.image_url_mobile ?? undefined) ? currentHeroPromo.image_url_mobile : getPromoImage(currentHeroPromo)})`,
-                  backgroundSize: "auto 100%",
-                  backgroundPosition: "right center",
-                }}
-              />
+              >
+                <Image
+                  fill
+                  src={currentHeroPromoImage}
+                  alt={currentHeroPromo.title}
+                  className="object-contain object-right"
+                  sizes="382px"
+                />
+              </div>
             </Link>
             <div className="mt-3 flex items-center justify-center gap-2">
               {activeHeroPromos.map((promo, index) => (

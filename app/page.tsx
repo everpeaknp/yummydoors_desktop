@@ -1387,12 +1387,10 @@ export default function LandingPage() {
               <div
                 className="relative h-full w-full bg-contain bg-center bg-no-repeat bg-gray-100 transition-all duration-500"
               >
-                <Image
-                  fill
+                <img
                   src={currentHeroPromoImage}
                   alt={currentHeroPromo.title}
-                  className="object-contain object-right"
-                  sizes="382px"
+                  className="absolute inset-0 h-full w-full object-contain object-right"
                 />
               </div>
             </Link>

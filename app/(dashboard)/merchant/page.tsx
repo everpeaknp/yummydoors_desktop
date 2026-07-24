@@ -178,12 +178,6 @@ const requestTypeCards: Array<{
     description: "For restaurants starting directly in YummyDoors without POS ownership yet.",
   },
   {
-    type: "claim_existing",
-    eyebrow: "Claim",
-    title: "Claim an existing listing",
-    description: "For restaurants already listed in YummyDoors that need the right merchant owner.",
-  },
-  {
     type: "pos_link",
     eyebrow: "POS",
     title: "Request POS-linked access",
@@ -231,6 +225,7 @@ export default function MerchantPage() {
     null;
   const latestApplication = applications[0] ?? null;
   const hasApprovedMerchant = Boolean(merchantWorkspace?.status === "active");
+  const applicationIsUnderReview = latestApplication?.status === "submitted";
 
   const ownedRestaurantIds = useMemo(
     () => new Set(merchantRestaurants.items.map((restaurant) => restaurant.id)),
@@ -451,11 +446,6 @@ export default function MerchantPage() {
       return;
     }
 
-    if (requestType === "claim_existing" && !selectedRestaurantId) {
-      setError("Choose a restaurant to claim.");
-      return;
-    }
-
     if (requestType === "pos_link" && (!selectedRestaurantId || !selectedPosRestaurantId)) {
       setError("Choose both a restaurant and a POS identity to request POS-linked access.");
       return;
@@ -638,6 +628,16 @@ export default function MerchantPage() {
 
       <main className="bg-[#faf7f2] pb-20">
             <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-6 py-12 lg:px-10">
+              {applicationIsUnderReview ? (
+                <div className="rounded-[22px] border border-[#fed7aa] bg-[#fff7ed] px-6 py-5 shadow-[0_12px_30px_rgba(249,115,22,0.08)]">
+                  <p className="text-sm font-bold uppercase tracking-[0.18em] text-[#c2410c]">Application under review</p>
+                  <p className="mt-2 text-sm leading-7 text-[#9a3412]">
+                    Your merchant application has been submitted and is currently being reviewed by our team.
+                    We&apos;ll update this page as soon as a decision is made.
+                  </p>
+                </div>
+              ) : null}
+
               {error ? (
                 <div className="rounded-[18px] border border-[#ffd8cc] bg-[#fff4ef] px-5 py-4 text-sm text-[#9a3412]">
                   {error}
@@ -815,30 +815,6 @@ export default function MerchantPage() {
                           <div className="space-y-2">
                             <label className="text-sm font-medium text-[#1f2937]">Notes</label>
                             <Input value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Anything ops should know before launch" />
-                          </div>
-                        </div>
-                      ) : null}
-
-                      {requestType === "claim_existing" ? (
-                        <div className="space-y-5">
-                          <div className="space-y-2">
-                            <label className="text-sm font-medium text-[#1f2937]">Restaurant to claim</label>
-                            <select
-                              value={selectedRestaurantId}
-                              onChange={(event) => setSelectedRestaurantId(event.target.value)}
-                              className="flex h-12 w-full rounded-xl border border-input bg-white px-4 text-sm text-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/15"
-                            >
-                              <option value="">Choose a restaurant</option>
-                              {claimableRestaurants.map((restaurant) => (
-                                <option key={restaurant.id} value={restaurant.id}>
-                                  {restaurant.name} {restaurant.city ? `• ${restaurant.city}` : ""}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                          <div className="space-y-2">
-                            <label className="text-sm font-medium text-[#1f2937]">Notes</label>
-                            <Input value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Explain why this restaurant should be attached to your merchant account" />
                           </div>
                         </div>
                       ) : null}

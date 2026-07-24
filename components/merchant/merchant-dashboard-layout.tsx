@@ -26,8 +26,6 @@ import {
   User,
   ArrowRightLeft,
   ChevronDown,
-  ArrowUp,
-  ArrowDown,
 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { apiFetch } from "@/lib/http";
@@ -50,6 +48,29 @@ type MerchantRestaurant = {
   logo_url: string | null;
 };
 
+type MerchantConversation = {
+  customer_id: number;
+  customer_name: string;
+  last_message: string;
+  last_message_at: string;
+  unread_count: number;
+};
+
+type MerchantNotification = {
+  id: number;
+  title: string;
+  body: string;
+  deep_link: string | null;
+  created_at: string;
+  is_read: boolean;
+};
+
+function formatHeaderTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+
 export function MerchantDashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -64,6 +85,10 @@ export function MerchantDashboardLayout({ children }: { children: React.ReactNod
 
   const [showMessages, setShowMessages] = useState(false);
   const [showAlerts, setShowAlerts] = useState(false);
+  const [conversations, setConversations] = useState<MerchantConversation[]>([]);
+  const [notifications, setNotifications] = useState<MerchantNotification[]>([]);
+  const [unreadMessageCount, setUnreadMessageCount] = useState(0);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
   const [webPushStatus, setWebPushStatus] = useState<"checking" | "subscribed" | "unsubscribed" | "error">("checking");
 
   useEffect(() => {
@@ -107,6 +132,55 @@ export function MerchantDashboardLayout({ children }: { children: React.ReactNod
     }
     loadData();
   }, [hydrated, accessToken, setUser, user]);
+
+  useEffect(() => {
+    if (!hydrated || !accessToken) return;
+
+    let cancelled = false;
+
+    async function refreshHeaderData() {
+      try {
+        const [conversationResponse, notificationResponse, notificationCountResponse] = await Promise.all([
+          apiFetch("/messages/merchant/conversations", { auth: true }),
+          apiFetch("/notifications/me?limit=3", { auth: true }),
+          apiFetch("/notifications/me/unread-count", { auth: true }),
+        ]);
+        if (cancelled) return;
+
+        if (conversationResponse.ok) {
+          const payload = await conversationResponse.json().catch(() => null);
+          const nextConversations = Array.isArray(payload) ? payload : payload?.data;
+          if (Array.isArray(nextConversations)) {
+            setConversations(nextConversations);
+            setUnreadMessageCount(nextConversations.reduce(
+              (total: number, conversation: MerchantConversation) => total + conversation.unread_count,
+              0,
+            ));
+          }
+        }
+
+        if (notificationResponse.ok) {
+          const payload = await notificationResponse.json().catch(() => null);
+          if (Array.isArray(payload?.data)) setNotifications(payload.data);
+        }
+
+        if (notificationCountResponse.ok) {
+          const payload = await notificationCountResponse.json().catch(() => null);
+          const count = payload?.data?.unread_count;
+          if (typeof count === "number") setUnreadNotificationCount(count);
+        }
+      } catch (error) {
+        console.error("Failed to load merchant header notifications", error);
+      }
+    }
+
+    void refreshHeaderData();
+    const interval = window.setInterval(() => void refreshHeaderData(), 30_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [hydrated, accessToken]);
 
   useEffect(() => {
     if (!hydrated || !accessToken) {
@@ -185,6 +259,22 @@ export function MerchantDashboardLayout({ children }: { children: React.ReactNod
   const handleLogout = () => {
     clearAuth();
     router.push("/login");
+  };
+
+  const handleNotificationClick = async (notification: MerchantNotification) => {
+    if (!notification.is_read) {
+      const response = await apiFetch(`/notifications/me/${notification.id}/read`, {
+        method: "PATCH",
+        auth: true,
+      });
+      if (response.ok) {
+        setUnreadNotificationCount((count) => Math.max(0, count - 1));
+        setNotifications((current) => current.map((item) => (
+          item.id === notification.id ? { ...item, is_read: true } : item
+        )));
+      }
+    }
+    setShowAlerts(false);
   };
 
   const handleEnableOrderAlerts = async () => {
@@ -298,7 +388,7 @@ export function MerchantDashboardLayout({ children }: { children: React.ReactNod
               >
                 <div className="relative">
                   <Mail className="h-[18px] w-[18px] text-[#868e96] hover:text-gray-700" />
-                  <span className="absolute -top-1.5 -right-1.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[#0d84ff] text-[9px] font-bold text-white border-2 border-white">3</span>
+                  {unreadMessageCount > 0 && <span className="absolute -top-1.5 -right-1.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-[#0d84ff] px-0.5 text-[9px] font-bold text-white border-2 border-white">{unreadMessageCount > 9 ? "9+" : unreadMessageCount}</span>}
                 </div>
                 <ChevronDown className="h-3 w-3 text-[#868e96]" />
               </div>
@@ -310,17 +400,14 @@ export function MerchantDashboardLayout({ children }: { children: React.ReactNod
                     New Messages:
                   </div>
                   <div className="divide-y divide-[#e9ecef]">
-                    {[
-                      { name: "David Miller", time: "11:21 AM", snippet: "Hey there! This new version of SB Admin is pre..." },
-                      { name: "Jane Smith", time: "11:21 AM", snippet: "I was wondering if you could meet for an app..." },
-                      { name: "John Doe", time: "11:21 AM", snippet: "I've sent the final files over to you for review. ..." }
-                    ].map((msg, i) => (
-                      <Link href="/merchant/messages" key={i} className="block px-4 py-3 hover:bg-[#f8f9fa] transition" onClick={() => setShowMessages(false)}>
+                    {conversations.length === 0 && <p className="px-4 py-6 text-[13px] text-[#868e96]">No messages yet.</p>}
+                    {conversations.slice(0, 3).map((msg) => (
+                      <Link href={`/merchant/messages?customer_id=${msg.customer_id}`} key={msg.customer_id} className="block px-4 py-3 hover:bg-[#f8f9fa] transition" onClick={() => setShowMessages(false)}>
                         <div className="flex justify-between items-center mb-1">
-                          <span className="font-semibold text-[15px] text-[#212529]">{msg.name}</span>
-                          <span className="text-[12px] text-[#868e96]">{msg.time}</span>
+                          <span className="font-semibold text-[15px] text-[#212529]">{msg.customer_name}</span>
+                          <span className="text-[12px] text-[#868e96]">{formatHeaderTime(msg.last_message_at)}</span>
                         </div>
-                        <p className="text-[13px] text-[#495057] truncate">{msg.snippet}</p>
+                        <p className="text-[13px] text-[#495057] truncate">{msg.last_message}</p>
                       </Link>
                     ))}
                   </div>
@@ -337,7 +424,7 @@ export function MerchantDashboardLayout({ children }: { children: React.ReactNod
               >
                 <div className="relative">
                   <Bell className="h-[18px] w-[18px] text-[#868e96] hover:text-gray-700" />
-                  <span className="absolute -top-1.5 -right-1.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[#f5b800] text-[9px] font-bold text-white border-2 border-white">2</span>
+                  {unreadNotificationCount > 0 && <span className="absolute -top-1.5 -right-1.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-[#f5b800] px-0.5 text-[9px] font-bold text-white border-2 border-white">{unreadNotificationCount > 9 ? "9+" : unreadNotificationCount}</span>}
                 </div>
                 <ChevronDown className="h-3 w-3 text-[#868e96]" />
               </div>
@@ -349,20 +436,14 @@ export function MerchantDashboardLayout({ children }: { children: React.ReactNod
                     New Alerts:
                   </div>
                   <div className="divide-y divide-[#e9ecef]">
-                    {[
-                      { type: "up", time: "11:21 AM", snippet: "This is an automated server response messa..." },
-                      { type: "down", time: "11:21 AM", snippet: "This is an automated server response messa..." },
-                      { type: "up", time: "11:21 AM", snippet: "This is an automated server response messa..." }
-                    ].map((alert, i) => (
-                      <Link href="/merchant/alerts" key={i} className="block px-4 py-3 hover:bg-[#f8f9fa] transition" onClick={() => setShowAlerts(false)}>
+                    {notifications.length === 0 && <p className="px-4 py-6 text-[13px] text-[#868e96]">No notifications yet.</p>}
+                    {notifications.map((alert) => (
+                      <Link href={alert.deep_link || "/merchant"} key={alert.id} className="block px-4 py-3 hover:bg-[#f8f9fa] transition" onClick={() => void handleNotificationClick(alert)}>
                         <div className="flex justify-between items-center mb-1">
-                          <span className={`font-semibold text-[15px] flex items-center gap-1 ${alert.type === 'up' ? 'text-[#28a745]' : 'text-[#dc3545]'}`}>
-                            {alert.type === 'up' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
-                            Status Update
-                          </span>
-                          <span className="text-[12px] text-[#868e96]">{alert.time}</span>
+                          <span className="font-semibold text-[15px] text-[#212529]">{alert.title}</span>
+                          <span className="text-[12px] text-[#868e96]">{formatHeaderTime(alert.created_at)}</span>
                         </div>
-                        <p className="text-[13px] text-[#495057] truncate">{alert.snippet}</p>
+                        <p className="text-[13px] text-[#495057] truncate">{alert.body}</p>
                       </Link>
                     ))}
                   </div>

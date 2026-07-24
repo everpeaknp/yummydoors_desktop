@@ -117,6 +117,7 @@ type HomeCategory = {
   slug: string;
   name: string;
   icon_url?: string | null;
+  web_image_url?: string | null;
   sort_order: number;
   is_featured: boolean;
 };
@@ -196,6 +197,34 @@ type HomeFeed = {
   popular_foods: HomeMenuItem[];
   featured_videos: FeaturedVideo[];
 };
+
+function HomeSkeleton() {
+  return (
+    <div className="min-h-screen animate-pulse bg-white text-gray-800">
+      <div className="h-[600px] bg-gray-200 lg:h-[700px]">
+        <div className="mx-auto flex h-full max-w-6xl flex-col justify-center px-6 pt-24">
+          <div className="h-10 w-3/4 max-w-xl rounded bg-white/50" />
+          <div className="mt-4 h-7 w-1/2 max-w-md rounded bg-white/40" />
+          <div className="mt-12 h-14 w-full max-w-3xl rounded bg-white/60" />
+        </div>
+      </div>
+      <main className="mx-auto max-w-6xl space-y-12 px-6 py-12">
+        <section>
+          <div className="mb-6 h-8 w-52 rounded bg-gray-200" />
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-6">
+            {Array.from({ length: 6 }).map((_, index) => <div key={index} className="h-36 rounded-2xl bg-gray-200" />)}
+          </div>
+        </section>
+        <section>
+          <div className="mb-6 h-8 w-64 rounded bg-gray-200" />
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {Array.from({ length: 3 }).map((_, index) => <div key={index} className="h-72 rounded-2xl bg-gray-200" />)}
+          </div>
+        </section>
+      </main>
+    </div>
+  );
+}
 
 const LOCATION_STORAGE_KEY = "yummydoors.selectedLocation";
 
@@ -1115,6 +1144,10 @@ export default function LandingPage() {
     );
   }
 
+  if (loading) {
+    return <HomeSkeleton />;
+  }
+
   return (
     <div className="min-h-screen bg-white text-gray-800 font-sans antialiased overflow-x-hidden selection:bg-primary selection:text-white">
       <section className="relative z-30 flex min-h-[600px] flex-col items-center justify-center overflow-visible lg:min-h-[700px]">
@@ -1124,6 +1157,7 @@ export default function LandingPage() {
             src="https://images.unsplash.com/photo-1543353071-10c8ba85a904?q=80&w=2000&auto=format&fit=crop"
             alt="Friends eating"
             className="object-cover"
+            sizes="100vw"
           />
           <div className="absolute inset-0 bg-gray-900/50" />
         </div>
@@ -1409,9 +1443,9 @@ export default function LandingPage() {
                     ? Math.min(...categoryItems.map((item) => item.price))
                     : null;
                   const categoryImage = isUsableImageUrl(
-                    cat.icon_url ?? undefined,
+                      cat.web_image_url ?? cat.icon_url ?? undefined,
                   )
-                    ? (cat.icon_url ?? FALLBACK_MENU_ITEM_IMAGE)
+                    ? (cat.web_image_url ?? cat.icon_url ?? FALLBACK_MENU_ITEM_IMAGE)
                     : FALLBACK_MENU_ITEM_IMAGE;
 
                   return (
@@ -1425,6 +1459,7 @@ export default function LandingPage() {
                         src={categoryImage}
                         alt={cat.name}
                         className="object-cover"
+                        sizes="195px"
                       />
                       <div className="absolute inset-x-0 bottom-0 h-[120px] bg-gradient-to-t from-black/90 via-black/40 to-transparent" />
                       <div className="absolute top-[12px] right-[12px] bg-white text-[#333333] text-[11px] font-semibold w-[30px] h-[30px] rounded-full flex items-center justify-center shadow">
@@ -1740,6 +1775,7 @@ export default function LandingPage() {
                           src={coverUrl}
                           alt={r.name}
                           className="object-cover"
+                          sizes="300px"
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
 
@@ -1868,6 +1904,7 @@ export default function LandingPage() {
                         src={coverUrl}
                         alt={r.name}
                         className="object-cover transition-transform duration-300 group-hover:scale-105"
+                        sizes="(max-width: 1024px) 50vw, 300px"
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                       {r.offer_text || r.has_free_delivery ? (

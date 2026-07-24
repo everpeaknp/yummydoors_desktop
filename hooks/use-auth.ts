@@ -1,23 +1,28 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { mapStoredUser } from "@/lib/auth-mappers";
 import { apiFetch } from "@/lib/http";
 import { useAuthStore } from "@/stores/auth-store";
 
 export function useAuth() {
-  const store = useAuthStore();
+  const hydrated = useAuthStore((state) => state.hydrated);
+  const accessToken = useAuthStore((state) => state.accessToken);
+  const hydrate = useAuthStore((state) => state.hydrate);
+  const setUser = useAuthStore((state) => state.setUser);
+  const clearAuth = useAuthStore((state) => state.clearAuth);
   const refreshedRef = useRef(false);
+  const [visibilityVersion, setVisibilityVersion] = useState(0);
 
   useEffect(() => {
-    if (!store.hydrated) {
-      store.hydrate();
+    if (!hydrated) {
+      hydrate();
     }
-  }, [store]);
+  }, [hydrate, hydrated]);
 
   useEffect(() => {
-    if (!store.hydrated || !store.accessToken || refreshedRef.current) {
+    if (!hydrated || !accessToken || refreshedRef.current) {
       return;
     }
 
@@ -29,7 +34,7 @@ export function useAuth() {
         const response = await apiFetch("/auth/me", { auth: true });
         if (response.status === 401) {
           if (!cancelled) {
-            store.clearAuth();
+            clearAuth();
           }
           return;
         }
@@ -40,7 +45,7 @@ export function useAuth() {
 
         const payload = await response.json();
         if (!cancelled && payload?.data) {
-          store.setUser(mapStoredUser(payload.data));
+          setUser(mapStoredUser(payload.data));
         }
       } catch {
         // Keep stored auth if the backend is temporarily unavailable.
@@ -52,7 +57,26 @@ export function useAuth() {
     return () => {
       cancelled = true;
     };
-  }, [store]);
+  }, [accessToken, clearAuth, hydrated, setUser, visibilityVersion]);
 
-  return store;
+  useEffect(() => {
+    if (!hydrated || !accessToken) return;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        refreshedRef.current = false;
+        setVisibilityVersion((version) => version + 1);
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [accessToken, hydrated]);
+
+  return {
+    hydrated,
+    accessToken,
+    user: useAuthStore((state) => state.user),
+    setUser,
+  };
 }

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, Clock3, MapPin, ReceiptText, ShoppingBag, Truck } from "lucide-react";
-import { DirectionsRenderer, DirectionsService, GoogleMap, MarkerF } from "@react-google-maps/api";
+import { GoogleMap, MarkerF, PolylineF } from "@react-google-maps/api";
 
 import { SiteNavbar } from "@/components/layout/site-navbar";
 import { Button } from "@/components/ui/button";
@@ -85,22 +85,45 @@ function formatStatus(status: OrderStatus) {
 
 function OrderTrackingMap({ order, customerLocation }: { order: CustomerOrder; customerLocation: { lat: number; lng: number } | null }) {
   const { isLoaded } = useGoogleMaps();
-  const [directions, setDirections] = useState<google.maps.DirectionsResult | null>(null);
+  const [routePath, setRoutePath] = useState<Array<{ lat: number; lng: number }>>([]);
   const destination = order.address?.latitude != null && order.address.longitude != null
     ? { lat: order.address.latitude, lng: order.address.longitude }
     : null;
   const restaurant = order.restaurantLatitude != null && order.restaurantLongitude != null
     ? { lat: order.restaurantLatitude, lng: order.restaurantLongitude }
     : null;
-  const rider = order.rider?.current_latitude != null && order.rider.current_longitude != null
-    ? { lat: order.rider.current_latitude, lng: order.rider.current_longitude }
+  const riderLat = order.rider?.current_latitude ?? null;
+  const riderLng = order.rider?.current_longitude ?? null;
+  const rider = riderLat != null && riderLng != null
+    ? { lat: riderLat, lng: riderLng }
     : null;
   const center = rider ?? customerLocation ?? destination ?? restaurant;
   const trackingDestination = customerLocation ?? destination;
+  const trackingDestinationLat = trackingDestination?.lat ?? null;
+  const trackingDestinationLng = trackingDestination?.lng ?? null;
 
   useEffect(() => {
-    setDirections(null);
-  }, [rider?.lat, rider?.lng, trackingDestination?.lat, trackingDestination?.lng]);
+    if (riderLat == null || riderLng == null || trackingDestinationLat == null || trackingDestinationLng == null) {
+      setRoutePath([]);
+      return;
+    }
+
+    let cancelled = false;
+    const routeUrl = `https://router.project-osrm.org/route/v1/walking/${riderLng},${riderLat};${trackingDestinationLng},${trackingDestinationLat}?overview=full&geometries=geojson`;
+    void fetch(routeUrl)
+      .then((response) => response.json())
+      .then((payload) => {
+        const coordinates = payload?.routes?.[0]?.geometry?.coordinates;
+        if (!cancelled && Array.isArray(coordinates)) {
+          setRoutePath(coordinates.map(([lng, lat]: [number, number]) => ({ lat, lng })));
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setRoutePath([]);
+      });
+
+    return () => { cancelled = true; };
+  }, [riderLat, riderLng, trackingDestinationLat, trackingDestinationLng]);
 
   if (!rider && !customerLocation) {
     return (
@@ -119,27 +142,7 @@ function OrderTrackingMap({ order, customerLocation }: { order: CustomerOrder; c
         <p className="text-xs text-[#6b7280]">{rider ? `Rider: ${order.rider?.full_name}` : "Waiting for rider GPS"}</p>
       </div>
       <GoogleMap mapContainerStyle={{ width: "100%", height: "360px" }} center={center} zoom={rider ? 14 : 13} options={{ mapTypeControl: false, streetViewControl: false, fullscreenControl: true, zoomControl: true }}>
-        {trackingDestination ? (
-          <DirectionsService
-            options={{
-              origin: rider,
-              destination: trackingDestination,
-              travelMode: google.maps.TravelMode.WALKING,
-            }}
-            callback={(result, status) => {
-              if (status === "OK" && result) setDirections(result);
-            }}
-          />
-        ) : null}
-        {directions ? (
-          <DirectionsRenderer
-            directions={directions}
-            options={{
-              suppressMarkers: true,
-              polylineOptions: { strokeColor: "#e8505b", strokeOpacity: 0.9, strokeWeight: 5 },
-            }}
-          />
-        ) : null}
+        {routePath.length > 1 ? <PolylineF path={routePath} options={{ strokeColor: "#e8505b", strokeOpacity: 0.9, strokeWeight: 5 }} /> : null}
         {restaurant ? <MarkerF position={restaurant} label="R" title="Restaurant" /> : null}
         {destination ? <MarkerF position={destination} label="D" title="Delivery address" /> : null}
         {rider ? <MarkerF position={rider} label="Rider" title={order.rider?.full_name ?? "Rider"} /> : null}

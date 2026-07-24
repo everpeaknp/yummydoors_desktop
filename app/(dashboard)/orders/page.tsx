@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
 import { useGoogleMaps } from "@/hooks/use-google-maps";
+import { config } from "@/lib/config";
 import { apiFetch } from "@/lib/http";
 import { ORDER_EVENT_NAME, type OrderNotificationPayload } from "@/lib/web-push";
 import { Modal } from "@/components/ui/modal";
@@ -238,6 +239,41 @@ export default function CustomerOrdersPage() {
 
     return () => window.clearInterval(timer);
   }, [accessToken, loadOrders]);
+
+  useEffect(() => {
+    if (!accessToken || !expandedOrderId) return;
+
+    const wsBase = config.apiBaseUrl.replace("https://", "wss://").replace("http://", "ws://");
+    const socket = new WebSocket(`${wsBase}${config.apiPrefix}/orders/ws/customer?token=${accessToken}`);
+    const refreshTimer = window.setInterval(() => {
+      void loadOrders().then((nextOrders) => setOrders(nextOrders)).catch(() => {});
+    }, 5000);
+
+    socket.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data) as OrderNotificationPayload;
+        if (payload.event !== "rider_location_update" || payload.order_id !== expandedOrderId) return;
+        if (payload.latitude == null || payload.longitude == null) return;
+        setOrders((current) => current.map((order) => order.id === expandedOrderId
+          ? {
+              ...order,
+              rider: {
+                full_name: order.rider?.full_name ?? "Rider",
+                current_latitude: payload.latitude,
+                current_longitude: payload.longitude,
+              },
+            }
+          : order));
+      } catch {
+        // Ignore malformed tracking events.
+      }
+    };
+
+    return () => {
+      window.clearInterval(refreshTimer);
+      socket.close();
+    };
+  }, [accessToken, expandedOrderId, loadOrders]);
 
   useEffect(() => {
     if (!accessToken) {

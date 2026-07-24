@@ -676,10 +676,8 @@ export default function LandingPage() {
           cta_text: "Order Now",
         },
       ];
-  const heroPromos = feed?.hero_promos?.length ? feed.hero_promos : promos;
-  const bannerPromos = feed?.banner_promos?.length
-    ? feed.banner_promos
-    : promos;
+  const heroPromos = feed?.hero_promos ?? [];
+  const bannerPromos = feed?.banner_promos ?? [];
   const recommendedItems = feed?.recommended_items ?? [];
   const popularFoods = feed?.popular_foods ?? [];
   const featuredVideos = feed?.featured_videos ?? [];
@@ -690,9 +688,7 @@ export default function LandingPage() {
     ? (feed.explore_restaurants as HomeRestaurant[])
     : safeRestaurants;
   const activeHeroPromos = heroPromos.length ? heroPromos : fallbackPromos;
-  const activeBannerPromos = bannerPromos.length
-    ? bannerPromos
-    : activeHeroPromos;
+  const activeBannerPromos = bannerPromos;
 
   useEffect(() => {
     if (loading || typeof window === "undefined") return;
@@ -1379,10 +1375,10 @@ export default function LandingPage() {
 
       <main className="bg-white">
         <section className="relative z-20 py-12 md:py-16">
-          <div className="ml-auto mr-[12%] h-[100px] w-[382px] max-w-[calc(100vw-2rem)] px-0 max-sm:mx-0 max-sm:h-[100px] max-sm:w-full max-sm:px-4">
+          <div className="ml-auto mr-[12%] h-[120px] w-[460px] max-w-[calc(100vw-2rem)] px-0 max-sm:mx-0 max-sm:h-[120px] max-sm:w-full max-sm:px-4">
             <Link
               href="/restaurants"
-              className="block overflow-hidden rounded-[12px] shadow-[0_18px_60px_rgba(15,23,42,0.10)]"
+              className="block h-full overflow-hidden rounded-[12px] shadow-[0_18px_60px_rgba(15,23,42,0.10)]"
             >
               <div
                 className="relative h-full w-full bg-contain bg-center bg-no-repeat bg-gray-100 transition-all duration-500"
@@ -1390,7 +1386,7 @@ export default function LandingPage() {
                 <img
                   src={currentHeroPromoImage}
                   alt={currentHeroPromo.title}
-                  className="absolute inset-0 h-full w-full object-contain object-right"
+                  className="absolute inset-0 h-full w-full object-cover object-center"
                 />
               </div>
             </Link>
@@ -1542,6 +1538,7 @@ export default function LandingPage() {
           </div>
         </section>
 
+        {activeBannerPromos.length > 0 ? (
         <section className="pb-12">
           <div className="pl-[100px] pr-6">
             <Link
@@ -1572,6 +1569,7 @@ export default function LandingPage() {
             </div>
           </div>
         </section>
+        ) : null}
 
         {recommendedItems.length > 0 && (
           <section className="py-12 bg-white">

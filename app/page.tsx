@@ -193,6 +193,7 @@ type HomeFeed = {
   promos: HomePromo[];
   hero_promos?: HomePromo[];
   banner_promos?: HomePromo[];
+  cookie_promos?: HomePromo[];
   recommended_items: HomeMenuItem[];
   popular_foods: HomeMenuItem[];
   featured_videos: FeaturedVideo[];
@@ -335,6 +336,8 @@ export default function LandingPage() {
   const [locationSaveMessage, setLocationSaveMessage] = useState<string | null>(
     null,
   );
+  const [cookieModalOpen, setCookieModalOpen] = useState(false);
+  const [cookiePromoIndex, setCookiePromoIndex] = useState(0);
   const [foodSearch, setFoodSearch] = useState("");
   const locationDropdownRef = useRef<HTMLDivElement | null>(null);
   const heroSlider = useAutoPager(heroSlides.length, 5000);
@@ -661,6 +664,18 @@ export default function LandingPage() {
     ? feed.restaurants
     : fallbackRestaurants;
   const promos = feed?.promos?.length ? feed.promos : fallbackPromos;
+  const cookiePromos = feed?.cookie_promos?.length
+    ? feed.cookie_promos
+    : [
+        {
+          id: -1,
+          title: "Delivery Service",
+          subtitle: "Free delivery on your first order",
+          image_url:
+            "https://images.unsplash.com/photo-1558981806-ec527fa84c39?q=80&w=1200&auto=format&fit=crop",
+          cta_text: "Order Now",
+        },
+      ];
   const heroPromos = feed?.hero_promos?.length ? feed.hero_promos : promos;
   const bannerPromos = feed?.banner_promos?.length
     ? feed.banner_promos
@@ -678,6 +693,23 @@ export default function LandingPage() {
   const activeBannerPromos = bannerPromos.length
     ? bannerPromos
     : activeHeroPromos;
+
+  useEffect(() => {
+    if (loading || typeof window === "undefined") return;
+    if (window.sessionStorage.getItem("yummydoors.cookie-modal-seen") === "1") {
+      return;
+    }
+    window.sessionStorage.setItem("yummydoors.cookie-modal-seen", "1");
+    setCookieModalOpen(true);
+  }, [loading]);
+
+  useEffect(() => {
+    if (!cookieModalOpen || cookiePromos.length < 2) return;
+    const timer = window.setInterval(() => {
+      setCookiePromoIndex((current) => (current + 1) % cookiePromos.length);
+    }, 3500);
+    return () => window.clearInterval(timer);
+  }, [cookieModalOpen, cookiePromos.length]);
   const trendingTerms = [...recommendedItems, ...popularFoods]
     .map((item) => item.name)
     .filter((value, index, array) => array.indexOf(value) === index)
@@ -1927,6 +1959,46 @@ export default function LandingPage() {
       </main>
 
       <SiteFooter />
+
+      {cookieModalOpen ? (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/65 p-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Delivery promotion"
+            className="relative w-full max-w-[750px] overflow-hidden bg-white shadow-2xl"
+          >
+            <button
+              type="button"
+              aria-label="Close promotion"
+              onClick={() => setCookieModalOpen(false)}
+              className="absolute right-4 top-3 z-10 text-3xl font-light leading-none text-gray-700 hover:text-black"
+            >
+              ×
+            </button>
+            <div className="relative aspect-[4/5] max-h-[82vh] w-full">
+              <Image
+                fill
+                priority
+                src={getPromoImage(cookiePromos[cookiePromoIndex])}
+                alt={cookiePromos[cookiePromoIndex]?.title ?? "Delivery service"}
+                className="object-cover"
+                sizes="(max-width: 768px) 92vw, 750px"
+              />
+            </div>
+            {cookiePromos.length > 1 ? (
+              <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-2">
+                {cookiePromos.map((promo, index) => (
+                  <span
+                    key={promo.id}
+                    className={`h-2 w-2 rounded-full ${index === cookiePromoIndex ? "bg-white" : "bg-white/50"}`}
+                  />
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

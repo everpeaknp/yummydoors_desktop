@@ -98,7 +98,8 @@ function OrderTrackingMap({ order, customerLocation }: { order: CustomerOrder; c
   const rider = riderLat != null && riderLng != null
     ? { lat: riderLat, lng: riderLng }
     : null;
-  const points = [restaurant, destination, rider].filter(
+  const customer = customerLocation;
+  const points = [restaurant, destination, rider, customer].filter(
     (point): point is { lat: number; lng: number } => point != null,
   );
   const center = rider ?? destination ?? restaurant ?? { lat: 28.2096, lng: 83.9856 };
@@ -155,11 +156,13 @@ function OrderTrackingMap({ order, customerLocation }: { order: CustomerOrder; c
         {restaurant ? <MarkerF position={restaurant} label="R" title="Restaurant pickup" /> : null}
         {destination ? <MarkerF position={destination} label="D" title="Customer delivery address" /> : null}
         {rider ? <MarkerF position={rider} label="🚴" title={order.rider?.full_name ?? "Live rider"} /> : null}
+        {customer ? <MarkerF position={customer} label="You" title="Your current location" /> : null}
       </GoogleMap>
       <div className="flex flex-wrap gap-4 bg-white px-4 py-3 text-xs text-[#6b7280]">
         <span><strong className="text-[#1f2937]">R</strong> Restaurant</span>
         <span><strong className="text-[#1f2937]">D</strong> Customer delivery</span>
         <span><strong className="text-[#1f2937]">🚴</strong> Live rider</span>
+        <span><strong className="text-[#1f2937]">You</strong> Current device location</span>
       </div>
     </div>
   );

@@ -3,18 +3,26 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, Clock3, MapPin, ReceiptText, ShoppingBag, Truck } from "lucide-react";
+import {
+  ChevronRight,
+  Clock3,
+  CreditCard,
+  MapPin,
+  ReceiptText,
+  ShoppingBag,
+  Star,
+  Store,
+  X,
+} from "lucide-react";
 import { GoogleMap, MarkerF, PolylineF } from "@react-google-maps/api";
 
 import { SiteNavbar } from "@/components/layout/site-navbar";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
 import { useGoogleMaps } from "@/hooks/use-google-maps";
 import { config } from "@/lib/config";
 import { apiFetch } from "@/lib/http";
 import { ORDER_EVENT_NAME, type OrderNotificationPayload } from "@/lib/web-push";
-import { Modal } from "@/components/ui/modal";
+import { FALLBACK_RESTAURANT_COVER, isUsableImageUrl } from "@/lib/restaurant-media";
 
 type OrderStatus = "toPay" | "placed" | "preparing" | "rider_assigned" | "picked_up" | "delivered" | "cancelled";
 
@@ -66,14 +74,24 @@ type CustomerOrder = {
 };
 
 const STATUS_TONE: Record<OrderStatus, string> = {
-  toPay: "bg-[#6c757d]",
-  placed: "bg-[#0d84ff]",
-  preparing: "bg-[#f5b800]",
+  toPay: "bg-[#6b7280]",
+  placed: "bg-[#3b82f6]",
+  preparing: "bg-[#f59e0b]",
   rider_assigned: "bg-[#8b5cf6]",
   picked_up: "bg-[#f97316]",
-  delivered: "bg-[#25b546]",
-  cancelled: "bg-[#e53e4f]",
+  delivered: "bg-[#16a34a]",
+  cancelled: "bg-[#be123c]",
 };
+
+const FILTERS: Array<{ key: "all" | OrderStatus; label: string }> = [
+  { key: "all", label: "All" },
+  { key: "placed", label: "Placed" },
+  { key: "preparing", label: "Preparing" },
+  { key: "rider_assigned", label: "Rider assigned" },
+  { key: "picked_up", label: "Picked up" },
+  { key: "delivered", label: "Delivered" },
+  { key: "cancelled", label: "Cancelled" },
+];
 
 function formatMoney(value: number) {
   return `Rs. ${value.toFixed(2)}`;
@@ -81,6 +99,10 @@ function formatMoney(value: number) {
 
 function formatStatus(status: OrderStatus) {
   return status.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function restaurantImage(url: string | null | undefined) {
+  return isUsableImageUrl(url) ? (url as string) : FALLBACK_RESTAURANT_COVER;
 }
 
 function OrderTrackingMap({ order, customerLocation }: { order: CustomerOrder; customerLocation: { lat: number; lng: number } | null }) {
@@ -176,8 +198,10 @@ export default function CustomerOrdersPage() {
   const [error, setError] = useState<string | null>(null);
   const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
   const [customerLocation, setCustomerLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [statusFilter, setStatusFilter] = useState<"all" | OrderStatus>("all");
 
   const expandedOrder = orders.find((order) => order.id === expandedOrderId) ?? null;
+  const visibleOrders = statusFilter === "all" ? orders : orders.filter((order) => order.status === statusFilter);
 
   useEffect(() => {
     if (!expandedOrderId || !navigator.geolocation) {
@@ -346,6 +370,8 @@ export default function CustomerOrdersPage() {
           toPay: 0,
           placed: 0,
           preparing: 0,
+          rider_assigned: 0,
+          picked_up: 0,
           delivered: 0,
           cancelled: 0,
         },
@@ -362,205 +388,250 @@ export default function CustomerOrdersPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#fcfcfd]">
-      <SiteNavbar className="sticky top-0 z-40" />
-      <main className="mx-auto w-full max-w-7xl space-y-8 px-6 py-10 lg:px-10">
-        <section className="flex flex-col gap-5 rounded-[28px] border border-[#efe4d8] bg-white px-7 py-8 shadow-[0_24px_70px_rgba(15,23,42,0.06)] lg:flex-row lg:items-end lg:justify-between">
+    <div className="min-h-screen bg-[#fafafb]">
+      <SiteNavbar variant="light" />
+      <main className="mx-auto w-full max-w-5xl space-y-6 px-6 pb-16 pt-[92px] lg:px-10">
+        <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-primary">My Orders</p>
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-[#1f2937]">
-              Track every placed order in one place.
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#e8505b]">My orders</p>
+            <h1 className="mt-1.5 text-2xl font-semibold tracking-tight text-[#111827] sm:text-3xl">
+              Order history
             </h1>
-            <p className="mt-3 max-w-3xl text-sm leading-7 text-[#6b7280]">
-              This page is the customer-facing order inbox. When the merchant marks an order
-              preparing, delivered, or cancelled, the status should update here too.
+            <p className="mt-1.5 text-sm text-muted-foreground">
+              {summary.total} order{summary.total === 1 ? "" : "s"} · status updates live from the restaurant.
             </p>
           </div>
-          <Link href="/restaurants">
-            <Button>Browse restaurants</Button>
+          <Link
+            href="/restaurants"
+            className="inline-flex h-10 items-center justify-center rounded-[6px] bg-[#e8505b] px-4 text-[13px] font-bold text-white transition hover:bg-[#d6414c]"
+          >
+            Browse restaurants
           </Link>
-        </section>
+        </div>
 
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-          {[
-            { label: "All", value: summary.total, icon: ReceiptText },
-            { label: "Placed", value: summary.placed, icon: ShoppingBag },
-            { label: "Preparing", value: summary.preparing, icon: Clock3 },
-            { label: "Delivered", value: summary.delivered, icon: Truck },
-            { label: "Cancelled", value: summary.cancelled, icon: MapPin },
-          ].map((item) => {
-            const Icon = item.icon;
+        <div className="scrollbar-hide flex gap-2 overflow-x-auto pb-1">
+          {FILTERS.map((filter) => {
+            const count = filter.key === "all" ? summary.total : summary[filter.key];
+            const active = statusFilter === filter.key;
             return (
-              <Card key={item.label} className="border-[#efe4d8] bg-white">
-                <CardContent className="flex items-center gap-4 p-6">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#fff4ec]">
-                    <Icon className="h-5 w-5 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-[#6b7280]">{item.label}</p>
-                    <p className="mt-1 text-2xl font-semibold text-[#1f2937]">{item.value}</p>
-                  </div>
-                </CardContent>
-              </Card>
+              <button
+                key={filter.key}
+                type="button"
+                onClick={() => setStatusFilter(filter.key)}
+                className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-[13px] font-semibold transition ${
+                  active
+                    ? "border-[#e8505b] bg-[#fff5f5] text-[#e8505b]"
+                    : "border-gray-200 bg-white text-[#6b7280] hover:border-gray-300"
+                }`}
+              >
+                {filter.label}
+                <span className={active ? "text-[#e8505b]" : "text-gray-400"}>{count}</span>
+              </button>
             );
           })}
-        </section>
+        </div>
 
         {error ? (
-          <div className="rounded-[18px] border border-[#ffd8cc] bg-[#fff4ef] px-5 py-4 text-sm text-[#9a3412]">
+          <div className="rounded-[10px] border border-[#fecdd3] bg-[#fff1f2] px-5 py-4 text-sm text-[#be123c]">
             {error}
           </div>
         ) : null}
 
         {loading ? (
-          <Card className="border-[#efe4d8]">
-            <CardContent className="text-sm text-[#6b7280]">Loading your orders...</CardContent>
-          </Card>
+          <div className="animate-pulse rounded-[10px] border border-[#eceff3] bg-white px-6 py-10 text-sm text-muted-foreground">
+            Loading your orders...
+          </div>
         ) : orders.length === 0 ? (
-          <Card className="border-[#efe4d8] bg-white">
-            <CardContent className="space-y-3">
-              <h2 className="text-xl font-semibold text-[#1f2937]">No orders yet</h2>
-              <p className="text-sm leading-7 text-[#6b7280]">
-                Once you place an order, it will appear here and update automatically as the restaurant changes the status.
-              </p>
-              <Link href="/restaurants">
-                <Button>Order now</Button>
-              </Link>
-            </CardContent>
-          </Card>
+          <div className="flex flex-col items-center justify-center gap-3 rounded-[10px] border border-[#eceff3] bg-white px-6 py-16 text-center shadow-sm">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#fff1f2] text-[#e8505b]">
+              <ReceiptText className="h-6 w-6" />
+            </div>
+            <h2 className="text-lg font-semibold text-[#111827]">No orders yet</h2>
+            <p className="max-w-xs text-sm text-muted-foreground">
+              Once you place an order, it will appear here and update automatically as the restaurant changes the status.
+            </p>
+            <Link
+              href="/restaurants"
+              className="mt-2 inline-flex h-11 items-center justify-center rounded-[6px] bg-[#e8505b] px-5 text-sm font-bold text-white transition hover:bg-[#d6414c]"
+            >
+              Order now
+            </Link>
+          </div>
+        ) : visibleOrders.length === 0 ? (
+          <div className="rounded-[10px] border border-dashed border-gray-200 bg-white px-6 py-12 text-center text-sm text-muted-foreground">
+            No orders with this status.
+          </div>
         ) : (
-          <div className="grid gap-5">
-            {orders.map((order) => (
-              <Card key={order.orderNumber} className="border-[#efe4d8] bg-white">
-                <CardContent className="space-y-5 p-6">
-                  <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div>
-                      <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-primary">
-                        {order.orderNumber}
-                      </p>
-                      <h2 className="mt-2 text-2xl font-semibold text-[#1f2937]">
-                        {order.restaurantName}
-                      </h2>
-                      <p className="mt-2 text-sm text-[#6b7280]">
-                        {order.address?.address_text ?? "No delivery address captured."}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-8 text-xs"
-                        onClick={() => setExpandedOrderId(order.id)}
-                      >
-                        Order details
-                        <ChevronDown className="h-3.5 w-3.5" />
-                      </Button>
-                      {order.status === "delivered" ? (
-                        <Link href={`/restaurants/${order.restaurantSlug}?order_id=${order.id}`}>
-                          <Button size="sm" variant="outline" className="h-7 text-xs">
-                            Leave a review
-                          </Button>
-                        </Link>
-                      ) : null}
-                      <span className={`rounded-full border px-3 py-1 text-[11px] font-semibold ${STATUS_TONE[order.status]}`}>
+          <div className="space-y-4">
+            {visibleOrders.map((order) => (
+              <div key={order.orderNumber} className="overflow-hidden rounded-[10px] border border-[#eceff3] bg-white shadow-sm">
+                <button
+                  type="button"
+                  onClick={() => setExpandedOrderId(order.id)}
+                  className="flex w-full flex-wrap items-center gap-4 px-5 py-4 text-left transition hover:bg-[#fafafa]"
+                >
+                  <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full bg-gray-100">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={restaurantImage(order.restaurantLogo)}
+                      alt={order.restaurantName}
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="truncate text-[15px] font-bold text-[#111827]">{order.restaurantName}</p>
+                      <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white ${STATUS_TONE[order.status]}`}>
                         {formatStatus(order.status)}
                       </span>
                     </div>
-                  </div>
-
-                  <div className="grid gap-3 text-sm text-[#6b7280] md:grid-cols-2 xl:grid-cols-4">
-                    <p className="flex items-center gap-2">
-                      <Clock3 className="h-4 w-4 text-primary" />
-                      {order.deliveryTime}
-                    </p>
-                    <p className="flex items-center gap-2">
-                      <MapPin className="h-4 w-4 text-primary" />
-                      {order.paymentMethod ?? "cash"}
-                    </p>
-                    <p className="flex items-center gap-2">
-                      <ReceiptText className="h-4 w-4 text-primary" />
-                      {order.items.length} item{order.items.length === 1 ? "" : "s"}
-                    </p>
-                    <p className="flex items-center gap-2">
-                      <ShoppingBag className="h-4 w-4 text-primary" />
-                      {formatMoney(order.totalPrice)}
+                    <p className="mt-0.5 text-[12px] text-muted-foreground">
+                      {order.orderNumber} · {order.items.length} item{order.items.length === 1 ? "" : "s"} · {formatMoney(order.totalPrice)}
                     </p>
                   </div>
 
-                  <div className="rounded-[20px] border border-[#efe4d8] bg-[#fcfcfd] p-4">
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-semibold text-[#1f2937]">Timeline</p>
-                      <p className="text-xs text-[#6b7280]">Live status from merchant</p>
-                    </div>
-                    <div className="mt-4 grid gap-3">
-                      {order.timeline.map((event) => (
-                        <div key={event.key} className="flex items-start gap-3">
-                          <span
-                            className={`mt-1 h-2.5 w-2.5 rounded-full ${
-                              event.state === "completed"
-                                ? "bg-[#25b546]"
-                                : event.state === "current"
-                                  ? "bg-primary"
-                                  : event.state === "cancelled"
-                                    ? "bg-[#e53e4f]"
-                                    : "bg-[#d1d5db]"
-                            }`}
-                          />
-                          <div>
-                            <p className="text-sm font-medium text-[#1f2937]">{event.label}</p>
-                            <p className="text-xs text-[#6b7280]">
-                              {event.description ?? event.timestamp ?? "Pending"}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                  <div className="hidden shrink-0 items-center gap-1.5 text-[12px] text-muted-foreground sm:flex">
+                    <Clock3 className="h-3.5 w-3.5" />
+                    {order.deliveryTime}
                   </div>
 
-                </CardContent>
-              </Card>
+                  {order.status === "delivered" ? (
+                    <Link
+                      href={`/restaurants/${order.restaurantSlug}?order_id=${order.id}`}
+                      onClick={(event) => event.stopPropagation()}
+                      className="hidden shrink-0 items-center gap-1.5 rounded-[6px] border border-gray-200 px-3 py-1.5 text-[12px] font-semibold text-[#374151] transition hover:bg-gray-50 sm:flex"
+                    >
+                      <Star className="h-3.5 w-3.5" />
+                      Review
+                    </Link>
+                  ) : null}
+
+                  <ChevronRight className="h-4 w-4 shrink-0 text-gray-300" />
+                </button>
+              </div>
             ))}
           </div>
         )}
       </main>
-      <Modal
-        isOpen={Boolean(expandedOrder)}
-        onClose={() => setExpandedOrderId(null)}
-        title={expandedOrder ? `Order ${expandedOrder.orderNumber}` : "Order details"}
-      >
-        {expandedOrder ? (
-          <div className="space-y-5 p-5">
-            <div className="rounded-2xl bg-white p-4">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-lg font-semibold text-[#1f2937]">{expandedOrder.restaurantName}</p>
-                  <p className="mt-1 text-sm text-[#6b7280]">{expandedOrder.address?.address_text ?? "Delivery address unavailable"}</p>
-                </div>
-                <span className={`rounded-full px-3 py-1 text-xs font-semibold text-white ${STATUS_TONE[expandedOrder.status]}`}>
+
+      {expandedOrder ? (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setExpandedOrderId(null)}
+          />
+          <div className="relative z-10 max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-[12px] bg-white shadow-[0_24px_70px_rgba(15,23,42,0.2)]">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[#eceff3] bg-white px-6 py-4">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#e8505b]">
+                  Order {expandedOrder.orderNumber}
+                </p>
+                <h2 className="text-[15px] font-bold text-[#111827]">{expandedOrder.restaurantName}</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setExpandedOrderId(null)}
+                className="flex h-8 w-8 items-center justify-center rounded-full text-gray-400 transition hover:bg-gray-100 hover:text-gray-900"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-5 px-6 py-5">
+              <div className="flex items-center justify-between">
+                <span className={`rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-white ${STATUS_TONE[expandedOrder.status]}`}>
                   {formatStatus(expandedOrder.status)}
                 </span>
+                <p className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
+                  <CreditCard className="h-3.5 w-3.5" />
+                  {expandedOrder.paymentMethod ?? "cash"}
+                </p>
               </div>
+
+              <div className="rounded-[8px] border border-[#eceff3] p-4">
+                <p className="flex items-center gap-1.5 text-[13px] font-semibold text-[#111827]">
+                  <MapPin className="h-3.5 w-3.5 text-[#9ca3af]" />
+                  Delivery address
+                </p>
+                <p className="mt-1.5 text-[13px] text-muted-foreground">
+                  {expandedOrder.address?.address_text ?? "Delivery address unavailable"}
+                </p>
+              </div>
+
+              <div className="rounded-[8px] border border-[#eceff3] p-4">
+                <p className="mb-3 flex items-center gap-1.5 text-[13px] font-semibold text-[#111827]">
+                  <ShoppingBag className="h-3.5 w-3.5 text-[#9ca3af]" />
+                  Items
+                </p>
+                <div className="space-y-2 text-[13px]">
+                  {expandedOrder.items.map((item, index) => (
+                    <div key={`${item.name}-${index}`} className="flex justify-between gap-4 text-[#374151]">
+                      <span>{item.quantity} × {item.name}</span>
+                      <span className="font-medium text-[#111827]">{formatMoney(item.price * item.quantity)}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3 flex justify-between border-t border-[#eceff3] pt-3 text-[14px] font-bold text-[#111827]">
+                  <span>Total</span><span>{formatMoney(expandedOrder.totalPrice)}</span>
+                </div>
+              </div>
+
+              <div className="rounded-[8px] border border-[#eceff3] p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <p className="flex items-center gap-1.5 text-[13px] font-semibold text-[#111827]">
+                    <Store className="h-3.5 w-3.5 text-[#9ca3af]" />
+                    Timeline
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">Live from merchant</p>
+                </div>
+                <div className="space-y-3">
+                  {expandedOrder.timeline.map((event, index) => (
+                    <div key={event.key} className="flex items-start gap-3">
+                      <div className="flex flex-col items-center">
+                        <span
+                          className={`h-2.5 w-2.5 rounded-full ${
+                            event.state === "completed"
+                              ? "bg-[#16a34a]"
+                              : event.state === "current"
+                                ? "bg-[#e8505b]"
+                                : event.state === "cancelled"
+                                  ? "bg-[#be123c]"
+                                  : "bg-[#d1d5db]"
+                          }`}
+                        />
+                        {index < expandedOrder.timeline.length - 1 ? (
+                          <span className="mt-1 h-5 w-px bg-gray-200" />
+                        ) : null}
+                      </div>
+                      <div className="pb-0.5">
+                        <p className="text-[13px] font-medium text-[#111827]">{event.label}</p>
+                        <p className="text-[12px] text-muted-foreground">
+                          {event.description ?? event.timestamp ?? "Pending"}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {expandedOrder.status !== "delivered" && expandedOrder.status !== "cancelled" ? (
+                <OrderTrackingMap order={expandedOrder} customerLocation={customerLocation} />
+              ) : null}
+
+              {expandedOrder.status === "delivered" ? (
+                <Link
+                  href={`/restaurants/${expandedOrder.restaurantSlug}?order_id=${expandedOrder.id}`}
+                  className="flex h-11 items-center justify-center gap-2 rounded-[6px] border border-gray-200 text-[13px] font-semibold text-[#374151] transition hover:bg-gray-50"
+                >
+                  <Star className="h-4 w-4" />
+                  Leave a review
+                </Link>
+              ) : null}
             </div>
-            <div className="rounded-2xl bg-white p-4">
-              <p className="text-sm font-semibold text-[#1f2937]">Items</p>
-              <div className="mt-3 space-y-2 text-sm text-[#6b7280]">
-                {expandedOrder.items.map((item, index) => (
-                  <div key={`${item.name}-${index}`} className="flex justify-between gap-4">
-                    <span>{item.quantity} × {item.name}</span>
-                    <span>{formatMoney(item.price * item.quantity)}</span>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-4 flex justify-between border-t border-[#efe4d8] pt-3 font-semibold text-[#1f2937]">
-                <span>Total</span><span>{formatMoney(expandedOrder.totalPrice)}</span>
-              </div>
-            </div>
-            {expandedOrder.status !== "delivered" && expandedOrder.status !== "cancelled" ? (
-              <OrderTrackingMap order={expandedOrder} customerLocation={customerLocation} />
-            ) : null}
           </div>
-        ) : null}
-      </Modal>
+        </div>
+      ) : null}
     </div>
   );
 }

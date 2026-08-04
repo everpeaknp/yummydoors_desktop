@@ -7,8 +7,6 @@ import { useAuth } from "@/hooks/use-auth";
 import { apiFetch } from "@/lib/http";
 import { config } from "@/lib/config";
 import { loadStoredAuth } from "@/lib/auth-storage";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { DirectionsRenderer, DirectionsService, GoogleMap, MarkerF } from "@react-google-maps/api";
 import { useGoogleMaps } from "@/hooks/use-google-maps";
 
@@ -59,6 +57,7 @@ export default function RiderDashboardPage() {
   const [directions, setDirections] = useState<google.maps.DirectionsResult | null>(null);
   const [invitations, setInvitations] = useState<RiderInvitation[]>([]);
   const [invitationLoading, setInvitationLoading] = useState(false);
+  const [showRequestHistory, setShowRequestHistory] = useState(false);
   const [clock, setClock] = useState(() => Date.now());
   const wsRef = useRef<WebSocket | null>(null);
   const { isLoaded } = useGoogleMaps();
@@ -218,17 +217,23 @@ export default function RiderDashboardPage() {
   };
 
   const filteredOrders = orders.filter((o) => {
-    if (activeTab === "available") return !o.riderAssignedAt;
-    if (activeTab === "active") return o.riderAssignedAt && !o.deliveredAt;
-    if (activeTab === "completed") return o.deliveredAt;
+    if (activeTab === "available") return !o.riderAssignedAt && o.status !== "cancelled";
+    if (activeTab === "active") return o.riderAssignedAt && !o.deliveredAt && o.status !== "cancelled";
+    if (activeTab === "completed") return o.deliveredAt || o.status === "cancelled";
     return false;
   });
 
-  const activeCount = orders.filter(o => o.riderAssignedAt && !o.deliveredAt).length;
+  const activeCount = orders.filter(o => o.riderAssignedAt && !o.deliveredAt && o.status !== "cancelled").length;
   const assignedCount = orders.filter(o => o.riderAssignedAt).length;
-  const doneCount = orders.filter(o => o.deliveredAt).length;
+  const doneCount = orders.filter(o => o.deliveredAt || o.status === "cancelled").length;
 
-  const activeOrder = orders.find(o => o.riderAssignedAt && !o.deliveredAt);
+  const activeOrder = orders.find(o => o.riderAssignedAt && !o.deliveredAt && o.status !== "cancelled");
+
+  const pendingInvitations = invitations.filter((i) => i.status === "pending" || i.status === "sent");
+  const resolvedInvitations = invitations.filter((i) => i.status !== "pending" && i.status !== "sent");
+
+  const availableCount = orders.filter(o => !o.riderAssignedAt && o.status !== "cancelled").length;
+  const TAB_COUNTS = { available: availableCount, active: activeCount, completed: doneCount };
   const offerSecondsLeft = (order: RiderOrder) => {
     if (!order.riderOfferId || !order.riderOfferExpiresAt) return null;
     return Math.max(0, Math.ceil((new Date(order.riderOfferExpiresAt).getTime() - clock) / 1000));
@@ -238,190 +243,294 @@ export default function RiderDashboardPage() {
   }, [activeOrder?.id, activeOrder?.pickedUpAt]);
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-[#f5f7fb] text-[#20252d]">
-      <header className="border-b border-[#e7ebf2] bg-white">
-        <div className="mx-auto max-w-[1440px] px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
-        <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
+    <div className="min-h-screen overflow-x-hidden bg-[#fafafb] text-[#111827]">
+      <header className="border-b border-[#eceff3] bg-white">
+        <div className="mx-auto max-w-[1280px] px-6 py-6 lg:px-10 lg:py-7">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#ff6b3d]">Delivery workspace</p>
-            <h1 className="mt-2 text-3xl font-bold tracking-tight text-[#20252d] sm:text-4xl">Rider Dashboard</h1>
-            <p className="mt-2 text-base text-[#697386]">{user?.fullName || "Rider"} · manage offers, team requests, and live routes.</p>
-            <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-[#ffd1c2] bg-[#fff4ef] px-3 py-1.5">
-              <span className="h-2 w-2 rounded-full bg-[#ff6b3d]" />
-              <span className="text-xs font-bold text-[#e9572d]">Rider mode</span>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#e8505b]">Delivery workspace</p>
+            <h1 className="mt-1.5 text-2xl font-semibold tracking-tight text-[#111827] sm:text-3xl">Rider dashboard</h1>
+            <p className="mt-1.5 text-sm text-muted-foreground">{user?.fullName || "Rider"} · manage offers, team requests, and live routes.</p>
+            <div className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-[#fecdd3] bg-[#fff1f2] px-2.5 py-1">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#e8505b]" />
+              <span className="text-[11px] font-bold uppercase tracking-wide text-[#e8505b]">Rider mode</span>
             </div>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <Button type="button" variant="secondary" onClick={() => router.push("/")}>
-              <ArrowLeftRight className="h-4 w-4" /> Switch
-            </Button>
-          <label className="flex items-center gap-4 rounded-2xl border border-[#e1e6ef] bg-[#f8fafc] px-5 py-3">
-            <span className="text-right">
-              <span className="block text-sm font-semibold text-[#495057]">
-                {user?.isAcceptingOffers ? "Online" : "Offline"}
+            <button
+              type="button"
+              onClick={() => router.push("/")}
+              className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[6px] border border-gray-200 px-4 text-[13px] font-semibold text-[#374151] transition hover:bg-gray-50"
+            >
+              <ArrowLeftRight className="h-3.5 w-3.5" /> Switch
+            </button>
+            <label className="flex items-center gap-3 rounded-[8px] border border-[#eceff3] bg-white px-4 py-2.5">
+              <span className="text-right">
+                <span className="block text-[13px] font-semibold text-[#111827]">
+                  {user?.isAcceptingOffers ? "Online" : "Offline"}
+                </span>
+                <span className="block text-[11px] text-muted-foreground">Freelance offers</span>
               </span>
-              <span className="block text-xs text-[#868e96]">Freelance offers</span>
-            </span>
-            <input
-              type="checkbox"
-              checked={Boolean(user?.isAcceptingOffers)}
-              disabled={!user || availabilityLoading}
-              onChange={(event) => void updateAvailability(event.target.checked)}
-              className="h-5 w-5 accent-orange-500"
-            />
-          </label>
+              <span className={`relative h-5 w-9 shrink-0 rounded-full transition-colors ${user?.isAcceptingOffers ? "bg-[#e8505b]" : "bg-gray-300"}`}>
+                <input
+                  type="checkbox"
+                  checked={Boolean(user?.isAcceptingOffers)}
+                  disabled={!user || availabilityLoading}
+                  onChange={(event) => void updateAvailability(event.target.checked)}
+                  className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                />
+                <span
+                  className={`pointer-events-none absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${
+                    user?.isAcceptingOffers ? "translate-x-[18px]" : "translate-x-0.5"
+                  }`}
+                />
+              </span>
+            </label>
           </div>
         </div>
-        <p className="mt-4 text-sm text-[#697386]">
+        <p className="mt-3 text-[13px] text-muted-foreground">
           Assigned restaurants can send delivery requests even while you are offline.
         </p>
 
-        <div className="mt-7 grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
-          <Card className="rounded-2xl border-[#e7ebf2]">
-            <CardContent className="p-4 text-center">
-              <div className="text-2xl font-bold text-[#495057]">{activeCount}</div>
-              <div className="text-xs text-[#868e96] mt-1">Active</div>
-            </CardContent>
-          </Card>
-          <Card className="rounded-2xl border-[#e7ebf2]">
-            <CardContent className="p-4 text-center">
-              <div className="text-2xl font-bold text-[#495057]">{assignedCount}</div>
-              <div className="text-xs text-[#868e96] mt-1">Assigned</div>
-            </CardContent>
-          </Card>
-          <Card className="rounded-2xl border-[#e7ebf2]">
-            <CardContent className="p-4 text-center">
-              <div className="text-2xl font-bold text-[#495057]">{doneCount}</div>
-              <div className="text-xs text-[#868e96] mt-1">Done</div>
-            </CardContent>
-          </Card>
+        <div className="mt-6 grid grid-cols-3 gap-3">
+          <div className="rounded-[8px] border border-[#eceff3] bg-white py-4 text-center">
+            <div className="text-xl font-bold text-[#111827]">{activeCount}</div>
+            <div className="mt-0.5 text-[11px] text-muted-foreground">Active</div>
+          </div>
+          <div className="rounded-[8px] border border-[#eceff3] bg-white py-4 text-center">
+            <div className="text-xl font-bold text-[#111827]">{assignedCount}</div>
+            <div className="mt-0.5 text-[11px] text-muted-foreground">Assigned</div>
+          </div>
+          <div className="rounded-[8px] border border-[#eceff3] bg-white py-4 text-center">
+            <div className="text-xl font-bold text-[#111827]">{doneCount}</div>
+            <div className="mt-0.5 text-[11px] text-muted-foreground">Done</div>
+          </div>
         </div>
         </div>
       </header>
 
-      <main className="mx-auto grid max-w-[1440px] gap-6 px-4 py-6 sm:px-6 lg:px-10 lg:py-8 xl:grid-cols-[minmax(0,1fr)_minmax(380px,0.8fr)]">
-        <div className="space-y-6">
-          <Card className="rounded-3xl border-[#e7ebf2] bg-white shadow-[0_18px_50px_rgba(31,41,55,0.06)]">
-            <CardContent className="p-6">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-3"><Users className="h-5 w-5 text-[#ff6b3d]" /><div><h2 className="text-xl font-bold">Restaurant team requests</h2><p className="mt-1 text-sm text-[#697386]">Private restaurants can invite you directly.</p></div></div>
-                <Button type="button" variant="ghost" onClick={() => void loadInvitations()}><RefreshCw className="h-4 w-4" /> Refresh</Button>
-              </div>
-              <div className="mt-5 space-y-3">
-                {invitations.length === 0 ? <p className="rounded-2xl bg-[#f8fafc] px-4 py-5 text-sm text-[#697386]">No restaurant team requests yet.</p> : invitations.map((invitation) => (
-                  <div key={invitation.id} className="rounded-2xl border border-[#e7ebf2] bg-[#fbfcfe] p-4">
-                    <div className="flex items-start justify-between gap-4"><div><p className="font-bold">{invitation.restaurant_name || "Restaurant"}</p><p className="mt-1 text-sm text-[#697386]">{invitation.notes || "This restaurant wants to add you to its rider team."}</p></div><span className="rounded-full bg-[#fff0ea] px-3 py-1 text-xs font-bold text-[#e9572d]">{invitation.invitation_type === "private" ? "Private rider" : "Preferred rider"}</span></div>
-                    {invitation.status === "pending" || invitation.status === "sent" ? <div className="mt-4 flex gap-2"><Button type="button" onClick={() => void respondToInvitation(invitation.id, "accept")} disabled={invitationLoading}><Check className="h-4 w-4" /> Accept</Button><Button type="button" variant="secondary" onClick={() => void respondToInvitation(invitation.id, "reject")} disabled={invitationLoading}><CircleX className="h-4 w-4" /> Decline</Button></div> : <p className="mt-3 text-sm font-semibold text-[#0e9f6e]">Status: {invitation.status}</p>}
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-          <div className="bg-white rounded-full border border-[#E8EDF6] p-1 mb-6 flex">
-            {(["available", "active", "completed"] as const).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`flex-1 rounded-full py-2 text-sm font-semibold transition-colors ${
-                  activeTab === tab
-                    ? "bg-orange-500 text-white shadow"
-                    : "text-[#868e96] hover:text-[#495057]"
-                }`}
-              >
-                {tab.charAt(0).toUpperCase() + tab.slice(1)}
-              </button>
-            ))}
+      <main className="mx-auto grid max-w-[1280px] gap-6 px-6 py-6 lg:px-10 lg:py-8 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.8fr)]">
+        <div className="space-y-5">
+          <div className="sticky top-0 z-10 -mx-6 bg-[#fafafb]/95 px-6 pb-2 pt-2 backdrop-blur-sm sm:mx-0 sm:px-0">
+            <div className="flex rounded-full border border-[#eceff3] bg-white p-1 shadow-sm">
+              {(["available", "active", "completed"] as const).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`flex-1 rounded-full py-2 text-[13px] font-semibold transition-colors ${
+                    activeTab === tab
+                      ? "bg-[#e8505b] text-white shadow-sm"
+                      : "text-muted-foreground hover:text-[#111827]"
+                  }`}
+                >
+                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                  <span className={activeTab === tab ? "ml-1.5 text-white/80" : "ml-1.5 text-gray-400"}>
+                    {TAB_COUNTS[tab]}
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
 
           {loading && orders.length === 0 ? (
-            <div className="text-center text-[#868e96] py-10">Loading orders...</div>
+            <div className="animate-pulse rounded-[10px] border border-[#eceff3] bg-white py-10 text-center text-sm text-muted-foreground">Loading orders...</div>
           ) : error && orders.length === 0 ? (
-            <div className="text-center text-red-500 py-10">{error}</div>
+            <div className="rounded-[10px] border border-[#fecdd3] bg-[#fff1f2] py-10 text-center text-sm text-[#be123c]">{error}</div>
           ) : filteredOrders.length === 0 ? (
-            <div className="text-center text-[#868e96] py-10 bg-white rounded-2xl border border-[#E8EDF6]">
+            <div className="rounded-[10px] border border-dashed border-gray-200 bg-white py-10 text-center text-sm text-muted-foreground">
               No orders in this lane yet.
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {filteredOrders.map((order) => (
-                <Card key={order.id} className="rounded-2xl border-[#E8EDF6]">
-                  <CardContent className="p-5">
+                <div key={order.id} className="rounded-[10px] border border-[#eceff3] bg-white p-5 shadow-sm">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                       <div>
-                        <h3 className="font-semibold text-[#495057]">Order #{order.orderNumber}</h3>
-                        <p className="text-sm text-[#868e96]">{order.restaurantName}</p>
+                        <h3 className="text-[14px] font-bold text-[#111827]">Order #{order.orderNumber}</h3>
+                        <p className="text-[13px] text-muted-foreground">{order.restaurantName}</p>
                       </div>
                       <div className="text-right">
-                        <div className="font-semibold text-orange-500">Rs. {order.totalPrice.toFixed(2)}</div>
-                        <div className="text-xs text-[#868e96] capitalize">{order.status.replace("_", " ")}</div>
+                        <div className="text-[14px] font-bold text-[#111827]">Rs. {order.totalPrice.toFixed(2)}</div>
+                        <div className="text-[11px] capitalize text-muted-foreground">{order.status.replace("_", " ")}</div>
                       </div>
                     </div>
-                    
-                    <div className="text-sm text-[#495057] mb-4 space-y-1">
-                      <p><span className="font-semibold text-[#868e96]">Pickup:</span> {order.restaurantName}</p>
-                      <p><span className="font-semibold text-[#868e96]">Dropoff:</span> {order.address?.address_text || "No address"}</p>
+
+                    <div className="mb-4 mt-3 space-y-1 text-[13px] text-[#374151]">
+                      <p><span className="font-semibold text-muted-foreground">Pickup:</span> {order.restaurantName}</p>
+                      <p><span className="font-semibold text-muted-foreground">Dropoff:</span> {order.address?.address_text || "No address"}</p>
                       {order.riderOfferId ? (
-                        <p className={offerSecondsLeft(order) === 0 ? "font-semibold text-red-600" : "font-semibold text-orange-600"}>
+                        <p className={offerSecondsLeft(order) === 0 ? "font-semibold text-[#be123c]" : "font-semibold text-[#e8505b]"}>
                           {offerSecondsLeft(order) === 0 ? "Offer expired. Refreshing..." : `Private rider offer expires in ${offerSecondsLeft(order)}s`}
                         </p>
                       ) : null}
                     </div>
 
-                    <div className="flex flex-col gap-3 sm:flex-row">
+                    <div className="flex flex-col gap-2.5 sm:flex-row">
                       {activeTab === "available" && (
                         <>
                           {order.riderOfferId ? (
-                            <Button
-                              variant="ghost"
-                              className="flex-1 rounded-xl h-11 border-red-200 text-red-600"
+                            <button
+                              type="button"
                               disabled={actionLoading === order.id}
                               onClick={() => void rejectOffer(order)}
+                              className="h-11 flex-1 rounded-[6px] border border-[#fecdd3] text-[13px] font-semibold text-[#be123c] transition hover:bg-[#fff1f2] disabled:opacity-50"
                             >
                               Reject
-                            </Button>
+                            </button>
                           ) : null}
-                          <Button
-                            className="flex-1 bg-orange-500 hover:bg-orange-600 text-white rounded-xl h-11"
+                          <button
+                            type="button"
                             disabled={actionLoading === order.id || offerSecondsLeft(order) === 0}
                             onClick={() => handleAction(order.id, "claim")}
+                            className="h-11 flex-1 rounded-[6px] bg-[#e8505b] text-[13px] font-bold text-white transition hover:bg-[#d6414c] disabled:opacity-50"
                           >
                             {actionLoading === order.id
                               ? "Updating..."
                               : order.riderOfferId
                                 ? "Accept Offer"
                                 : "Claim Order"}
-                          </Button>
+                          </button>
                         </>
                       )}
                       {activeTab === "active" && !order.pickedUpAt && (
-                        <Button
-                          className="flex-1 bg-blue-500 hover:bg-blue-600 text-white rounded-xl h-11"
+                        <button
+                          type="button"
                           disabled={actionLoading === order.id}
                           onClick={() => handleAction(order.id, "picked-up")}
+                          className="h-11 flex-1 rounded-[6px] bg-[#3b82f6] text-[13px] font-bold text-white transition hover:bg-[#2563eb] disabled:opacity-50"
                         >
                           {actionLoading === order.id ? "Updating..." : "Mark Picked Up"}
-                        </Button>
+                        </button>
                       )}
                       {activeTab === "active" && order.pickedUpAt && !order.deliveredAt && (
-                        <Button
-                          className="flex-1 bg-green-500 hover:bg-green-600 text-white rounded-xl h-11"
+                        <button
+                          type="button"
                           disabled={actionLoading === order.id}
                           onClick={() => handleAction(order.id, "delivered")}
+                          className="h-11 flex-1 rounded-[6px] bg-[#16a34a] text-[13px] font-bold text-white transition hover:bg-[#15803d] disabled:opacity-50"
                         >
                           {actionLoading === order.id ? "Updating..." : "Mark Delivered"}
-                        </Button>
+                        </button>
                       )}
                     </div>
-                  </CardContent>
-                </Card>
+                </div>
               ))}
             </div>
           )}
+
+          <section className="rounded-[10px] border border-[#eceff3] bg-white shadow-sm">
+            <div className="flex flex-col gap-3 border-b border-[#eceff3] px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#fff1f2] text-[#e8505b]">
+                  <Users className="h-4 w-4" />
+                </span>
+                <div>
+                  <h2 className="text-[15px] font-bold text-[#111827]">
+                    Restaurant team requests
+                    {pendingInvitations.length > 0 ? (
+                      <span className="ml-2 rounded-full bg-[#e8505b] px-2 py-0.5 text-[11px] font-bold text-white">
+                        {pendingInvitations.length}
+                      </span>
+                    ) : null}
+                  </h2>
+                  <p className="text-[12px] text-muted-foreground">Private restaurants can invite you directly.</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => void loadInvitations()}
+                className="inline-flex h-8 items-center justify-center gap-1.5 self-start rounded-[6px] border border-gray-200 px-3 text-[12px] font-semibold text-[#374151] transition hover:bg-gray-50"
+              >
+                <RefreshCw className="h-3.5 w-3.5" /> Refresh
+              </button>
+            </div>
+            <div className="space-y-3 px-6 py-5">
+              {invitations.length === 0 ? (
+                <p className="rounded-[8px] bg-[#fafafa] px-4 py-5 text-[13px] text-muted-foreground">No restaurant team requests yet.</p>
+              ) : (
+                <>
+                  {pendingInvitations.length === 0 ? (
+                    <p className="text-[13px] text-muted-foreground">No pending requests right now.</p>
+                  ) : (
+                    pendingInvitations.map((invitation) => (
+                      <div key={invitation.id} className="rounded-[8px] border border-[#eceff3] p-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <p className="text-[14px] font-bold text-[#111827]">{invitation.restaurant_name || "Restaurant"}</p>
+                            <p className="mt-1 text-[13px] text-muted-foreground">{invitation.notes || "This restaurant wants to add you to its rider team."}</p>
+                          </div>
+                          <span className="shrink-0 rounded-full bg-[#fff1f2] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-[#e8505b]">
+                            {invitation.invitation_type === "private" ? "Private rider" : "Preferred rider"}
+                          </span>
+                        </div>
+                        <div className="mt-3 flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => void respondToInvitation(invitation.id, "accept")}
+                            disabled={invitationLoading}
+                            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-[6px] bg-[#e8505b] px-3.5 text-[13px] font-semibold text-white transition hover:bg-[#d6414c] disabled:opacity-50"
+                          >
+                            <Check className="h-3.5 w-3.5" /> Accept
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void respondToInvitation(invitation.id, "reject")}
+                            disabled={invitationLoading}
+                            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-[6px] border border-gray-200 px-3.5 text-[13px] font-semibold text-[#374151] transition hover:bg-gray-50 disabled:opacity-50"
+                          >
+                            <CircleX className="h-3.5 w-3.5" /> Decline
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+
+                  {resolvedInvitations.length > 0 ? (
+                    <div className="pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setShowRequestHistory((current) => !current)}
+                        className="text-[12px] font-semibold text-[#e8505b] hover:underline"
+                      >
+                        {showRequestHistory ? "Hide" : "Show"} {resolvedInvitations.length} past request{resolvedInvitations.length === 1 ? "" : "s"}
+                      </button>
+                      {showRequestHistory ? (
+                        <div className="mt-3 space-y-2">
+                          {resolvedInvitations.map((invitation) => (
+                            <div key={invitation.id} className="flex items-center justify-between gap-4 rounded-[8px] bg-[#fafafa] px-4 py-3">
+                              <div>
+                                <p className="text-[13px] font-semibold text-[#111827]">{invitation.restaurant_name || "Restaurant"}</p>
+                                <p className="text-[12px] capitalize text-muted-foreground">Status: {invitation.status}</p>
+                              </div>
+                              <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+                                {invitation.invitation_type === "private" ? "Private" : "Preferred"}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </>
+              )}
+            </div>
+          </section>
         </div>
 
         <div className="min-h-0 xl:sticky xl:top-6 xl:self-start">
-          <Card className="h-[520px] overflow-hidden rounded-3xl border-[#e7ebf2] bg-white shadow-[0_18px_50px_rgba(31,41,55,0.06)] sm:h-[620px]">
-            <div className="flex items-center justify-between border-b border-[#edf0f5] px-6 py-5"><div className="flex items-center gap-3"><MapPinned className="h-5 w-5 text-[#ff6b3d]" /><div><h2 className="text-xl font-bold">Live route</h2><p className="text-sm text-[#697386]">Pickup and dropoff route updates in real time.</p></div></div><span className="rounded-full bg-[#edf9f4] px-3 py-1 text-xs font-bold text-[#0e9f6e]">Live</span></div>
+          <div className="h-[520px] overflow-hidden rounded-[10px] border border-[#eceff3] bg-white shadow-sm sm:h-[620px]">
+            <div className="flex items-center justify-between border-b border-[#eceff3] px-6 py-4">
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#fff1f2] text-[#e8505b]">
+                  <MapPinned className="h-4 w-4" />
+                </span>
+                <div>
+                  <h2 className="text-[15px] font-bold text-[#111827]">Live route</h2>
+                  <p className="text-[12px] text-muted-foreground">Pickup and dropoff route updates in real time.</p>
+                </div>
+              </div>
+              <span className="rounded-full bg-[#ecfdf3] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-[#16a34a]">Live</span>
+            </div>
             {!isLoaded ? (
               <div className="h-full flex items-center justify-center text-gray-500">Loading map...</div>
             ) : (
@@ -468,7 +577,7 @@ export default function RiderDashboardPage() {
                 )}
               </GoogleMap>
             )}
-          </Card>
+          </div>
         </div>
       </main>
     </div>

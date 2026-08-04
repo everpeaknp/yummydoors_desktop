@@ -87,6 +87,8 @@ export type StoredUser = {
   activeWorkspaceId: number | null;
   activeWorkspace: StoredWorkspace | null;
   workspaces: StoredWorkspace[];
+  riderWorkMode: string;
+  isAcceptingOffers: boolean;
 };
 
 export type StoredAuth = {

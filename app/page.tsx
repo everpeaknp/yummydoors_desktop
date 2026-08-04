@@ -314,9 +314,10 @@ export default function LandingPage() {
   const [feed, setFeed] = useState<HomeFeed | null>(null);
   const [loading, setLoading] = useState(true);
   const lastLoadKeyRef = useRef<string | null>(null);
-  const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(
-    null,
-  );
+  const [coords, setCoords] = useState<{ lat: number; lng: number }>({
+    lat: 28.2096,
+    lng: 83.9856,
+  });
   const [isCompactViewport, setIsCompactViewport] = useState(false);
   const [locationModalOpen, setLocationModalOpen] = useState(false);
   const [selectedCoords, setSelectedCoords] = useState<{
@@ -390,6 +391,7 @@ export default function LandingPage() {
   }, []);
 
   useEffect(() => {
+    setCoords({ lat: 28.2096, lng: 83.9856 });
     if (typeof window !== "undefined" && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -400,14 +402,10 @@ export default function LandingPage() {
         },
         (err) => {
           console.warn("Geolocation error or denied:", err);
-          // Default to Pokhara if user denies permission
-          setCoords({ lat: 28.2096, lng: 83.9856 });
         },
         { timeout: 10000 },
       );
     } else {
-      // Default if browser doesn't support geolocation
-      setCoords({ lat: 28.2096, lng: 83.9856 });
     }
   }, []);
 
@@ -463,7 +461,32 @@ export default function LandingPage() {
 
         const payload = await response.json();
         if (!cancelled && Array.isArray(payload)) {
-          setSavedAddresses(payload.map(mapStoredAddress));
+          const nextAddresses = payload.map(mapStoredAddress);
+          setSavedAddresses(nextAddresses);
+          const defaultAddress = nextAddresses.find(
+            (address) =>
+              address.isDefault &&
+              address.latitude != null &&
+              address.longitude != null,
+          );
+          if (defaultAddress) {
+            const nextCoords = {
+              lat: defaultAddress.latitude!,
+              lng: defaultAddress.longitude!,
+            };
+            setSelectedCoords(nextCoords);
+            setSelectedLocationLabel(
+              defaultAddress.addressSummary || defaultAddress.locationTitle,
+            );
+            setLocationSelectionLocked(true);
+            window.localStorage.setItem(
+              LOCATION_STORAGE_KEY,
+              JSON.stringify({
+                coords: nextCoords,
+                label: defaultAddress.addressSummary || defaultAddress.locationTitle,
+              }),
+            );
+          }
         }
       } catch {
         // Keep the location picker usable even if addresses fail to load.
@@ -479,6 +502,8 @@ export default function LandingPage() {
     return () => {
       cancelled = true;
     };
+  // These functions intentionally use the latest auth state while the timer is stable.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated, accessToken]);
 
   useEffect(() => {
@@ -1006,10 +1031,6 @@ export default function LandingPage() {
     }
   }
 
-  function normalizeAddressKey(value: string | null | undefined) {
-    return (value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
-  }
-
   function splitPhoneNumber(phone: string | null | undefined) {
     const trimmed = phone?.trim() ?? "";
     const matched = trimmed.match(/^(\+\d{1,4})(\d+)$/);
@@ -1041,8 +1062,46 @@ export default function LandingPage() {
       ? payload.map(mapStoredAddress)
       : [];
     setSavedAddresses(nextAddresses);
+    const defaultAddress = nextAddresses.find(
+      (address) =>
+        address.isDefault &&
+        address.latitude != null &&
+        address.longitude != null,
+    );
+    if (defaultAddress && !locationModalOpen && !savingSelectedAddress) {
+      const nextCoords = {
+        lat: defaultAddress.latitude!,
+        lng: defaultAddress.longitude!,
+      };
+      const nextLabel =
+        defaultAddress.addressSummary || defaultAddress.locationTitle;
+      setSelectedCoords((current) =>
+        current?.lat === nextCoords.lat && current.lng === nextCoords.lng
+          ? current
+          : nextCoords,
+      );
+      setSelectedLocationLabel((current) =>
+        current === nextLabel ? current : nextLabel,
+      );
+      setLocationSelectionLocked(true);
+    }
     return nextAddresses;
   }
+
+  useEffect(() => {
+    if (!hydrated || !accessToken) return;
+
+    const refreshLocation = () => {
+      void loadSavedAddressesNow();
+    };
+    window.addEventListener("focus", refreshLocation);
+    const timer = window.setInterval(refreshLocation, 15000);
+    return () => {
+      window.removeEventListener("focus", refreshLocation);
+      window.clearInterval(timer);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated, accessToken, locationModalOpen, savingSelectedAddress]);
 
   async function handleSelectSavedAddress(address: StoredCustomerAddress) {
     if (address.latitude == null || address.longitude == null) {
@@ -1053,6 +1112,17 @@ export default function LandingPage() {
     setSelectedLocationLabel(address.addressSummary || address.locationTitle);
     setLocationSelectionLocked(true);
     setLocationSaveMessage(null);
+
+    if (accessToken && !address.isDefault) {
+      const response = await apiFetch(`/me/addresses/${address.id}/default`, {
+        method: "POST",
+        auth: true,
+      });
+      if (response.ok) {
+        await loadSavedAddressesNow();
+        await syncStoredProfile();
+      }
+    }
 
     window.localStorage.setItem(
       LOCATION_STORAGE_KEY,
@@ -1065,8 +1135,10 @@ export default function LandingPage() {
     setLocationModalOpen(false);
   }
 
-  async function handleConfirmSelectedLocation() {
-    if (!selectedCoords) {
+  async function handleConfirmSelectedLocation(
+    coordinates = selectedCoords,
+  ) {
+    if (!coordinates) {
       return;
     }
 
@@ -1074,12 +1146,12 @@ export default function LandingPage() {
     setLocationSelectionLocked(true);
 
     if (!accessToken) {
-      setCoords(selectedCoords);
+      setCoords(coordinates);
       if (selectedLocationLabel) {
         localStorage.setItem(
           LOCATION_STORAGE_KEY,
           JSON.stringify({
-            coords: selectedCoords,
+            coords: coordinates,
             label: selectedLocationLabel,
           })
         );
@@ -1092,12 +1164,12 @@ export default function LandingPage() {
       setLocationSaveMessage(
         "Location was saved in this browser. Add a phone number to your profile to sync addresses.",
       );
-      setCoords(selectedCoords);
+      setCoords(coordinates);
       if (selectedLocationLabel) {
         localStorage.setItem(
           LOCATION_STORAGE_KEY,
           JSON.stringify({
-            coords: selectedCoords,
+            coords: coordinates,
             label: selectedLocationLabel,
           })
         );
@@ -1113,14 +1185,14 @@ export default function LandingPage() {
       let details: ResolvedAddressDetails;
       try {
         details = await resolveAddressDetails(
-          selectedCoords.lat,
-          selectedCoords.lng,
+          coordinates.lat,
+          coordinates.lng,
         );
       } catch {
         details = {
           label:
             selectedLocationLabel ||
-            `${selectedCoords.lat.toFixed(5)}, ${selectedCoords.lng.toFixed(5)}`,
+            `${coordinates.lat.toFixed(5)}, ${coordinates.lng.toFixed(5)}`,
           addressLine1: selectedLocationLabel || "Selected location",
           streetNumber: null,
           city: null,
@@ -1134,20 +1206,23 @@ export default function LandingPage() {
         const sameCoords =
           address.latitude != null &&
           address.longitude != null &&
-          Math.abs(address.latitude - selectedCoords.lat) < 0.0001 &&
-          Math.abs(address.longitude - selectedCoords.lng) < 0.0001;
+          Math.abs(address.latitude - coordinates.lat) < 0.0001 &&
+          Math.abs(address.longitude - coordinates.lng) < 0.0001;
 
-        const sameLabel =
-          normalizeAddressKey(address.addressSummary) ===
-            normalizeAddressKey(details.label) ||
-          normalizeAddressKey(address.locationTitle) ===
-            normalizeAddressKey(details.area ?? details.city ?? details.label);
-
-        return sameCoords || sameLabel;
+        return sameCoords;
       });
 
       if (existingAddress) {
         setSelectedLocationLabel(existingAddress.addressSummary || details.label);
+        if (accessToken && !existingAddress.isDefault) {
+          const defaultResponse = await apiFetch(
+            `/me/addresses/${existingAddress.id}/default`,
+            { method: "POST", auth: true },
+          );
+          if (!defaultResponse.ok) {
+            throw new Error("Failed to set selected address as default.");
+          }
+        }
       } else {
         const phoneParts = splitPhoneNumber(sessionUser.phone);
         const phoneNumber =
@@ -1169,8 +1244,8 @@ export default function LandingPage() {
             city: details.city,
             area: details.area,
             state_or_province: details.stateOrProvince,
-            latitude: selectedCoords.lat,
-            longitude: selectedCoords.lng,
+            latitude: coordinates.lat,
+            longitude: coordinates.lng,
             delivery_notes: null,
             is_default: true,
           }),
@@ -1184,7 +1259,7 @@ export default function LandingPage() {
       }
 
       await Promise.all([loadSavedAddressesNow(), syncStoredProfile()]);
-      setCoords(selectedCoords);
+      setCoords(coordinates);
       setLocationModalOpen(false);
     } catch (err) {
       const message = err instanceof Error ? err.message : null;
@@ -1219,6 +1294,7 @@ export default function LandingPage() {
         const label = await resolveAddressLabel(next.lat, next.lng);
         setSelectedLocationLabel(label);
         setUsingCurrentLocation(false);
+        await handleConfirmSelectedLocation(next);
       },
       () => {
         setSelectedLocationLabel("Unable to use current location");
@@ -1406,6 +1482,7 @@ export default function LandingPage() {
                     longitude={selectedCoords?.lng ?? coords?.lng ?? null}
                     onChange={(lat, lng) => {
                       setSelectedCoords({ lat, lng });
+                      setSelectedLocationLabel("");
                       setLocationSelectionLocked(true);
                     }}
                     onResolvedAddress={(label) => {
@@ -1608,27 +1685,18 @@ export default function LandingPage() {
           <div className="pl-[100px] pr-6">
             <div className="flex flex-wrap gap-2">
               {[
-                { label: "🥦 Veg", href: "/restaurants?food_type=veg" },
-                { label: "🍗 Non-Veg", href: "/restaurants?food_type=non_veg" },
-                {
-                  label: "🚀 Free Delivery",
-                  href: "/restaurants?has_free_delivery=true",
-                },
-                { label: "⏰ Open Now", href: "/restaurants?open_now=true" },
-                { label: "⭐ Top Rated", href: "/restaurants?sort_by=rating" },
-                {
-                  label: "⚡ Fast Delivery",
-                  href: "/restaurants?sort_by=delivery_time",
-                },
-                {
-                  label: "🔥 Highly Reordered",
-                  href: "/restaurants?sort_by=highly_reordered",
-                },
+                { label: "Veg", href: "/restaurants?food_type=veg" },
+                { label: "Non-Veg", href: "/restaurants?food_type=non_veg" },
+                { label: "Free Delivery", href: "/restaurants?has_free_delivery=true" },
+                { label: "Open Now", href: "/restaurants?open_now=true" },
+                { label: "Top Rated", href: "/restaurants?sort_by=rating" },
+                { label: "Fast Delivery", href: "/restaurants?sort_by=delivery_time" },
+                { label: "Highly Reordered", href: "/restaurants?sort_by=highly_reordered" },
               ].map((chip) => (
                 <Link
                   key={chip.label}
                   href={chip.href}
-                  className="inline-flex items-center rounded-full border border-gray-200 bg-white px-4 py-2 text-[13px] font-medium text-[#333333] shadow-sm transition hover:border-primary hover:text-primary"
+                  className="inline-flex items-center rounded-full border border-gray-200 px-4 py-1.5 text-[13px] font-medium text-[#4b5563] transition hover:border-[#e8505b] hover:text-[#e8505b]"
                 >
                   {chip.label}
                 </Link>
@@ -2016,7 +2084,7 @@ export default function LandingPage() {
                 View All
               </Link>
             </div>
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {exploreRestaurants.slice(0, 6).map((r) => {
                 const coverUrl = isUsableImageUrl(
                   r.cover_image_url ?? undefined,
@@ -2029,13 +2097,13 @@ export default function LandingPage() {
                     href={`/restaurants/${r.slug}`}
                     className="group overflow-hidden rounded-[8px] border border-gray-200/60 bg-white shadow-sm hover:shadow-lg transition-shadow duration-300"
                   >
-                    <div className="relative h-[200px] w-full overflow-hidden bg-gray-100">
+                    <div className="relative h-[170px] w-full overflow-hidden bg-gray-100">
                       <Image
                         fill
                         src={coverUrl}
                         alt={r.name}
                         className="object-cover transition-transform duration-300 group-hover:scale-105"
-                        sizes="(max-width: 1024px) 50vw, 300px"
+                        sizes="(max-width: 1024px) 50vw, 25vw"
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                       {r.offer_text || r.has_free_delivery ? (

@@ -130,6 +130,8 @@ export function mapStoredUser(data: any): StoredUser {
     activeWorkspaceId: data.active_workspace_id ?? null,
     activeWorkspace,
     workspaces,
+    riderWorkMode: data.rider_work_mode ?? "freelance",
+    isAcceptingOffers: Boolean(data.is_accepting_offers),
   };
 }
 

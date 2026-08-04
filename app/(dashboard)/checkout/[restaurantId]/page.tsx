@@ -379,8 +379,6 @@ export default function CheckoutPage() {
       body: JSON.stringify({
         payment_method: paymentMethod,
         address_id: selectedAddressId,
-        latitude: checkoutAddressChosen ? selectedAddress?.latitude ?? null : latestLocation?.lat ?? selectedAddress?.latitude ?? null,
-        longitude: checkoutAddressChosen ? selectedAddress?.longitude ?? null : latestLocation?.lng ?? selectedAddress?.longitude ?? null,
         coupon_code: couponCode.trim() || null,
         needs_cutlery: needsCutlery,
         cooking_request: cookingRequest.trim() || null,

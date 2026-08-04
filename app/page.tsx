@@ -2084,8 +2084,26 @@ export default function LandingPage() {
                 View All
               </Link>
             </div>
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {exploreRestaurants.slice(0, 6).map((r) => {
+          </div>
+
+          <div className="relative">
+            <button
+              onClick={exploreScroll.scrollPrev}
+              className="absolute top-[68px] left-[16px] h-[42px] w-[42px] rounded-full bg-white shadow-[0_2px_12px_rgba(0,0,0,0.12)] border border-gray-100 flex items-center justify-center text-gray-500 hover:text-primary transition-all z-50"
+            >
+              <ArrowRight
+                className="w-[16px] h-[16px] rotate-180"
+                strokeWidth={1.5}
+              />
+            </button>
+
+            <div
+              ref={exploreScroll.ref}
+              {...exploreScroll.events}
+              className={`flex gap-5 overflow-x-auto pb-2 scrollbar-hide pl-[100px] pr-[80px] ${exploreScroll.isDragging ? "cursor-grabbing select-none" : "cursor-grab"}`}
+              style={{ msOverflowStyle: "none", scrollbarWidth: "none" }}
+            >
+              {exploreRestaurants.slice(0, 8).map((r) => {
                 const coverUrl = isUsableImageUrl(
                   r.cover_image_url ?? undefined,
                 )
@@ -2095,7 +2113,7 @@ export default function LandingPage() {
                   <Link
                     key={r.slug}
                     href={`/restaurants/${r.slug}`}
-                    className="group overflow-hidden rounded-[8px] border border-gray-200/60 bg-white shadow-sm hover:shadow-lg transition-shadow duration-300"
+                    className="group w-[260px] shrink-0 overflow-hidden rounded-[8px] border border-gray-200/60 bg-white shadow-sm hover:shadow-lg transition-shadow duration-300"
                   >
                     <div className="relative h-[170px] w-full overflow-hidden bg-gray-100">
                       <Image
@@ -2103,7 +2121,7 @@ export default function LandingPage() {
                         src={coverUrl}
                         alt={r.name}
                         className="object-cover transition-transform duration-300 group-hover:scale-105"
-                        sizes="(max-width: 1024px) 50vw, 25vw"
+                        sizes="260px"
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                       {r.offer_text || r.has_free_delivery ? (
@@ -2133,6 +2151,13 @@ export default function LandingPage() {
                 );
               })}
             </div>
+
+            <button
+              onClick={exploreScroll.scrollRight}
+              className="absolute top-[68px] right-6 h-[42px] w-[42px] rounded-full bg-white shadow-[0_2px_12px_rgba(0,0,0,0.12)] border border-gray-100 flex items-center justify-center text-gray-500 hover:text-primary transition-all z-50"
+            >
+              <ArrowRight className="w-[16px] h-[16px]" strokeWidth={1.5} />
+            </button>
           </div>
         </section>
       </main>

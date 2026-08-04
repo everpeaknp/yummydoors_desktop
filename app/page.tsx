@@ -439,6 +439,7 @@ export default function LandingPage() {
 
   const catScroll = useDraggableScroll();
   const restScroll = useDraggableScroll();
+  const exploreScroll = useDraggableScroll();
   const activeCoords = locationSelectionLocked
     ? (selectedCoords ?? coords)
     : (coords ?? selectedCoords);
@@ -1294,7 +1295,6 @@ export default function LandingPage() {
         const label = await resolveAddressLabel(next.lat, next.lng);
         setSelectedLocationLabel(label);
         setUsingCurrentLocation(false);
-        await handleConfirmSelectedLocation(next);
       },
       () => {
         setSelectedLocationLabel("Unable to use current location");

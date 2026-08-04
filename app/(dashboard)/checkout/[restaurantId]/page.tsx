@@ -3,11 +3,21 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { MapPin, Receipt, ShoppingBag } from "lucide-react";
+import {
+  ArrowLeft,
+  Check,
+  CheckCircle2,
+  ChevronRight,
+  CreditCard,
+  MapPin,
+  MessageSquareText,
+  ShoppingBag,
+  Sparkles,
+  UtensilsCrossed,
+  Wallet,
+} from "lucide-react";
 
 import { SiteNavbar } from "@/components/layout/site-navbar";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { apiFetch } from "@/lib/http";
 import { extractApiErrorMessage, readJsonSafely } from "@/lib/api-utils";
@@ -400,327 +410,410 @@ export default function CheckoutPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#fcfcfd]">
-      <SiteNavbar className="sticky top-0 z-40" />
+    <div className="min-h-screen bg-[#fafafb]">
+      <SiteNavbar variant="light" />
 
-      <main className="mx-auto max-w-7xl px-6 py-10 lg:px-10">
-        <div className="mb-8">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-            Checkout
-          </p>
-          <h1 className="mt-2 text-4xl font-semibold tracking-tight text-foreground">
-            Confirm delivery details
-          </h1>
+      <main className="mx-auto max-w-6xl px-6 pb-16 pt-[92px] lg:px-10">
+        <div className="mb-6 flex items-center justify-between">
+          <Link
+            href="/cart"
+            className="inline-flex h-9 items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to cart
+          </Link>
+
+          {!loading && !cartMissing && !error && !successOrder ? (
+            <ol className="hidden items-center gap-2 text-[12px] font-semibold text-muted-foreground sm:flex">
+              <li className="flex items-center gap-1.5 text-[#e8505b]">
+                <CheckCircle2 className="h-4 w-4" />
+                Cart
+              </li>
+              <ChevronRight className="h-3.5 w-3.5 text-gray-300" />
+              <li className="flex items-center gap-1.5 text-[#111827]">
+                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[#e8505b] text-[9px] text-white">2</span>
+                Checkout
+              </li>
+              <ChevronRight className="h-3.5 w-3.5 text-gray-300" />
+              <li className="flex items-center gap-1.5 text-gray-400">
+                <span className="flex h-4 w-4 items-center justify-center rounded-full border border-gray-300 text-[9px]">3</span>
+                Confirmation
+              </li>
+            </ol>
+          ) : null}
         </div>
 
         {loading ? (
-          <div className="rounded-3xl border border-border bg-white px-6 py-10 text-sm text-muted-foreground">
+          <div className="animate-pulse rounded-[10px] border border-[#eceff3] bg-white px-6 py-10 text-sm text-muted-foreground">
             Loading checkout...
           </div>
         ) : cartMissing ? (
-          <Card>
-            <CardContent className="flex flex-col items-start gap-4 py-10">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-                  Checkout cart
-                </p>
-                <h2 className="mt-2 text-3xl font-semibold text-foreground">
-                  Cart no longer active
-                </h2>
-                <p className="mt-3 text-sm text-muted-foreground">
-                  This restaurant does not have an active cart right now. Add items again from the restaurant page or return to your cart list.
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-3">
-                <Link href="/cart">
-                  <Button>Return to cart</Button>
-                </Link>
-                <Link href="/restaurants">
-                  <Button variant="secondary">Browse restaurants</Button>
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="mx-auto max-w-lg rounded-[10px] border border-[#eceff3] bg-white px-8 py-12 text-center shadow-[0_12px_40px_rgba(15,23,42,0.06)]">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#fff1f2] text-[#e8505b]">
+              <ShoppingBag className="h-6 w-6" />
+            </div>
+            <h2 className="mt-5 text-xl font-semibold text-[#111827]">Cart no longer active</h2>
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+              This restaurant does not have an active cart right now. Add items again from the restaurant page or return to your cart list.
+            </p>
+            <div className="mt-6 flex flex-wrap justify-center gap-3">
+              <Link
+                href="/cart"
+                className="inline-flex h-11 items-center justify-center rounded-[6px] bg-[#e8505b] px-5 text-sm font-bold text-white transition hover:bg-[#d6414c]"
+              >
+                Return to cart
+              </Link>
+              <Link
+                href="/restaurants"
+                className="inline-flex h-11 items-center justify-center rounded-[6px] border border-gray-200 px-5 text-sm font-semibold text-[#374151] transition hover:bg-gray-50"
+              >
+                Browse restaurants
+              </Link>
+            </div>
+          </div>
         ) : error ? (
-          <div className="rounded-3xl border border-[#fbcfe8] bg-[#fff1f2] px-6 py-5 text-sm text-[#be123c]">
+          <div className="rounded-[10px] border border-[#fecdd3] bg-[#fff1f2] px-6 py-5 text-sm text-[#be123c]">
             {error}
           </div>
         ) : successOrder ? (
-          <Card>
-            <CardContent className="space-y-6">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+          <div className="mx-auto max-w-2xl">
+            <div className="rounded-[10px] border border-[#eceff3] bg-white shadow-[0_12px_40px_rgba(15,23,42,0.06)]">
+              <div className="flex flex-col items-center gap-3 border-b border-[#eceff3] px-8 py-10 text-center">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[#ecfdf3] text-[#16a34a]">
+                  <Check className="h-8 w-8" strokeWidth={3} />
+                </div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#e8505b]">
                   Order placed
                 </p>
-                <h2 className="mt-2 text-3xl font-semibold text-foreground">
+                <h2 className="text-2xl font-semibold text-[#111827]">
                   Order #{successOrder.orderNumber}
                 </h2>
-                <p className="mt-3 text-sm text-muted-foreground">
+                <p className="max-w-sm text-sm text-muted-foreground">
                   {successOrder.restaurantName} is now processing your order.
                 </p>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="rounded-2xl border border-border bg-[#fcfcfd] p-4">
-                  <p className="text-sm font-semibold text-foreground">Delivery address</p>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    {successOrder.address?.address_text ?? "Address not captured"}
-                  </p>
-                </div>
-                <div className="rounded-2xl border border-border bg-[#fcfcfd] p-4">
-                  <p className="text-sm font-semibold text-foreground">Payment</p>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    {successOrder.paymentMethod ?? "cash"}
-                  </p>
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-border bg-[#fcfcfd] p-4">
-                <p className="text-sm font-semibold text-foreground">Timeline</p>
-                <div className="mt-4 space-y-3">
-                  {successOrder.timeline.map((event) => (
-                    <div key={event.key} className="flex items-start gap-3">
-                      <span className={`mt-1 h-2.5 w-2.5 rounded-full ${event.state === "completed" ? "bg-[#16a34a]" : event.state === "current" ? "bg-primary" : "bg-[#d1d5db]"}`} />
-                      <div>
-                        <p className="text-sm font-medium text-foreground">{event.label}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {event.description ?? event.timestamp ?? "Pending"}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex gap-3">
-                <Link href="/restaurants">
-                  <Button>Continue browsing</Button>
-                </Link>
-                <Link href="/cart">
-                  <Button variant="secondary">Back to carts</Button>
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
-        ) : cart ? (
-          <div className="grid gap-8 xl:grid-cols-[1.15fr_0.85fr]">
-            <div className="space-y-6">
-              <Card>
-                <CardContent className="space-y-5">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+              <div className="space-y-6 px-8 py-6">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="rounded-[8px] border border-[#eceff3] bg-[#fafafa] p-4">
+                    <p className="flex items-center gap-2 text-[13px] font-semibold text-[#111827]">
+                      <MapPin className="h-4 w-4 text-[#9ca3af]" />
                       Delivery address
                     </p>
-                    <h2 className="mt-2 text-2xl font-semibold text-foreground">
-                      Where should we send this order?
-                    </h2>
-                  </div>
-
-                  {addresses.length ? (
-                    <div className="grid gap-3">
-                      {addresses.map((address) => (
-                        <button
-                          key={address.id}
-                          type="button"
-                          onClick={() => {
-                            setSelectedAddressId(address.id);
-                            setCheckoutAddressChosen(true);
-                          }}
-                          className={`rounded-2xl border px-4 py-4 text-left transition ${
-                            selectedAddressId === address.id
-                              ? "border-[#ffb085] bg-[#fff7f2]"
-                              : "border-border bg-[#fcfcfd]"
-                          }`}
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <p className="text-sm font-semibold text-foreground">
-                                {address.label || address.recipient_name}
-                              </p>
-                              <p className="mt-1 text-sm text-muted-foreground">
-                                {address.address_summary}
-                              </p>
-                            </div>
-                            {address.is_default ? (
-                              <span className="rounded-full bg-[#fff5ef] px-3 py-1 text-xs font-semibold text-primary">
-                                Default
-                              </span>
-                            ) : null}
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="rounded-2xl border border-border bg-[#fcfcfd] px-4 py-4 text-sm text-muted-foreground">
-                      <p>No saved addresses found. Add one from the homepage location flow first.</p>
-                      <Link href="/" className="mt-3 inline-flex">
-                        <Button variant="secondary" className="h-10 px-3">
-                          Add address
-                        </Button>
-                      </Link>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="space-y-5">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-                      Order preferences
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      {successOrder.address?.address_text ?? "Address not captured"}
                     </p>
-                    <h2 className="mt-2 text-2xl font-semibold text-foreground">
-                      Final instructions for the kitchen and rider
-                    </h2>
                   </div>
-
-                  <div className="flex flex-wrap gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setNeedsCutlery((current) => !current)}
-                      className={`rounded-full border px-4 py-2 text-sm font-medium transition ${
-                        needsCutlery
-                          ? "border-[#ffb085] bg-[#fff7f2] text-primary"
-                          : "border-border bg-white text-[#4b5563]"
-                      }`}
-                    >
-                      {needsCutlery ? "Cutlery included" : "No cutlery"}
-                    </button>
+                  <div className="rounded-[8px] border border-[#eceff3] bg-[#fafafa] p-4">
+                    <p className="flex items-center gap-2 text-[13px] font-semibold text-[#111827]">
+                      <CreditCard className="h-4 w-4 text-[#9ca3af]" />
+                      Payment
+                    </p>
+                    <p className="mt-2 text-sm capitalize text-muted-foreground">
+                      {successOrder.paymentMethod ?? "cash"}
+                    </p>
                   </div>
+                </div>
 
-                  <Input
-                    value={couponCode}
-                    onChange={(event) => setCouponCode(event.target.value)}
-                    placeholder="Coupon code"
-                    className="rounded-2xl"
-                  />
-
-                  <textarea
-                    rows={4}
-                    value={cookingRequest}
-                    onChange={(event) => setCookingRequest(event.target.value)}
-                    placeholder="Cooking request"
-                    className="w-full resize-none rounded-2xl border border-input bg-white px-4 py-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/15"
-                  />
-
-                  <textarea
-                    rows={4}
-                    value={deliveryInstruction}
-                    onChange={(event) => setDeliveryInstruction(event.target.value)}
-                    placeholder="Delivery instruction"
-                    className="w-full resize-none rounded-2xl border border-input bg-white px-4 py-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/15"
-                  />
-                </CardContent>
-              </Card>
-            </div>
-
-            <div className="space-y-6">
-              <Card>
-                <CardContent className="space-y-5">
-                  <div className="flex items-center gap-2">
-                    <ShoppingBag className="h-5 w-5 text-primary" />
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
-                        {cart.restaurant_name}
-                      </p>
-                      <h2 className="mt-1 text-2xl font-semibold text-foreground">
-                        Order summary
-                      </h2>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    {cart.items.map((item) => (
-                      <div key={item.id} className="flex items-start justify-between gap-4 rounded-2xl border border-border bg-[#fcfcfd] px-4 py-4">
-                        <div>
-                          <p className="text-sm font-semibold text-foreground">{item.name}</p>
-                          <p className="mt-1 text-sm text-muted-foreground">
-                            {item.quantity} x {formatMoney(item.price)}
+                <div className="rounded-[8px] border border-[#eceff3] p-5">
+                  <p className="text-[13px] font-semibold text-[#111827]">Order timeline</p>
+                  <div className="mt-4 space-y-4">
+                    {successOrder.timeline.map((event, index) => (
+                      <div key={event.key} className="flex items-start gap-3">
+                        <div className="flex flex-col items-center">
+                          <span
+                            className={`flex h-5 w-5 items-center justify-center rounded-full ${
+                              event.state === "completed"
+                                ? "bg-[#16a34a] text-white"
+                                : event.state === "current"
+                                  ? "bg-[#e8505b] text-white"
+                                  : "border border-gray-300 bg-white"
+                            }`}
+                          >
+                            {event.state === "completed" ? <Check className="h-3 w-3" strokeWidth={3} /> : null}
+                          </span>
+                          {index < successOrder.timeline.length - 1 ? (
+                            <span className="mt-1 h-6 w-px bg-gray-200" />
+                          ) : null}
+                        </div>
+                        <div className="pb-1">
+                          <p className="text-sm font-medium text-[#111827]">{event.label}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {event.description ?? event.timestamp ?? "Pending"}
                           </p>
                         </div>
-                        <span className="text-sm font-semibold text-foreground">
-                          {formatMoney(item.quantity * item.price)}
-                        </span>
                       </div>
                     ))}
                   </div>
+                </div>
 
-                  <div className="rounded-2xl border border-border bg-[#fcfcfd] p-4 text-sm">
-                    <div className="flex items-center justify-between py-1">
-                      <span className="text-muted-foreground">Items total</span>
-                      <span className="font-medium text-foreground">{formatMoney(cart.pricing.items_total)}</span>
+                <div className="flex flex-wrap gap-3 pt-2">
+                  <Link
+                    href="/restaurants"
+                    className="inline-flex h-11 flex-1 items-center justify-center rounded-[6px] bg-[#e8505b] px-5 text-sm font-bold text-white transition hover:bg-[#d6414c]"
+                  >
+                    Continue browsing
+                  </Link>
+                  <Link
+                    href="/orders"
+                    className="inline-flex h-11 flex-1 items-center justify-center rounded-[6px] border border-gray-200 px-5 text-sm font-semibold text-[#374151] transition hover:bg-gray-50"
+                  >
+                    Track order
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : cart ? (
+          <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+            <div className="space-y-5">
+              <section className="rounded-[10px] border border-[#eceff3] bg-white shadow-sm">
+                <div className="flex items-center justify-between border-b border-[#eceff3] px-6 py-4">
+                  <div className="flex items-center gap-2.5">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#fff1f2] text-[#e8505b]">
+                      <MapPin className="h-4 w-4" />
+                    </span>
+                    <h2 className="text-[15px] font-bold text-[#111827]">Delivery address</h2>
+                  </div>
+                  <Link href="/profile" className="text-[13px] font-semibold text-[#e8505b] hover:underline">
+                    Manage
+                  </Link>
+                </div>
+
+                <div className="px-6 py-5">
+                  {addresses.length ? (
+                    <div className="grid gap-3">
+                      {addresses.map((address) => {
+                        const selected = selectedAddressId === address.id;
+                        return (
+                          <button
+                            key={address.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedAddressId(address.id);
+                              setCheckoutAddressChosen(true);
+                            }}
+                            className={`rounded-[8px] border px-4 py-3.5 text-left transition ${
+                              selected
+                                ? "border-[#e8505b] bg-[#fff5f5] ring-1 ring-[#e8505b]"
+                                : "border-gray-200 bg-white hover:border-gray-300"
+                            }`}
+                          >
+                            <div className="flex items-start gap-3">
+                              <span
+                                className={`mt-0.5 flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full border-2 ${
+                                  selected ? "border-[#e8505b] bg-[#e8505b]" : "border-gray-300"
+                                }`}
+                              >
+                                {selected ? <Check className="h-2.5 w-2.5 text-white" strokeWidth={4} /> : null}
+                              </span>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2">
+                                  <p className="text-[13px] font-semibold text-[#111827]">
+                                    {address.label || address.recipient_name}
+                                  </p>
+                                  {address.is_default ? (
+                                    <span className="rounded-full bg-[#fff1f2] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#e8505b]">
+                                      Default
+                                    </span>
+                                  ) : null}
+                                </div>
+                                <p className="mt-0.5 truncate text-[13px] text-muted-foreground">
+                                  {address.address_summary}
+                                </p>
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
                     </div>
-                    <div className="flex items-center justify-between py-1">
-                      <span className="text-muted-foreground">Coupon discount</span>
-                      <span className="font-medium text-foreground">- {formatMoney(cart.pricing.coupon_discount)}</span>
+                  ) : (
+                    <div className="rounded-[8px] border border-dashed border-gray-200 px-4 py-6 text-center">
+                      <p className="text-sm text-muted-foreground">No saved addresses found.</p>
+                      <Link
+                        href="/profile"
+                        className="mt-3 inline-flex h-9 items-center justify-center rounded-[6px] border border-gray-200 px-4 text-[13px] font-semibold text-[#374151] hover:bg-gray-50"
+                      >
+                        Add address
+                      </Link>
                     </div>
-                    <div className="flex items-center justify-between py-1">
-                      <span className="text-muted-foreground">Delivery fee</span>
-                      <span className="font-medium text-foreground">{formatMoney(cart.pricing.delivery_fee)}</span>
-                    </div>
-                    <div className="flex items-center justify-between py-1">
-                      <span className="text-muted-foreground">Tax</span>
-                      <span className="font-medium text-foreground">{formatMoney(cart.pricing.tax_amount)}</span>
-                    </div>
-                    <div className="flex items-center justify-between py-1">
-                      <span className="text-muted-foreground">Service fee</span>
-                      <span className="font-medium text-foreground">{formatMoney(cart.pricing.service_fee)}</span>
-                    </div>
-                    <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
-                      <span className="text-base font-semibold text-foreground">Total</span>
-                      <span className="text-lg font-semibold text-foreground">{formatMoney(cart.pricing.total_amount)}</span>
-                    </div>
+                  )}
+                </div>
+              </section>
+
+              <section className="rounded-[10px] border border-[#eceff3] bg-white shadow-sm">
+                <div className="flex items-center gap-2.5 border-b border-[#eceff3] px-6 py-4">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#fff1f2] text-[#e8505b]">
+                    <MessageSquareText className="h-4 w-4" />
+                  </span>
+                  <h2 className="text-[15px] font-bold text-[#111827]">Order notes</h2>
+                </div>
+
+                <div className="space-y-4 px-6 py-5">
+                  <button
+                    type="button"
+                    onClick={() => setNeedsCutlery((current) => !current)}
+                    className={`flex w-full items-center justify-between rounded-[8px] border px-4 py-3 text-left transition ${
+                      needsCutlery ? "border-[#e8505b] bg-[#fff5f5]" : "border-gray-200 bg-white"
+                    }`}
+                  >
+                    <span className="flex items-center gap-2.5 text-[13px] font-medium text-[#374151]">
+                      <UtensilsCrossed className="h-4 w-4 text-[#9ca3af]" />
+                      Cutlery
+                    </span>
+                    <span
+                      className={`relative h-5 w-9 rounded-full transition-colors ${needsCutlery ? "bg-[#e8505b]" : "bg-gray-300"}`}
+                    >
+                      <span
+                        className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-transform ${
+                          needsCutlery ? "translate-x-[18px]" : "translate-x-0.5"
+                        }`}
+                      />
+                    </span>
+                  </button>
+
+                  <div>
+                    <label className="mb-1.5 block text-[13px] font-medium text-[#374151]">
+                      Cooking request
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={cookingRequest}
+                      onChange={(event) => setCookingRequest(event.target.value)}
+                      placeholder="Less spicy, no onions, etc."
+                      className="w-full resize-none rounded-[8px] border border-gray-200 bg-white px-3.5 py-2.5 text-[13px] text-[#111827] outline-none transition-colors placeholder:text-gray-400 focus:border-[#e8505b] focus:ring-2 focus:ring-[#e8505b]/10"
+                    />
                   </div>
 
-                  <div className="rounded-2xl border border-border bg-[#fcfcfd] p-4">
-                    <div className="flex items-center gap-2">
-                      <MapPin className="h-4 w-4 text-primary" />
-                      <p className="text-sm font-semibold text-foreground">Delivering to</p>
-                    </div>
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      {selectedAddress?.address_summary ?? "No address selected"}
+                  <div>
+                    <label className="mb-1.5 block text-[13px] font-medium text-[#374151]">
+                      Delivery instruction
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={deliveryInstruction}
+                      onChange={(event) => setDeliveryInstruction(event.target.value)}
+                      placeholder="Gate code, floor, landmark, etc."
+                      className="w-full resize-none rounded-[8px] border border-gray-200 bg-white px-3.5 py-2.5 text-[13px] text-[#111827] outline-none transition-colors placeholder:text-gray-400 focus:border-[#e8505b] focus:ring-2 focus:ring-[#e8505b]/10"
+                    />
+                  </div>
+                </div>
+              </section>
+            </div>
+
+            <div className="lg:sticky lg:top-[80px] lg:self-start">
+              <div className="rounded-[10px] border border-[#eceff3] bg-white shadow-[0_12px_40px_rgba(15,23,42,0.06)]">
+                <div className="flex items-center gap-2.5 border-b border-[#eceff3] px-6 py-4">
+                  <ShoppingBag className="h-4 w-4 text-[#e8505b]" />
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                      {cart.restaurant_name}
                     </p>
+                    <h2 className="text-[15px] font-bold text-[#111827]">Order summary</h2>
                   </div>
+                </div>
 
-                  <div className="rounded-2xl border border-border bg-[#fcfcfd] p-4">
-                    <div className="flex items-center gap-2">
-                      <Receipt className="h-4 w-4 text-primary" />
-                      <p className="text-sm font-semibold text-foreground">Payment method</p>
+                <div className="max-h-[240px] space-y-3 overflow-y-auto px-6 py-4">
+                  {cart.items.map((item) => (
+                    <div key={item.id} className="flex items-start justify-between gap-3 text-[13px]">
+                      <div className="min-w-0">
+                        <p className="font-medium text-[#111827]">{item.name}</p>
+                        <p className="mt-0.5 text-muted-foreground">
+                          {item.quantity} × {formatMoney(item.price)}
+                        </p>
+                      </div>
+                      <span className="shrink-0 font-semibold text-[#111827]">
+                        {formatMoney(item.quantity * item.price)}
+                      </span>
                     </div>
-                    <div className="mt-3 grid gap-2">
-                      {["cash", "card", "wallet"].map((method) => (
-                        <button
-                          key={method}
-                          type="button"
-                          onClick={() => setPaymentMethod(method)}
-                          className={`rounded-2xl border px-4 py-3 text-left text-sm font-medium transition ${
-                            paymentMethod === method
-                              ? "border-[#ffb085] bg-[#fff7f2] text-primary"
-                              : "border-border bg-white text-[#4b5563]"
-                          }`}
-                        >
-                          {method.toUpperCase()}
-                        </button>
-                      ))}
-                    </div>
+                  ))}
+                </div>
+
+                <div className="space-y-2 border-t border-[#eceff3] px-6 py-4">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-3.5 w-3.5 text-[#9ca3af]" />
+                    <Input
+                      value={couponCode}
+                      onChange={(event) => setCouponCode(event.target.value)}
+                      placeholder="Coupon code"
+                      className="h-9 rounded-[6px] text-[13px]"
+                    />
                   </div>
+                </div>
 
-                  <Button
+                <div className="space-y-1.5 border-t border-[#eceff3] px-6 py-4 text-[13px]">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Items total</span>
+                    <span className="font-medium text-[#374151]">{formatMoney(cart.pricing.items_total)}</span>
+                  </div>
+                  {cart.pricing.coupon_discount > 0 ? (
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Coupon discount</span>
+                      <span className="font-medium text-[#16a34a]">- {formatMoney(cart.pricing.coupon_discount)}</span>
+                    </div>
+                  ) : null}
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Delivery fee</span>
+                    <span className="font-medium text-[#374151]">{formatMoney(cart.pricing.delivery_fee)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Tax</span>
+                    <span className="font-medium text-[#374151]">{formatMoney(cart.pricing.tax_amount)}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Service fee</span>
+                    <span className="font-medium text-[#374151]">{formatMoney(cart.pricing.service_fee)}</span>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between border-t border-[#eceff3] pt-2.5">
+                    <span className="text-[14px] font-bold text-[#111827]">Total</span>
+                    <span className="text-[16px] font-bold text-[#111827]">{formatMoney(cart.pricing.total_amount)}</span>
+                  </div>
+                </div>
+
+                <div className="space-y-2 border-t border-[#eceff3] px-6 py-4">
+                  <p className="flex items-center gap-1.5 text-[13px] font-semibold text-[#111827]">
+                    <CreditCard className="h-3.5 w-3.5 text-[#9ca3af]" />
+                    Payment method
+                  </p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { key: "cash", label: "Cash", icon: Wallet },
+                      { key: "card", label: "Card", icon: CreditCard },
+                      { key: "wallet", label: "Wallet", icon: ShoppingBag },
+                    ].map(({ key, label, icon: Icon }) => (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => setPaymentMethod(key)}
+                        className={`flex flex-col items-center gap-1 rounded-[8px] border px-2 py-2.5 text-[11px] font-semibold transition ${
+                          paymentMethod === key
+                            ? "border-[#e8505b] bg-[#fff5f5] text-[#e8505b]"
+                            : "border-gray-200 text-[#6b7280] hover:border-gray-300"
+                        }`}
+                      >
+                        <Icon className="h-4 w-4" />
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-3 px-6 pb-6 pt-2">
+                  {!selectedAddressId ? (
+                    <p className="text-center text-[12px] text-[#be123c]">Select a delivery address to continue.</p>
+                  ) : null}
+                  <button
                     type="button"
                     onClick={() => {
                       void handleCheckout();
                     }}
                     disabled={placingOrder || !selectedAddressId}
-                    className="w-full"
+                    className="flex w-full items-center justify-center gap-2 rounded-[6px] bg-[#e8505b] py-3.5 text-[14px] font-bold text-white transition hover:bg-[#d6414c] disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {placingOrder ? "Placing order..." : "Place order"}
-                  </Button>
-
-                  <Link href="/cart" className="block text-center text-sm font-medium text-muted-foreground hover:text-primary">
-                    Back to carts
-                  </Link>
-                </CardContent>
-              </Card>
+                    {placingOrder ? "Placing order..." : `Place order · ${formatMoney(cart.pricing.total_amount)}`}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         ) : null}

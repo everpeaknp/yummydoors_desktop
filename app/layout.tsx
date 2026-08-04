@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Poppins } from "next/font/google";
 
 import { cn } from "@/lib/utils";
+import { GlobalCartWidget } from "@/components/customer/global-cart-widget";
 
 import "./globals.css";
 
@@ -28,7 +29,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={cn("min-h-screen font-sans bg-white", poppins.variable, poppins.className)}>{children}</body>
+      <body className={cn("min-h-screen font-sans bg-white", poppins.variable, poppins.className)}>
+        {children}
+        <GlobalCartWidget />
+      </body>
     </html>
   );
 }

@@ -197,7 +197,7 @@ export default function BecomeARiderPage() {
     <div className="min-h-screen bg-[#f7f8fb]">
       <SiteNavbar variant="light" />
 
-      <main className="mx-auto w-full max-w-5xl px-4 pb-12 pt-[104px] sm:px-6 lg:px-8">
+      <main className="mx-auto w-full max-w-5xl px-4 pb-12 pt-[92px] sm:px-6 lg:px-8">
         <div className="mb-4 flex items-center justify-between">
           <Link href="/restaurants" className="inline-flex h-11 items-center gap-2 rounded-xl px-0 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
             <ArrowLeft className="h-4 w-4" />
@@ -206,13 +206,13 @@ export default function BecomeARiderPage() {
         </div>
 
         <Card className="overflow-hidden border-[#eceff3] shadow-[0_12px_40px_rgba(15,23,42,0.08)]">
-          <div className="bg-gradient-to-r from-[#ff7a32] via-[#ff6320] to-[#ff8d3d] px-6 py-8 text-white sm:px-8">
-            <div className="flex flex-wrap items-center gap-2 text-[10px] font-bold uppercase tracking-[0.18em]">
-              <span className="rounded-full border border-white/25 bg-white/10 px-3 py-1">Customer to rider</span>
-              <span className="rounded-full border border-white/25 bg-white/10 px-3 py-1">Open application</span>
+          <div className="border-b border-[#eceff3] px-6 py-7 sm:px-8">
+            <div className="flex flex-wrap items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              <span className="rounded-full border border-[#e6ebf0] px-3 py-1">Customer to rider</span>
+              <span className="rounded-full border border-[#e6ebf0] px-3 py-1">Open application</span>
             </div>
-            <h1 className="mt-4 text-3xl font-black tracking-tight sm:text-4xl">Become a rider</h1>
-            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-white/90 sm:text-base">
+            <h1 className="mt-3 text-2xl font-semibold tracking-tight text-[#111827] sm:text-3xl">Become a rider</h1>
+            <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
               Apply from the customer app. This does not switch your account automatically.
               We review the details first, then enable rider access from the backend.
             </p>
@@ -398,39 +398,39 @@ export default function BecomeARiderPage() {
               <Card className="border-[#eceff3]">
                 <CardContent className="space-y-4 p-5">
                   <div className="flex items-center gap-3">
-                    <div className="rounded-2xl bg-[#fff0e6] p-3 text-[#ff6f2c]">
-                      <Bike className="h-5 w-5" />
+                    <div className="rounded-xl border border-[#eceff3] p-2.5 text-[#6b7280]">
+                      <Bike className="h-4 w-4" />
                     </div>
                     <div>
-                      <h2 className="text-sm font-bold">How this works</h2>
+                      <h2 className="text-sm font-semibold text-[#111827]">How this works</h2>
                       <p className="text-xs text-muted-foreground">Customer-facing intake</p>
                     </div>
                   </div>
 
                   <div className="space-y-3 text-sm text-[#374151]">
                     <div className="flex items-start gap-3">
-                      <ShieldCheck className="mt-0.5 h-4 w-4 text-emerald-600" />
+                      <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#9ca3af]" />
                       <p>We review the request before rider access is granted.</p>
                     </div>
                     <div className="flex items-start gap-3">
-                      <Clock3 className="mt-0.5 h-4 w-4 text-[#ff6f2c]" />
+                      <Clock3 className="mt-0.5 h-4 w-4 shrink-0 text-[#9ca3af]" />
                       <p>After approval, the backend can assign the rider role and dashboard.</p>
                     </div>
                     <div className="flex items-start gap-3">
-                      <MapPin className="mt-0.5 h-4 w-4 text-[#ff6f2c]" />
+                      <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-[#9ca3af]" />
                       <p>This is separate from merchant signup and separate from customer orders.</p>
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="border-[#eceff3] bg-[#fafafa]">
+              <Card className="border-[#eceff3]">
                 <CardContent className="space-y-3 p-5">
-                  <h3 className="text-sm font-bold">Direct contact</h3>
+                  <h3 className="text-sm font-semibold text-[#111827]">Direct contact</h3>
                   <p className="text-sm text-muted-foreground">Use these contacts if you need direct support.</p>
                   <div className="space-y-2 text-sm">
-                    <p className="block font-semibold text-primary">{`support@yummydoors.com`}</p>
-                    <a className="block font-semibold text-primary hover:underline" href={`tel:${APPLICATION_PHONE}`}>
+                    <p className="block font-medium text-[#374151]">{`support@yummydoors.com`}</p>
+                    <a className="block font-medium text-[#374151] hover:text-primary hover:underline" href={`tel:${APPLICATION_PHONE}`}>
                       {APPLICATION_PHONE}
                     </a>
                   </div>

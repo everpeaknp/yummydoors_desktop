@@ -16,6 +16,7 @@ import {
   MapPin,
 } from "lucide-react";
 import { apiFetch } from "@/lib/http";
+import { cn } from "@/lib/utils";
 import { readJsonSafely, extractApiErrorMessage } from "@/lib/api-utils";
 import { SiteNavbar } from "@/components/layout/site-navbar";
 import { SiteFooter } from "@/components/layout/site-footer";
@@ -712,6 +713,68 @@ export default function LandingPage() {
     .slice(0, 4);
   const heroPager = useAutoPager(activeHeroPromos.length, 3000);
   const bannerPager = useAutoPager(activeBannerPromos.length, 3000);
+  const heroSwipeStartX = useRef<number | null>(null);
+  const heroWasDragged = useRef(false);
+  const [heroDragOffset, setHeroDragOffset] = useState(0);
+  const [heroIsDragging, setHeroIsDragging] = useState(false);
+  const handleHeroPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    heroSwipeStartX.current = event.clientX;
+    heroWasDragged.current = false;
+    setHeroIsDragging(true);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  const handleHeroPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (heroSwipeStartX.current === null) return;
+    setHeroDragOffset(event.clientX - heroSwipeStartX.current);
+  };
+  const endHeroDrag = () => {
+    setHeroIsDragging(false);
+    setHeroDragOffset(0);
+    heroSwipeStartX.current = null;
+  };
+  const handleHeroPointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (heroSwipeStartX.current === null) return;
+    const distance = event.clientX - heroSwipeStartX.current;
+    if (Math.abs(distance) > 40 && activeHeroPromos.length > 1) {
+      heroWasDragged.current = true;
+      heroPager.setIndex(
+        (heroPager.index + (distance < 0 ? 1 : activeHeroPromos.length - 1)) %
+          activeHeroPromos.length,
+      );
+    }
+    endHeroDrag();
+  };
+  const bannerSwipeStartX = useRef<number | null>(null);
+  const bannerWasDragged = useRef(false);
+  const [bannerDragOffset, setBannerDragOffset] = useState(0);
+  const [bannerIsDragging, setBannerIsDragging] = useState(false);
+  const handleBannerPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    bannerSwipeStartX.current = event.clientX;
+    bannerWasDragged.current = false;
+    setBannerIsDragging(true);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+  const handleBannerPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (bannerSwipeStartX.current === null) return;
+    setBannerDragOffset(event.clientX - bannerSwipeStartX.current);
+  };
+  const endBannerDrag = () => {
+    setBannerIsDragging(false);
+    setBannerDragOffset(0);
+    bannerSwipeStartX.current = null;
+  };
+  const handleBannerPointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (bannerSwipeStartX.current === null) return;
+    const distance = event.clientX - bannerSwipeStartX.current;
+    if (Math.abs(distance) > 40 && activeBannerPromos.length > 1) {
+      bannerWasDragged.current = true;
+      bannerPager.setIndex(
+        (bannerPager.index + (distance < 0 ? 1 : activeBannerPromos.length - 1)) %
+          activeBannerPromos.length,
+      );
+    }
+    endBannerDrag();
+  };
   const currentHeroPromo =
     activeHeroPromos[heroPager.index] ?? fallbackPromos[0];
   const currentHeroPromoImage = isUsableImageUrl(
@@ -1374,36 +1437,72 @@ export default function LandingPage() {
       </section>
 
       <main className="bg-white">
-        <section className="relative z-20 py-12 md:py-16">
-          <div className="ml-auto mr-[12%] h-[120px] w-[460px] max-w-[calc(100vw-2rem)] px-0 max-sm:mx-0 max-sm:h-[120px] max-sm:w-full max-sm:px-4">
-            <Link
-              href="/restaurants"
-              className="block h-full overflow-hidden rounded-[12px] shadow-[0_18px_60px_rgba(15,23,42,0.10)]"
+        <section className="relative z-20 pb-12 pt-6 md:pb-16 md:pt-8">
+          <div className="mx-auto flex max-w-[1200px] flex-col items-start gap-8 px-6 md:flex-row md:items-center md:justify-between md:px-10">
+            <div className="max-w-xl">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-primary">
+                Discover something delicious
+              </p>
+              <h2 className="mt-2 text-3xl font-semibold text-[#222222] md:text-4xl">
+                What do you want to eat?
+              </h2>
+              <p className="mt-2 text-sm text-[#6b7280]">
+                Explore popular restaurants and fresh meals near you.
+              </p>
+            </div>
+
+            <div
+              className={cn(
+                "h-[275px] w-[520px] max-w-full shrink-0 touch-pan-y select-none",
+                heroIsDragging ? "cursor-grabbing" : "cursor-grab",
+              )}
+              onPointerDown={handleHeroPointerDown}
+              onPointerMove={handleHeroPointerMove}
+              onPointerUp={handleHeroPointerUp}
+              onPointerLeave={endHeroDrag}
+              onPointerCancel={endHeroDrag}
             >
-              <div
-                className="relative h-full w-full bg-contain bg-center bg-no-repeat bg-gray-100 transition-all duration-500"
+              <Link
+                href="/restaurants"
+                className="block h-full overflow-hidden rounded-[12px] shadow-[0_18px_60px_rgba(15,23,42,0.10)]"
+                onClick={(event) => {
+                  if (heroWasDragged.current) {
+                    event.preventDefault();
+                    heroWasDragged.current = false;
+                  }
+                }}
+                draggable={false}
               >
-                <img
-                  src={currentHeroPromoImage}
-                  alt={currentHeroPromo.title}
-                  className="absolute inset-0 h-full w-full object-cover object-center"
-                />
+                <div
+                  className="relative h-full w-full bg-contain bg-center bg-no-repeat bg-gray-100"
+                  style={{
+                    transform: `translateX(${heroDragOffset}px)`,
+                    transition: heroIsDragging ? "none" : "transform 300ms ease",
+                  }}
+                >
+                  <img
+                    src={currentHeroPromoImage}
+                    alt={currentHeroPromo.title}
+                    className="absolute inset-0 h-full w-full object-cover object-center transition-all duration-500"
+                    draggable={false}
+                  />
+                </div>
+              </Link>
+              <div className="mt-3 flex items-center justify-center gap-2">
+                {activeHeroPromos.map((promo, index) => (
+                  <button
+                    key={promo.id}
+                    type="button"
+                    aria-label={`Go to hero promo ${index + 1}`}
+                    onClick={() => heroPager.setIndex(index)}
+                    className={`rounded-full transition-all duration-200 ${
+                      index === heroPager.index
+                        ? "h-2 w-6 bg-black"
+                        : "h-2 w-2 bg-[#d9d9d9]"
+                    }`}
+                  />
+                ))}
               </div>
-            </Link>
-            <div className="mt-3 flex items-center justify-center gap-2">
-              {activeHeroPromos.map((promo, index) => (
-                <button
-                  key={promo.id}
-                  type="button"
-                  aria-label={`Go to hero promo ${index + 1}`}
-                  onClick={() => heroPager.setIndex(index)}
-                  className={`rounded-full transition-all duration-200 ${
-                    index === heroPager.index
-                      ? "h-2 w-6 bg-black"
-                      : "h-2 w-2 bg-[#d9d9d9]"
-                  }`}
-                />
-              ))}
             </div>
           </div>
         </section>
@@ -1541,17 +1640,38 @@ export default function LandingPage() {
         {activeBannerPromos.length > 0 ? (
         <section className="pb-12">
           <div className="pl-[100px] pr-6">
-            <Link
-              href="/restaurants"
-              className="block overflow-hidden rounded-[12px] shadow-[0_16px_50px_rgba(15,23,42,0.08)]"
+            <div
+              className={cn(
+                "touch-pan-y select-none",
+                bannerIsDragging ? "cursor-grabbing" : "cursor-grab",
+              )}
+              onPointerDown={handleBannerPointerDown}
+              onPointerMove={handleBannerPointerMove}
+              onPointerUp={handleBannerPointerUp}
+              onPointerLeave={endBannerDrag}
+              onPointerCancel={endBannerDrag}
             >
-              <div
-                className="h-[203px] w-full bg-cover bg-center transition-all duration-500"
-                style={{
-                  backgroundImage: `url(${getPromoImage(currentBannerPromo)})`,
+              <Link
+                href="/restaurants"
+                className="block overflow-hidden rounded-[12px] shadow-[0_16px_50px_rgba(15,23,42,0.08)]"
+                onClick={(event) => {
+                  if (bannerWasDragged.current) {
+                    event.preventDefault();
+                    bannerWasDragged.current = false;
+                  }
                 }}
-              />
-            </Link>
+                draggable={false}
+              >
+                <div
+                  className="h-[203px] w-full bg-cover bg-center"
+                  style={{
+                    backgroundImage: `url(${getPromoImage(currentBannerPromo)})`,
+                    transform: `translateX(${bannerDragOffset}px)`,
+                    transition: bannerIsDragging ? "none" : "transform 300ms ease, background-image 500ms ease",
+                  }}
+                />
+              </Link>
+            </div>
             <div className="mt-3 flex items-center justify-center gap-2">
               {activeBannerPromos.map((promo, index) => (
                 <button

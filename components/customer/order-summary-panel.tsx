@@ -26,6 +26,7 @@ type OrderSummaryPanelProps = {
   onRemoveItem: (cartItemId: string) => void;
   onCheckout: () => void;
   isCalculating: boolean;
+  hideHeader?: boolean;
 };
 
 export function OrderSummaryPanel({
@@ -35,23 +36,26 @@ export function OrderSummaryPanel({
   onRemoveItem,
   onCheckout,
   isCalculating,
+  hideHeader = false,
 }: OrderSummaryPanelProps) {
   if (items.length === 0) {
     return (
-      <div className="rounded-[4px] border border-gray-100 bg-white p-6 shadow-sm">
-        <h3 className="mb-4 text-[16px] font-bold text-[#111]">Order Summary</h3>
+      <div className={hideHeader ? "" : "rounded-[4px] border border-gray-100 bg-white p-6 shadow-sm"}>
+        {hideHeader ? null : <h3 className="mb-4 text-[16px] font-bold text-[#111]">Order Summary</h3>}
         <p className="text-sm text-gray-500">Your cart is empty.</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-white border border-gray-200 rounded-[3px] shadow-sm mb-5">
-      <div className="bg-[#444444] px-5 py-[18px] flex justify-between items-center text-center">
-        <h3 className="text-[18px] font-bold text-white m-0 leading-none w-full text-center">Order Summary</h3>
-      </div>
-      
-      <div className="px-5 py-5">
+    <div className={hideHeader ? "" : "bg-white border border-gray-200 rounded-[3px] shadow-sm mb-5"}>
+      {hideHeader ? null : (
+        <div className="bg-[#444444] px-5 py-[18px] flex justify-between items-center text-center">
+          <h3 className="text-[18px] font-bold text-white m-0 leading-none w-full text-center">Order Summary</h3>
+        </div>
+      )}
+
+      <div className={hideHeader ? "" : "px-5 py-5"}>
         <ul className="mb-4 max-h-[300px] overflow-y-auto no-scrollbar space-y-3">
           {items.map((item) => (
             <li key={item.cartItemId} className="flex justify-between items-start text-[14px] text-[#444] font-medium pb-1">

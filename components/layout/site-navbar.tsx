@@ -49,7 +49,7 @@ export function SiteNavbar({ className, variant = "light" }: SiteNavbarProps) {
   const isLight = variant === "light";
   const useScrolledLight = variant === "transparent" && isScrolled;
   const bgClass = isLight || useScrolledLight
-    ? "border-b border-black/5 bg-white/95 shadow-[0_10px_30px_rgba(15,23,42,0.08)] backdrop-blur-xl"
+    ? "border-b border-black/5 bg-white/95 shadow-[0_4px_16px_rgba(15,23,42,0.06)] backdrop-blur-xl"
     : "bg-transparent";
   const textClass = isLight || useScrolledLight ? "text-[#1f2937]" : "text-white";
   const linkClass = useScrolledLight || isLight
@@ -114,22 +114,33 @@ export function SiteNavbar({ className, variant = "light" }: SiteNavbarProps) {
       >
         <div
           className={cn(
-            "mx-auto flex w-full items-center justify-between px-6 lg:px-10",
-            useScrolledLight || isLight ? "py-4" : "py-6",
+            "mx-auto flex w-full items-center justify-between px-6 transition-all duration-300 lg:px-10",
+            isLight || useScrolledLight ? "h-16" : "py-6",
           )}
         >
-        <Link href="/" className="flex items-center gap-3.5">
+        <Link href="/" className="flex items-center gap-2.5">
           <div className="flex items-center justify-center">
             <Image
               src="/Yummy_Doors-Png.png"
               alt="YummyDoors logo"
               width={48}
               height={48}
-              className="h-11 w-11 object-contain"
+              className={cn(
+                "object-contain transition-all duration-300",
+                isLight || useScrolledLight ? "h-8 w-8" : "h-11 w-11",
+              )}
               priority
             />
           </div>
-          <span className={cn("text-[30px] font-bold tracking-tight", textClass)}>YummyDoors</span>
+          <span
+            className={cn(
+              "font-bold tracking-tight transition-all duration-300",
+              isLight || useScrolledLight ? "text-[22px]" : "text-[30px]",
+              textClass,
+            )}
+          >
+            YummyDoors
+          </span>
         </Link>
 
         <nav className={cn("hidden md:flex items-center gap-8 text-[15px] font-semibold", textClass)}>

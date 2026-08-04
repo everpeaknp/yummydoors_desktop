@@ -448,6 +448,15 @@ export default function RestaurantDetailPage() {
   }, [loadRestaurant, slug]);
 
   const restaurant = detail?.restaurant ?? null;
+  const cartItems = (activeCart?.items ?? []).map((item) => ({
+    cartItemId: String(item.id),
+    menu_item_id: item.menu_item_id,
+    name: item.name,
+    price: item.price,
+    quantity: item.quantity,
+    modifier_ids: item.modifier_ids ?? [],
+    add_on_selections: item.add_on_selections ?? [],
+  }));
   const coverUrl =
     restaurant && isUsableImageUrl(restaurant.cover_image_url)
       ? restaurant.cover_image_url
@@ -683,7 +692,7 @@ export default function RestaurantDetailPage() {
           </section>
 
           {/* Sticky Category Navigation */}
-          <nav className="sticky top-[77px] z-30 bg-white border-b border-gray-200 shadow-sm">
+          <nav className="sticky top-[65px] z-30 bg-white border-b border-gray-200 shadow-sm">
             <div className="mx-auto max-w-7xl px-6 lg:px-10">
               <ul className="flex items-center gap-8 overflow-x-auto py-4 no-scrollbar m-0 p-0 list-none">
                 {detail.menu_sections.map((section) => (
@@ -924,15 +933,7 @@ export default function RestaurantDetailPage() {
                       ) : null}
                       <OrderSummaryPanel
                         restaurantId={restaurant.id}
-                        items={(activeCart?.items ?? []).map((item) => ({
-                          cartItemId: String(item.id),
-                          menu_item_id: item.menu_item_id,
-                          name: item.name,
-                          price: item.price,
-                          quantity: item.quantity,
-                          modifier_ids: item.modifier_ids ?? [],
-                          add_on_selections: item.add_on_selections ?? [],
-                        }))}
+                        items={cartItems}
                         pricing={activeCart?.pricing ?? null}
                         isCalculating={cartSyncing}
                         onRemoveItem={handleRemoveFromCart}

@@ -360,7 +360,7 @@ export default function RestaurantsPage() {
         variant="light"
       />
 
-      <main className="flex h-full w-full pt-[77px]">
+      <main className="flex h-full w-full pt-[65px]">
         {/* Left Sidebar (List) */}
         <section className="flex h-full w-full flex-col border-r border-[#eceff3] bg-white lg:w-[420px] lg:shrink-0">
           {/* Header Area */}

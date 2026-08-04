@@ -59,8 +59,8 @@ export default function CustomerMessagesPage() {
     try {
       const res = await apiFetch(`/messages/customer/${restaurantId}`, { auth: true });
       if (!res.ok) throw new Error("Failed to load messages");
-      const data: Message[] = await res.json();
-      setMessages(data);
+      const data: { items: Message[]; has_more: boolean } = await res.json();
+      setMessages(data.items);
       // clear unread count locally
       setConversations((prev) => 
         prev.map(c => c.customer_id === restaurantId ? { ...c, unread_count: 0 } : c)

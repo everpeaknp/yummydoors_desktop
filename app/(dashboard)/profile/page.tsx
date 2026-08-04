@@ -2,13 +2,11 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { Mail, MapPin, Phone, UserCircle2 } from "lucide-react";
+import { Check, Mail, MapPin, Phone, Star, UserCircle2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { SiteNavbar } from "@/components/layout/site-navbar";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { mapStoredAddress, mergeStoredUserWithProfile } from "@/lib/auth-mappers";
 import { apiFetch } from "@/lib/http";
 import type { StoredCustomerAddress } from "@/lib/auth-storage";

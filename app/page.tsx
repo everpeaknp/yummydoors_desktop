@@ -2113,15 +2113,15 @@ export default function LandingPage() {
                   <Link
                     key={r.slug}
                     href={`/restaurants/${r.slug}`}
-                    className="group w-[260px] shrink-0 overflow-hidden rounded-[8px] border border-gray-200/60 bg-white shadow-sm hover:shadow-lg transition-shadow duration-300"
+                    className="group w-[300px] shrink-0 overflow-hidden rounded-[8px] border border-gray-200/60 bg-white shadow-sm hover:shadow-lg transition-shadow duration-300"
                   >
-                    <div className="relative h-[170px] w-full overflow-hidden bg-gray-100">
+                    <div className="relative h-[200px] w-full overflow-hidden bg-gray-100">
                       <Image
                         fill
                         src={coverUrl}
                         alt={r.name}
                         className="object-cover transition-transform duration-300 group-hover:scale-105"
-                        sizes="260px"
+                        sizes="300px"
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                       {r.offer_text || r.has_free_delivery ? (

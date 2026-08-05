@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { Check, Mail, MapPin, Phone, Star, UserCircle2, X } from "lucide-react";
+import { Check, Mail, MapPin, Phone, UserCircle2, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -240,271 +240,275 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#fcfcfd]">
-      <SiteNavbar className="sticky top-0 z-40" />
-      <main className="mx-auto w-full max-w-7xl space-y-6 px-6 py-10 lg:px-10">
-        <div className="flex items-start justify-between gap-4">
+    <div className="min-h-screen bg-[#fafafb]">
+      <SiteNavbar variant="light" />
+      <main className="mx-auto w-full max-w-5xl space-y-5 px-6 pb-16 pt-[92px] lg:px-10">
+        <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-bold tracking-tight text-foreground">Profile</h2>
-            <p className="mt-2 text-sm text-muted-foreground">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#e8505b]">Account</p>
+            <h1 className="mt-1.5 text-2xl font-semibold tracking-tight text-[#111827] sm:text-3xl">Profile</h1>
+            <p className="mt-1.5 text-sm text-muted-foreground">
               Review your YummyDoors account details and delivery identity.
             </p>
           </div>
-          <Link href="/profile/edit">
-            <Button>Edit profile</Button>
+          <Link
+            href="/profile/edit"
+            className="inline-flex h-10 items-center justify-center rounded-[6px] bg-[#e8505b] px-4 text-[13px] font-bold text-white transition hover:bg-[#d6414c]"
+          >
+            Edit profile
           </Link>
         </div>
 
         {error ? (
-          <div className="rounded-2xl border border-[#ffd8cc] bg-[#fff4ef] px-4 py-3 text-sm text-[#9a3412]">
+          <div className="rounded-[10px] border border-[#fecdd3] bg-[#fff1f2] px-5 py-4 text-sm text-[#be123c]">
             {error}
           </div>
         ) : null}
 
-        <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-          <Card>
-            <CardContent className="space-y-6">
-              <div className="flex items-center gap-4">
-                <div className="flex h-20 w-20 items-center justify-center rounded-full bg-[#eff6ff] text-[#024abe] shadow-sm">
-                  {user?.avatarUrl ? (
-                    <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-full">
-                      <Image
-                        fill
-                        src={user.avatarUrl}
-                        alt={user.fullName}
-                        className="object-cover"
-                        sizes="80px"
-                      />
-                    </div>
-                  ) : (
-                    <UserCircle2 className="h-10 w-10" />
-                  )}
-                </div>
-                <div>
-                  <h3 className="text-xl font-semibold text-foreground">
-                    {user?.fullName ?? "Unknown user"}
-                  </h3>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {user?.email ?? user?.phone ?? "No primary identifier"}
-                  </p>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <span className="rounded-full border border-[#eceef3] bg-[#f8fafc] px-3 py-1 text-xs font-medium text-foreground">
-                      Status: {user?.status ?? "unknown"}
-                    </span>
-                    <span className="rounded-full border border-[#ffd8cc] bg-secondary px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-primary">
-                      {user?.isVerified ? "Verified" : "Unverified"}
-                    </span>
+        <div className="grid gap-5 lg:grid-cols-[1.15fr_0.85fr]">
+          <section className="rounded-[10px] border border-[#eceff3] bg-white shadow-sm">
+            <div className="flex items-center gap-4 border-b border-[#eceff3] px-6 py-5">
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-[#fff1f2] text-[#e8505b]">
+                {user?.avatarUrl ? (
+                  <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-full">
+                    <Image
+                      fill
+                      src={user.avatarUrl}
+                      alt={user.fullName}
+                      className="object-cover"
+                      sizes="64px"
+                    />
                   </div>
-                </div>
+                ) : (
+                  <UserCircle2 className="h-8 w-8" />
+                )}
               </div>
-
-              <div className="grid gap-4 md:grid-cols-3">
-                <div className="rounded-2xl border border-border bg-[#fcfcfd] px-4 py-4">
-                  <div className="flex items-center gap-3">
-                    <Mail className="h-4 w-4 text-primary" />
-                    <p className="text-sm font-medium text-foreground">Email</p>
-                  </div>
-                  <p className="mt-3 text-sm text-muted-foreground">{user?.email ?? "Not set"}</p>
-                </div>
-                <div className="rounded-2xl border border-border bg-[#fcfcfd] px-4 py-4">
-                  <div className="flex items-center gap-3">
-                    <Phone className="h-4 w-4 text-primary" />
-                    <p className="text-sm font-medium text-foreground">Phone</p>
-                  </div>
-                  <p className="mt-3 text-sm text-muted-foreground">{user?.phone ?? "Not set"}</p>
-                </div>
-                <div className="rounded-2xl border border-border bg-[#fcfcfd] px-4 py-4">
-                  <div className="flex items-center gap-3">
-                    <MapPin className="h-4 w-4 text-primary" />
-                    <p className="text-sm font-medium text-foreground">Saved addresses</p>
-                  </div>
-                  <p className="mt-3 text-sm text-muted-foreground">
-                    {addressesLoading ? "Loading..." : String(addresses.length)}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="space-y-5">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
-                  Default address
-                </p>
-                <h3 className="mt-2 text-xl font-semibold text-foreground">
-                  {user?.defaultAddress?.label ?? user?.defaultAddress?.locationTitle ?? "No default address"}
+              <div className="min-w-0">
+                <h3 className="truncate text-[16px] font-bold text-[#111827]">
+                  {user?.fullName ?? "Unknown user"}
                 </h3>
-                <p className="mt-2 text-sm leading-7 text-muted-foreground">
-                  {user?.defaultAddress?.addressSummary ??
-                    "Choose a delivery address so the home feed can personalize location and restaurant context."}
+                <p className="truncate text-[13px] text-muted-foreground">
+                  {user?.email ?? user?.phone ?? "No primary identifier"}
                 </p>
-              </div>
-
-              {user?.defaultAddress ? (
-                <div className="rounded-2xl border border-border bg-[#fcfcfd] px-4 py-4 text-sm text-muted-foreground">
-                  <p>
-                    Recipient: <span className="font-medium text-foreground">{user.defaultAddress.recipientName}</span>
-                  </p>
-                  <p className="mt-2">
-                    Phone:{" "}
-                    <span className="font-medium text-foreground">
-                      {user.defaultAddress.phoneCountryCode ?? ""} {user.defaultAddress.phoneNumber}
-                    </span>
-                  </p>
-                  <p className="mt-2">
-                    Location:{" "}
-                    <span className="font-medium text-foreground">
-                      {user.defaultAddress.locationTitle} • {user.defaultAddress.locationSubtitle}
-                    </span>
-                  </p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  <span className="rounded-full border border-gray-200 px-2.5 py-0.5 text-[11px] font-medium capitalize text-[#374151]">
+                    {user?.status ?? "unknown"}
+                  </span>
+                  <span
+                    className={`flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
+                      user?.isVerified ? "bg-[#ecfdf3] text-[#16a34a]" : "bg-[#fff1f2] text-[#e8505b]"
+                    }`}
+                  >
+                    {user?.isVerified ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
+                    {user?.isVerified ? "Verified" : "Unverified"}
+                  </span>
                 </div>
-              ) : null}
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card>
-          <CardContent>
-            <div className="mb-5 flex items-center justify-between gap-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
-                  Delivery addresses
-                </p>
-                <h3 className="mt-2 text-xl font-semibold text-foreground">Saved addresses</h3>
               </div>
             </div>
 
+            <div className="grid gap-3 p-6 sm:grid-cols-3">
+              <div className="rounded-[8px] border border-[#eceff3] px-4 py-3.5">
+                <div className="flex items-center gap-2 text-[#9ca3af]">
+                  <Mail className="h-3.5 w-3.5" />
+                  <p className="text-[12px] font-semibold text-[#111827]">Email</p>
+                </div>
+                <p className="mt-2 truncate text-[13px] text-muted-foreground">{user?.email ?? "Not set"}</p>
+              </div>
+              <div className="rounded-[8px] border border-[#eceff3] px-4 py-3.5">
+                <div className="flex items-center gap-2 text-[#9ca3af]">
+                  <Phone className="h-3.5 w-3.5" />
+                  <p className="text-[12px] font-semibold text-[#111827]">Phone</p>
+                </div>
+                <p className="mt-2 text-[13px] text-muted-foreground">{user?.phone ?? "Not set"}</p>
+              </div>
+              <div className="rounded-[8px] border border-[#eceff3] px-4 py-3.5">
+                <div className="flex items-center gap-2 text-[#9ca3af]">
+                  <MapPin className="h-3.5 w-3.5" />
+                  <p className="text-[12px] font-semibold text-[#111827]">Addresses</p>
+                </div>
+                <p className="mt-2 text-[13px] text-muted-foreground">
+                  {addressesLoading ? "Loading..." : String(addresses.length)}
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-[10px] border border-[#eceff3] bg-white shadow-sm">
+            <div className="border-b border-[#eceff3] px-6 py-4">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#e8505b]">
+                Default address
+              </p>
+              <h3 className="mt-1 text-[15px] font-bold text-[#111827]">
+                {user?.defaultAddress?.label ?? user?.defaultAddress?.locationTitle ?? "No default address"}
+              </h3>
+              <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground">
+                {user?.defaultAddress?.addressSummary ??
+                  "Choose a delivery address so the home feed can personalize location and restaurant context."}
+              </p>
+            </div>
+
+            {user?.defaultAddress ? (
+              <div className="space-y-2 px-6 py-4 text-[13px]">
+                <p className="flex justify-between gap-3">
+                  <span className="text-muted-foreground">Recipient</span>
+                  <span className="font-medium text-[#111827]">{user.defaultAddress.recipientName}</span>
+                </p>
+                <p className="flex justify-between gap-3">
+                  <span className="text-muted-foreground">Phone</span>
+                  <span className="font-medium text-[#111827]">
+                    {user.defaultAddress.phoneCountryCode ?? ""} {user.defaultAddress.phoneNumber}
+                  </span>
+                </p>
+                <p className="flex justify-between gap-3">
+                  <span className="text-muted-foreground">Location</span>
+                  <span className="truncate pl-4 text-right font-medium text-[#111827]">
+                    {user.defaultAddress.locationTitle} · {user.defaultAddress.locationSubtitle}
+                  </span>
+                </p>
+              </div>
+            ) : null}
+          </section>
+        </div>
+
+        <section className="rounded-[10px] border border-[#eceff3] bg-white shadow-sm">
+          <div className="border-b border-[#eceff3] px-6 py-4">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#e8505b]">
+              Delivery addresses
+            </p>
+            <h3 className="mt-1 text-[15px] font-bold text-[#111827]">Saved addresses</h3>
+          </div>
+
+          <div className="p-6">
             {addressesLoading ? (
-              <p className="text-sm text-muted-foreground">Loading addresses...</p>
+              <p className="text-[13px] text-muted-foreground">Loading addresses...</p>
             ) : addressesError ? (
-              <div className="rounded-2xl border border-[#ffd8cc] bg-[#fff4ef] px-4 py-3 text-sm text-[#9a3412]">
+              <div className="rounded-[8px] border border-[#fecdd3] bg-[#fff1f2] px-4 py-3 text-[13px] text-[#be123c]">
                 {addressesError}
               </div>
             ) : addresses.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No saved addresses yet.</p>
+              <p className="text-[13px] text-muted-foreground">No saved addresses yet.</p>
             ) : (
               <div className="grid gap-4 lg:grid-cols-2">
                 {addresses.map((address) => (
                   <div
                     key={address.id}
-                    className="rounded-2xl border border-border bg-[#fcfcfd] px-5 py-4"
+                    className="rounded-[8px] border border-[#eceff3] px-5 py-4"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="text-base font-semibold text-foreground">
+                        <p className="text-[14px] font-bold text-[#111827]">
                           {address.label ?? address.locationTitle}
                         </p>
-                        <p className="mt-1 text-sm text-muted-foreground">{address.addressSummary}</p>
+                        <p className="mt-1 text-[13px] text-muted-foreground">{address.addressSummary}</p>
                       </div>
                       {address.isDefault ? (
-                        <span className="rounded-full border border-[#ffd8cc] bg-secondary px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-primary">
+                        <span className="shrink-0 rounded-full bg-[#fff1f2] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-[#e8505b]">
                           Default
                         </span>
                       ) : null}
                     </div>
-                    <div className="mt-4 grid gap-2 text-sm text-muted-foreground">
+                    <div className="mt-3 space-y-1 text-[13px] text-muted-foreground">
                       <p>Recipient: {address.recipientName}</p>
                       <p>
                         Phone: {address.phoneCountryCode ?? ""} {address.phoneNumber}
                       </p>
                       <p>Email: {address.email ?? "Not set"}</p>
                     </div>
-                    <div className="mt-5 flex flex-wrap items-center gap-3 pt-4 border-t border-gray-100">
+                    <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-gray-100 pt-4">
                       {!address.isDefault && (
-                        <Button 
-                          variant="outline" 
-                          size="sm"
+                        <button
+                          type="button"
                           disabled={actionInProgress === address.id}
                           onClick={() => handleSetDefault(address.id)}
+                          className="inline-flex h-8 items-center justify-center rounded-[6px] border border-gray-200 px-3 text-[12px] font-semibold text-[#374151] transition hover:bg-gray-50 disabled:opacity-50"
                         >
-                          {actionInProgress === address.id ? "Working..." : "Set Default"}
-                        </Button>
+                          {actionInProgress === address.id ? "Working..." : "Set default"}
+                        </button>
                       )}
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
+                      <button
+                        type="button"
                         disabled={actionInProgress === address.id}
                         onClick={() => openEditModal(address)}
+                        className="inline-flex h-8 items-center justify-center rounded-[6px] px-3 text-[12px] font-semibold text-[#374151] transition hover:bg-gray-50 disabled:opacity-50"
                       >
                         Edit
-                      </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                      </button>
+                      <button
+                        type="button"
                         disabled={actionInProgress === address.id}
                         onClick={() => handleDeleteAddress(address.id)}
+                        className="inline-flex h-8 items-center justify-center rounded-[6px] px-3 text-[12px] font-semibold text-[#be123c] transition hover:bg-[#fff1f2] disabled:opacity-50"
                       >
                         Delete
-                      </Button>
+                      </button>
                     </div>
                   </div>
                 ))}
               </div>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </section>
       </main>
-      
-      {/* Edit Address Modal Overlay */}
-      {isEditModalOpen && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
-          <div className="w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden p-6 animate-in fade-in zoom-in-95 duration-200">
-            <h3 className="text-xl font-bold text-[#111827] mb-2">Edit Address</h3>
-            <p className="text-sm text-gray-500 mb-6">Update the details for this saved location.</p>
-            <form onSubmit={handleEditSubmit} className="space-y-4">
+
+      {isEditModalOpen ? (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
+          <div className="w-full max-w-md overflow-hidden rounded-[10px] bg-white shadow-[0_24px_70px_rgba(15,23,42,0.2)]">
+            <div className="border-b border-[#eceff3] px-6 py-4">
+              <h3 className="text-[15px] font-bold text-[#111827]">Edit address</h3>
+              <p className="mt-0.5 text-[13px] text-muted-foreground">Update the details for this saved location.</p>
+            </div>
+            <form onSubmit={handleEditSubmit} className="space-y-4 px-6 py-5">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Recipient Name</label>
-                <input 
-                  type="text" 
+                <label className="mb-1.5 block text-[13px] font-medium text-[#374151]">Recipient name</label>
+                <input
+                  type="text"
                   required
                   value={editFormState.recipient_name}
                   onChange={(e) => setEditFormState(prev => ({ ...prev, recipient_name: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-md px-4 py-2 focus:ring-primary focus:border-primary outline-none"
+                  className="w-full rounded-[6px] border border-gray-200 px-3.5 py-2.5 text-[13px] text-[#111827] outline-none transition-colors focus:border-[#e8505b] focus:ring-2 focus:ring-[#e8505b]/10"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
-                <input 
-                  type="text" 
+                <label className="mb-1.5 block text-[13px] font-medium text-[#374151]">Phone number</label>
+                <input
+                  type="text"
                   required
                   value={editFormState.phone_number}
                   onChange={(e) => setEditFormState(prev => ({ ...prev, phone_number: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-md px-4 py-2 focus:ring-primary focus:border-primary outline-none"
+                  className="w-full rounded-[6px] border border-gray-200 px-3.5 py-2.5 text-[13px] text-[#111827] outline-none transition-colors focus:border-[#e8505b] focus:ring-2 focus:ring-[#e8505b]/10"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Street Address / Landmark</label>
-                <input 
-                  type="text" 
+                <label className="mb-1.5 block text-[13px] font-medium text-[#374151]">Street address / landmark</label>
+                <input
+                  type="text"
                   required
                   value={editFormState.address_line_1}
                   onChange={(e) => setEditFormState(prev => ({ ...prev, address_line_1: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-md px-4 py-2 focus:ring-primary focus:border-primary outline-none"
+                  className="w-full rounded-[6px] border border-gray-200 px-3.5 py-2.5 text-[13px] text-[#111827] outline-none transition-colors focus:border-[#e8505b] focus:ring-2 focus:ring-[#e8505b]/10"
                 />
               </div>
-              <div className="pt-4 flex items-center justify-end gap-3">
-                <button 
-                  type="button" 
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
                   onClick={() => setIsEditModalOpen(false)}
-                  className="px-5 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition"
                   disabled={actionInProgress !== null}
+                  className="inline-flex h-10 items-center justify-center rounded-[6px] px-4 text-[13px] font-semibold text-[#374151] transition hover:bg-gray-50 disabled:opacity-50"
                 >
                   Cancel
                 </button>
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   disabled={actionInProgress !== null}
-                  className="px-6 py-2 bg-primary text-white text-sm font-medium rounded-md hover:bg-primary/90 transition disabled:opacity-50"
+                  className="inline-flex h-10 items-center justify-center rounded-[6px] bg-[#e8505b] px-4 text-[13px] font-bold text-white transition hover:bg-[#d6414c] disabled:opacity-50"
                 >
-                  {actionInProgress !== null ? "Saving..." : "Save Changes"}
+                  {actionInProgress !== null ? "Saving..." : "Save changes"}
                 </button>
               </div>
             </form>
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

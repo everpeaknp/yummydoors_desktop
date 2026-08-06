@@ -253,7 +253,7 @@ export default function MerchantMessagesPage() {
               </div>
 
               {/* Messages */}
-              <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-3">
+              <div ref={messageListRef} className="flex-1 overflow-y-auto p-5 flex flex-col gap-3">
                 {loadingMsgs ? (
                   <div className="text-center text-[#868e96] text-[13px]">Loading messages…</div>
                 ) : messages.length === 0 ? (
@@ -275,7 +275,6 @@ export default function MerchantMessagesPage() {
                     </div>
                   ))
                 )}
-                <div ref={messagesEndRef} />
               </div>
 
               {/* Input */}

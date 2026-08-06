@@ -1,6 +1,7 @@
 import { mapStoredUser } from "@/lib/auth-mappers";
 import { config } from "@/lib/config";
 import { loadStoredAuth, saveStoredAuth, type StoredAuth } from "@/lib/auth-storage";
+import { useAuthStore } from "@/stores/auth-store";
 
 type RequestOptions = RequestInit & {
   auth?: boolean;
@@ -47,7 +48,19 @@ async function refreshAccessToken(stored: StoredAuth): Promise<StoredAuth | null
       refreshToken: data.tokens.refresh_token,
       user: mapStoredUser(data.user),
     };
+    // Preserve the existing remember-me persistence choice (localStorage vs
+    // sessionStorage) exactly as before, but also push the rotated token into
+    // the zustand store directly — not via setAuth(), which defaults
+    // rememberMe to true and would force session-only logins into
+    // localStorage. Anything reactive on accessToken (e.g. the notification
+    // websocket's connection URL) needs this to avoid silently going stale.
     saveStoredAuth(nextStored);
+    useAuthStore.setState({
+      hydrated: true,
+      accessToken: nextStored.accessToken,
+      refreshToken: nextStored.refreshToken,
+      user: nextStored.user,
+    });
     return nextStored;
   })().finally(() => {
     refreshPromise = null;

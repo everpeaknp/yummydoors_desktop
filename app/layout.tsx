@@ -29,7 +29,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={cn("min-h-screen font-sans bg-white", poppins.variable, poppins.className)}>
+      <body className={cn("min-h-screen overflow-x-hidden font-sans bg-white", poppins.variable, poppins.className)}>
         {children}
         <GlobalCartWidget />
       </body>

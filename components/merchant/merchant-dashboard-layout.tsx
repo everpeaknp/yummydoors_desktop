@@ -12,7 +12,6 @@ import {
   Heart,
   Layers3,
   Link2,
-  Link as LinkIcon,
   LogOut,
   Mail,
   Menu,
@@ -346,7 +345,6 @@ export function MerchantDashboardLayout({ children }: { children: React.ReactNod
           <SidebarLink href="/merchant/menu" icon={PanelTop} label="Menu catalog" active={pathname === "/merchant/menu"} />
           <SidebarLink href="/merchant/reservations" icon={CalendarDays} label="Reservation queue" active={pathname === "/merchant/reservations"} />
           <SidebarLink href="/merchant/tables" icon={Table2} label="Reservation tables" active={pathname === "/merchant/tables"} />
-          <SidebarLink href="/promos" icon={LinkIcon} label="Promos and merchandising" active={pathname === "/promos"} />
         </nav>
 
         {/* Operating Context & Exit */}

@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useAuth } from "@/hooks/use-auth";
 import { apiFetch } from "@/lib/http";
 import { config } from "@/lib/config";
+import { loadStoredAuth } from "@/lib/auth-storage";
 import {
   markWebPushPrompted,
   ORDER_EVENT_NAME,
@@ -139,49 +140,89 @@ export function OrderNotificationManager() {
   }, []);
 
   useEffect(() => {
-    if (!wsUrl) {
+    if (!wsUrl || !accessToken || !user) {
       return;
     }
 
-    const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
+    let cancelled = false;
+    let reconnectTimer: number | null = null;
+    let attempt = 0;
+    const workspaceType = user.activeWorkspace?.workspaceType;
+    const endpoint = workspaceType === "merchant" ? "/orders/ws/merchant" : "/orders/ws/customer";
+    const wsBase = config.apiBaseUrl.replace("https://", "wss://").replace("http://", "ws://");
 
-    ws.onmessage = (event) => {
-      try {
-        const payload = JSON.parse(event.data) as OrderNotificationPayload;
-        if (payload.event_id && latestEventIdRef.current === payload.event_id) {
-          return;
+    async function connect() {
+      if (cancelled) return;
+
+      // Refresh-on-reconnect: a dropped socket that reconnects with the same
+      // (possibly expired) token would just get closed again. Route an
+      // authenticated request through first so apiFetch's 401-refresh flow
+      // can rotate the token before we read it fresh below.
+      await apiFetch("/auth/me", { auth: true }).catch(() => {});
+      if (cancelled) return;
+
+      const stored = loadStoredAuth();
+      if (!stored?.accessToken) return;
+
+      const ws = new WebSocket(`${wsBase}${config.apiPrefix}${endpoint}?token=${stored.accessToken}`);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        attempt = 0;
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data) as OrderNotificationPayload;
+          if (payload.event_id && latestEventIdRef.current === payload.event_id) {
+            return;
+          }
+          latestEventIdRef.current = payload.event_id ?? null;
+
+          window.dispatchEvent(new CustomEvent<OrderNotificationPayload>(ORDER_EVENT_NAME, { detail: payload }));
+
+          if (
+            typeof Notification !== "undefined" &&
+            Notification.permission === "granted" &&
+            payload.title &&
+            payload.body
+          ) {
+            const notification = new Notification(payload.title, {
+              body: payload.body,
+              tag: payload.tag,
+              icon: "/Yummy_Doors-Png.png",
+            });
+            notification.onclick = () => {
+              window.focus();
+              window.location.href = payload.deep_link ?? "/orders";
+              notification.close();
+            };
+          }
+        } catch {
+          // Ignore malformed payloads.
         }
-        latestEventIdRef.current = payload.event_id ?? null;
+      };
 
-        window.dispatchEvent(new CustomEvent<OrderNotificationPayload>(ORDER_EVENT_NAME, { detail: payload }));
+      ws.onerror = () => {
+        ws.close();
+      };
 
-        if (
-          typeof Notification !== "undefined" &&
-          Notification.permission === "granted" &&
-          payload.title &&
-          payload.body
-        ) {
-          const notification = new Notification(payload.title, {
-            body: payload.body,
-            tag: payload.tag,
-            icon: "/Yummy_Doors-Png.png",
-          });
-          notification.onclick = () => {
-            window.focus();
-            window.location.href = payload.deep_link ?? "/orders";
-            notification.close();
-          };
-        }
-      } catch {
-        // Ignore malformed payloads.
-      }
-    };
+      ws.onclose = () => {
+        if (cancelled) return;
+        const delay = Math.min(2000 * (attempt + 1), 20000);
+        attempt += 1;
+        reconnectTimer = window.setTimeout(() => void connect(), delay);
+      };
+    }
+
+    void connect();
 
     return () => {
-      ws.close();
+      cancelled = true;
+      if (reconnectTimer !== null) window.clearTimeout(reconnectTimer);
+      wsRef.current?.close();
     };
-  }, [wsUrl]);
+  }, [wsUrl, accessToken, user]);
 
   return null;
 }

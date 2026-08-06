@@ -8,13 +8,13 @@ import { Check, CircleX, PencilLine, Send } from "lucide-react";
 import { MerchantDashboardLayout } from "@/components/merchant/merchant-dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Modal } from "@/components/ui/modal";
 import { useAuth } from "@/hooks/use-auth";
 import { extractApiErrorMessage } from "@/lib/api-utils";
 import { apiFetch } from "@/lib/http";
 import { config } from "@/lib/config";
 import { loadStoredAuth } from "@/lib/auth-storage";
-
-type OrderStatus = "toPay" | "placed" | "preparing" | "picked_up" | "delivered" | "cancelled";
+import type { OrderStatus } from "@/lib/order-contract";
 
 type OrderItem = {
   name: string;
@@ -69,11 +69,6 @@ const STATUS_META: Record<
       { label: "Cancel order", nextStatus: "cancelled" },
     ],
   },
-  picked_up: {
-    label: "Picked up",
-    tone: "bg-[#8b5cf6]",
-    nextActions: [],
-  },
   delivered: {
     label: "Delivered",
     tone: "bg-[#25b546]",
@@ -117,6 +112,8 @@ export default function MerchantOrderDetailPage() {
   const [riderPanelOpen, setRiderPanelOpen] = useState(false);
   const [loadingRiders, setLoadingRiders] = useState(false);
   const [assigningRiderId, setAssigningRiderId] = useState<number | null>(null);
+  const [completeReasonOpen, setCompleteReasonOpen] = useState(false);
+  const [completeReason, setCompleteReason] = useState("");
 
   const loadOrder = useCallback(async () => {
     if (!Number.isFinite(orderId)) {
@@ -192,14 +189,18 @@ export default function MerchantOrderDetailPage() {
     );
   }, [order]);
 
-  async function changeStatus(nextStatus: OrderStatus) {
+  async function changeStatus(nextStatus: OrderStatus, reason?: string) {
     if (!order) return;
 
     setSavingStatus(nextStatus);
     setError(null);
     try {
+      const params = new URLSearchParams({ new_status: nextStatus });
+      if (reason) {
+        params.set("reason", reason);
+      }
       const response = await apiFetch(
-        `/orders/merchant/${order.id}/status?new_status=${nextStatus}`,
+        `/orders/merchant/${order.id}/status?${params.toString()}`,
         { method: "PATCH", auth: true },
       );
       const payload = await response.json().catch(() => null);
@@ -214,6 +215,8 @@ export default function MerchantOrderDetailPage() {
       } else {
         setOrder((current) => (current ? { ...current, status: nextStatus } : current));
       }
+      setCompleteReasonOpen(false);
+      setCompleteReason("");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Failed to update order status.");
     } finally {
@@ -400,7 +403,7 @@ export default function MerchantOrderDetailPage() {
                     </>
                   ) : order.status === "preparing" ? (
                     <>
-                      {!order.riderAssignedAt ? <Button type="button" onClick={() => void changeStatus("delivered")}>
+                      {!order.riderAssignedAt ? <Button type="button" onClick={() => setCompleteReasonOpen(true)}>
                           <Check className="h-4 w-4" />
                           Complete in-house
                         </Button> : null}
@@ -461,6 +464,47 @@ export default function MerchantOrderDetailPage() {
               </div>
             </div>
           ) : null}
+          <Modal
+            isOpen={completeReasonOpen}
+            onClose={() => {
+              setCompleteReasonOpen(false);
+              setCompleteReason("");
+            }}
+            title="Complete without a rider"
+          >
+            <div className="space-y-4 p-6">
+              <p className="text-sm text-[#868e96]">
+                No rider is assigned to {order.orderNumber}. Explain how it was delivered (e.g. picked up by the
+                customer, delivered by staff) so this is recorded in the order history.
+              </p>
+              <textarea
+                className="w-full rounded border border-[#e9ecef] p-3 text-sm text-[#212529] focus:border-[#0d84ff] focus:outline-none"
+                rows={3}
+                placeholder="Reason for completing without a rider"
+                value={completeReason}
+                onChange={(event) => setCompleteReason(event.target.value)}
+              />
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => {
+                    setCompleteReasonOpen(false);
+                    setCompleteReason("");
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  disabled={!completeReason.trim() || savingStatus === "delivered"}
+                  onClick={() => void changeStatus("delivered", completeReason.trim())}
+                >
+                  {savingStatus === "delivered" ? "Completing..." : "Confirm"}
+                </Button>
+              </div>
+            </div>
+          </Modal>
         </div>
       ) : null}
     </MerchantDashboardLayout>

@@ -19,12 +19,19 @@ import { GoogleMap, MarkerF, PolylineF } from "@react-google-maps/api";
 import { SiteNavbar } from "@/components/layout/site-navbar";
 import { useAuth } from "@/hooks/use-auth";
 import { useGoogleMaps } from "@/hooks/use-google-maps";
-import { config } from "@/lib/config";
 import { apiFetch } from "@/lib/http";
 import { ORDER_EVENT_NAME, type OrderNotificationPayload } from "@/lib/web-push";
 import { FALLBACK_RESTAURANT_COVER, isUsableImageUrl } from "@/lib/restaurant-media";
+import type { OrderStatus } from "@/lib/order-contract";
 
-type OrderStatus = "toPay" | "placed" | "preparing" | "rider_assigned" | "picked_up" | "delivered" | "cancelled";
+/**
+ * `order.status` (from the backend) never actually equals "rider_assigned" or
+ * "picked_up" — those are timeline milestones, not order statuses (see
+ * lib/order-contract.ts). This page still wants to filter/badge by them, so
+ * it derives a display-only status from the order's timeline instead of
+ * comparing against `order.status` directly.
+ */
+type DisplayStatus = OrderStatus | "rider_assigned" | "picked_up";
 
 type OrderItem = {
   name: string;
@@ -70,10 +77,11 @@ type CustomerOrder = {
     full_name: string;
     current_latitude?: number | null;
     current_longitude?: number | null;
+    current_location_updated_at?: string | null;
   } | null;
 };
 
-const STATUS_TONE: Record<OrderStatus, string> = {
+const STATUS_TONE: Record<DisplayStatus, string> = {
   toPay: "bg-[#6b7280]",
   placed: "bg-[#3b82f6]",
   preparing: "bg-[#f59e0b]",
@@ -83,7 +91,7 @@ const STATUS_TONE: Record<OrderStatus, string> = {
   cancelled: "bg-[#be123c]",
 };
 
-const FILTERS: Array<{ key: "all" | OrderStatus; label: string }> = [
+const FILTERS: Array<{ key: "all" | DisplayStatus; label: string }> = [
   { key: "all", label: "All" },
   { key: "placed", label: "Placed" },
   { key: "preparing", label: "Preparing" },
@@ -97,18 +105,47 @@ function formatMoney(value: number) {
   return `Rs. ${value.toFixed(2)}`;
 }
 
-function formatStatus(status: OrderStatus) {
+function formatStatus(status: DisplayStatus) {
   return status.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+/** Derives the finer-grained "rider_assigned"/"picked_up" milestones from the
+ * order's timeline, since `order.status` itself never carries those values. */
+function deriveDisplayStatus(order: { status: OrderStatus; timeline: OrderTimelineEvent[] }): DisplayStatus {
+  if (order.status !== "preparing") {
+    return order.status;
+  }
+  const current = order.timeline.find((event) => event.state === "current");
+  if (current?.key === "rider_assigned" || current?.key === "picked_up") {
+    return current.key;
+  }
+  return order.status;
 }
 
 function restaurantImage(url: string | null | undefined) {
   return isUsableImageUrl(url) ? (url as string) : FALLBACK_RESTAURANT_COVER;
 }
 
+function formatLocationAge(updatedAt: string | null | undefined, now: number) {
+  if (!updatedAt) return null;
+  const updatedMs = Date.parse(updatedAt);
+  if (Number.isNaN(updatedMs)) return null;
+  const ageSeconds = Math.max(0, Math.round((now - updatedMs) / 1000));
+  if (ageSeconds < 60) return `${ageSeconds}s ago`;
+  const ageMinutes = Math.round(ageSeconds / 60);
+  return `${ageMinutes}m ago`;
+}
+
 function OrderTrackingMap({ order, customerLocation }: { order: CustomerOrder; customerLocation: { lat: number; lng: number } | null }) {
   const { isLoaded } = useGoogleMaps();
   const [routePath, setRoutePath] = useState<Array<{ lat: number; lng: number }>>([]);
+  const [now, setNow] = useState(() => Date.now());
   const mapRef = useRef<google.maps.Map | null>(null);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 5000);
+    return () => window.clearInterval(timer);
+  }, []);
   const destination = order.address?.latitude != null && order.address.longitude != null
     ? { lat: order.address.latitude, lng: order.address.longitude }
     : null;
@@ -171,7 +208,26 @@ function OrderTrackingMap({ order, customerLocation }: { order: CustomerOrder; c
     <div className="overflow-hidden rounded-[18px] border border-[#efe4d8]">
       <div className="flex items-center justify-between bg-white px-4 py-3">
         <p className="text-sm font-semibold text-[#1f2937]">Live delivery location</p>
-        <p className="text-xs text-[#6b7280]">{rider ? `Rider: ${order.rider?.full_name}` : "Waiting for rider GPS"}</p>
+        {rider ? (
+          <div className="text-right">
+            <p className="text-xs text-[#6b7280]">Rider: {order.rider?.full_name}</p>
+            {(() => {
+              const age = formatLocationAge(order.rider?.current_location_updated_at, now);
+              if (!age) return null;
+              const updatedMs = order.rider?.current_location_updated_at
+                ? Date.parse(order.rider.current_location_updated_at)
+                : NaN;
+              const isStale = !Number.isNaN(updatedMs) && now - updatedMs > 90_000;
+              return (
+                <p className={`text-[11px] ${isStale ? "font-semibold text-[#be123c]" : "text-[#9ca3af]"}`}>
+                  {isStale ? `Location may be stale · updated ${age}` : `Updated ${age}`}
+                </p>
+              );
+            })()}
+          </div>
+        ) : (
+          <p className="text-xs text-[#6b7280]">Waiting for rider GPS</p>
+        )}
       </div>
       <GoogleMap mapContainerStyle={{ width: "100%", height: "360px" }} center={center} zoom={14} onLoad={(map) => { mapRef.current = map; }} onUnmount={() => { mapRef.current = null; }} options={{ mapTypeControl: false, streetViewControl: false, fullscreenControl: true, zoomControl: true }}>
         {routePath.length > 1 ? <PolylineF path={routePath} options={{ strokeColor: "#e8505b", strokeOpacity: 0.9, strokeWeight: 5 }} /> : null}
@@ -198,10 +254,11 @@ export default function CustomerOrdersPage() {
   const [error, setError] = useState<string | null>(null);
   const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
   const [customerLocation, setCustomerLocation] = useState<{ lat: number; lng: number } | null>(null);
-  const [statusFilter, setStatusFilter] = useState<"all" | OrderStatus>("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | DisplayStatus>("all");
 
   const expandedOrder = orders.find((order) => order.id === expandedOrderId) ?? null;
-  const visibleOrders = statusFilter === "all" ? orders : orders.filter((order) => order.status === statusFilter);
+  const visibleOrders =
+    statusFilter === "all" ? orders : orders.filter((order) => deriveDisplayStatus(order) === statusFilter);
 
   useEffect(() => {
     if (!expandedOrderId || !navigator.geolocation) {
@@ -283,38 +340,21 @@ export default function CustomerOrdersPage() {
     return () => window.clearInterval(timer);
   }, [accessToken, loadOrders]);
 
+  // Live rider-location updates while an order is expanded arrive via the
+  // global ORDER_EVENT_NAME listener below (fed by the single websocket
+  // connection OrderNotificationManager already keeps open) — this effect
+  // just polls a bit faster than the general 15s interval while the user is
+  // actively watching one order, as a resilience fallback if a websocket
+  // message is ever missed.
   useEffect(() => {
     if (!accessToken || !expandedOrderId) return;
 
-    const wsBase = config.apiBaseUrl.replace("https://", "wss://").replace("http://", "ws://");
-    const socket = new WebSocket(`${wsBase}${config.apiPrefix}/orders/ws/customer?token=${accessToken}`);
     const refreshTimer = window.setInterval(() => {
       void loadOrders().then((nextOrders) => setOrders(nextOrders)).catch(() => {});
     }, 5000);
 
-    socket.onmessage = (event) => {
-      try {
-        const payload = JSON.parse(event.data) as OrderNotificationPayload;
-        if (payload.event !== "rider_location_update" || payload.order_id !== expandedOrderId) return;
-        if (payload.latitude == null || payload.longitude == null) return;
-        setOrders((current) => current.map((order) => order.id === expandedOrderId
-          ? {
-              ...order,
-              rider: {
-                full_name: order.rider?.full_name ?? "Rider",
-                current_latitude: payload.latitude,
-                current_longitude: payload.longitude,
-              },
-            }
-          : order));
-      } catch {
-        // Ignore malformed tracking events.
-      }
-    };
-
     return () => {
       window.clearInterval(refreshTimer);
-      socket.close();
     };
   }, [accessToken, expandedOrderId, loadOrders]);
 
@@ -345,7 +385,13 @@ export default function CustomerOrdersPage() {
                 ...order,
                 status: detail.status ? detail.status as OrderStatus : order.status,
                 rider: detail.event === "rider_location_update" && detail.latitude != null && detail.longitude != null
-                  ? { ...order.rider, full_name: order.rider?.full_name ?? "Rider", current_latitude: detail.latitude, current_longitude: detail.longitude }
+                  ? {
+                      ...order.rider,
+                      full_name: order.rider?.full_name ?? "Rider",
+                      current_latitude: detail.latitude,
+                      current_longitude: detail.longitude,
+                      current_location_updated_at: detail.updated_at ?? new Date().toISOString(),
+                    }
                   : order.rider,
               }
             : order,
@@ -362,7 +408,7 @@ export default function CustomerOrdersPage() {
       orders.reduce(
         (acc, order) => {
           acc.total += 1;
-          acc[order.status] += 1;
+          acc[deriveDisplayStatus(order)] += 1;
           return acc;
         },
         {
@@ -482,8 +528,8 @@ export default function CustomerOrdersPage() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <p className="truncate text-[15px] font-bold text-[#111827]">{order.restaurantName}</p>
-                      <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white ${STATUS_TONE[order.status]}`}>
-                        {formatStatus(order.status)}
+                      <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white ${STATUS_TONE[deriveDisplayStatus(order)]}`}>
+                        {formatStatus(deriveDisplayStatus(order))}
                       </span>
                     </div>
                     <p className="mt-0.5 text-[12px] text-muted-foreground">
@@ -540,8 +586,8 @@ export default function CustomerOrdersPage() {
 
             <div className="space-y-5 px-6 py-5">
               <div className="flex items-center justify-between">
-                <span className={`rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-white ${STATUS_TONE[expandedOrder.status]}`}>
-                  {formatStatus(expandedOrder.status)}
+                <span className={`rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wide text-white ${STATUS_TONE[deriveDisplayStatus(expandedOrder)]}`}>
+                  {formatStatus(deriveDisplayStatus(expandedOrder))}
                 </span>
                 <p className="flex items-center gap-1.5 text-[12px] text-muted-foreground">
                   <CreditCard className="h-3.5 w-3.5" />

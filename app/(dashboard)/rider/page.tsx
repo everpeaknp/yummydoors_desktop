@@ -9,8 +9,7 @@ import { config } from "@/lib/config";
 import { loadStoredAuth } from "@/lib/auth-storage";
 import { DirectionsRenderer, DirectionsService, GoogleMap, MarkerF } from "@react-google-maps/api";
 import { useGoogleMaps } from "@/hooks/use-google-maps";
-
-type OrderStatus = "placed" | "preparing" | "picked_up" | "delivered" | "cancelled";
+import type { OrderStatus } from "@/lib/order-contract";
 
 type OrderItem = { name: string; price: number; quantity: number };
 
@@ -62,8 +61,8 @@ export default function RiderDashboardPage() {
   const wsRef = useRef<WebSocket | null>(null);
   const { isLoaded } = useGoogleMaps();
 
-  const loadOrders = useCallback(async () => {
-    setLoading(true);
+  const loadOrders = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) setLoading(true);
     setError(null);
     try {
       const res = await apiFetch("/orders/rider/me", { auth: true });
@@ -73,7 +72,7 @@ export default function RiderDashboardPage() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unknown error");
     } finally {
-      setLoading(false);
+      if (!options?.silent) setLoading(false);
     }
   }, []);
 
@@ -94,6 +93,13 @@ export default function RiderDashboardPage() {
     const timer = window.setInterval(() => setClock(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      void loadOrders({ silent: true });
+    }, 15000);
+    return () => window.clearInterval(timer);
+  }, [loadOrders]);
 
   async function respondToInvitation(id: number, action: "accept" | "reject") {
     setInvitationLoading(true);
@@ -125,30 +131,64 @@ export default function RiderDashboardPage() {
   }, []);
 
   useEffect(() => {
-    const stored = loadStoredAuth();
-    if (!stored?.accessToken) return;
+    let cancelled = false;
+    let reconnectTimer: number | null = null;
+    let attempt = 0;
 
-    const wsBase = config.apiBaseUrl
-      .replace("https://", "wss://")
-      .replace("http://", "ws://");
-    const ws = new WebSocket(
-      `${wsBase}${config.apiPrefix}/orders/ws/rider?token=${stored.accessToken}`
-    );
-    wsRef.current = ws;
+    async function connect() {
+      if (cancelled) return;
 
-    ws.onmessage = (event) => {
-      try {
-        const msg = JSON.parse(event.data);
-        if (msg.event === "order_update" || msg.event === "rider_offer") {
-          loadOrders(); // Quick refresh to get full updated state
+      // A dropped connection that reconnects with the same (possibly expired)
+      // access token would just get closed again with code 4001. Route an
+      // authenticated request through first so apiFetch's existing 401-refresh
+      // flow can rotate the token in storage before we read it below.
+      await loadOrders({ silent: true });
+      if (cancelled) return;
+
+      const stored = loadStoredAuth();
+      if (!stored?.accessToken) return;
+
+      const wsBase = config.apiBaseUrl
+        .replace("https://", "wss://")
+        .replace("http://", "ws://");
+      const ws = new WebSocket(
+        `${wsBase}${config.apiPrefix}/orders/ws/rider?token=${stored.accessToken}`
+      );
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        attempt = 0;
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.event === "order_update" || msg.event === "rider_offer") {
+            void loadOrders({ silent: true });
+          }
+        } catch (e) {
+          console.error("WS parse error", e);
         }
-      } catch (e) {
-        console.error("WS parse error", e);
-      }
-    };
+      };
+
+      ws.onerror = () => {
+        ws.close();
+      };
+
+      ws.onclose = () => {
+        if (cancelled) return;
+        const delay = Math.min(2000 * (attempt + 1), 20000);
+        attempt += 1;
+        reconnectTimer = window.setTimeout(() => void connect(), delay);
+      };
+    }
+
+    void connect();
 
     return () => {
-      ws.close();
+      cancelled = true;
+      if (reconnectTimer !== null) window.clearTimeout(reconnectTimer);
+      wsRef.current?.close();
     };
   }, [loadOrders]);
 

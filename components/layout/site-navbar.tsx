@@ -143,7 +143,7 @@ export function SiteNavbar({ className, variant = "light" }: SiteNavbarProps) {
           </span>
         </Link>
 
-        <nav className={cn("hidden md:flex items-center gap-8 text-[15px] font-semibold", textClass)}>
+        <nav className={cn("hidden shrink-0 items-center gap-5 whitespace-nowrap text-[14px] font-semibold lg:flex xl:gap-7 xl:text-[15px]", textClass)}>
           <Link href="/" className={linkClass}>Home</Link>
           <Link href="/restaurants" className={linkClass}>Restaurants</Link>
           <Link href={riderReady ? "/rider" : "/become-a-rider"} className={linkClass}>
@@ -164,21 +164,21 @@ export function SiteNavbar({ className, variant = "light" }: SiteNavbarProps) {
                   )}
                 >
                   {user?.avatarUrl ? (
-                    <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-full">
+                    <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full">
                       <Image
                         fill
                         src={user.avatarUrl}
                         alt={displayName}
                         className="object-cover"
-                        sizes="44px"
+                        sizes="36px"
                       />
                     </div>
                   ) : (
-                    <span className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-sm font-bold text-[#1f2937] shadow-[0_4px_14px_rgba(15,23,42,0.12)]">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-xs font-bold text-[#1f2937] shadow-[0_4px_14px_rgba(15,23,42,0.12)]">
                       {initials}
                     </span>
                   )}
-                  <span className="max-w-[170px] truncate text-[18px] font-medium leading-none tracking-[-0.01em]">
+                  <span className="max-w-[110px] truncate text-[14px] font-medium leading-none tracking-[-0.01em] xl:max-w-[150px]">
                     {displayName}
                   </span>
                   <ChevronDown className={cn("h-[18px] w-[18px] transition-transform", menuOpen ? "rotate-180" : "")} />

@@ -97,7 +97,7 @@ export default function CustomerMessagesPage() {
         if (msg.event === "new_message") {
           loadConversations();
           if (selectedId && msg.restaurant_id === selectedId) {
-            setMessages((prev) => [...prev, msg.message]);
+            appendMessage(msg.message);
           }
         }
       } catch {}
@@ -109,7 +109,8 @@ export default function CustomerMessagesPage() {
   }, [token, selectedId, loadConversations]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const container = messageListRef.current;
+    if (container) container.scrollTop = container.scrollHeight;
   }, [messages]);
 
   const sendMessage = async () => {
@@ -123,7 +124,7 @@ export default function CustomerMessagesPage() {
       });
       if (!res.ok) throw new Error("Failed to send message");
       const savedMsg = await res.json();
-      setMessages((prev) => [...prev, savedMsg]);
+      appendMessage(savedMsg);
       setNewMessage("");
       loadConversations();
     } catch (e) {
@@ -205,7 +206,7 @@ export default function CustomerMessagesPage() {
                   </div>
                 </div>
                 
-                <div className="flex-1 p-6 overflow-y-auto flex flex-col gap-4 bg-[#f8f9fa]">
+                <div ref={messageListRef} className="flex-1 p-6 overflow-y-auto flex flex-col gap-4 bg-[#f8f9fa]">
                   {loadingMsgs ? (
                     <div className="text-center text-[#868e96] text-[13px] mt-4">Loading messages...</div>
                   ) : messages.length === 0 ? (
@@ -231,7 +232,6 @@ export default function CustomerMessagesPage() {
                       );
                     })
                   )}
-                  <div ref={messagesEndRef} />
                 </div>
 
                 <div className="p-4 border-t border-[#e9ecef] bg-white">

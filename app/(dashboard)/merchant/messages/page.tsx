@@ -43,8 +43,12 @@ export default function MerchantMessagesPage() {
   const [loadingMsgs, setLoadingMsgs] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messageListRef = useRef<HTMLDivElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
+
+  function appendMessage(message: Message) {
+    setMessages((prev) => (prev.some((m) => m.id === message.id) ? prev : [...prev, message]));
+  }
 
   const loadConversations = useCallback(async () => {
     setLoadingConvs(true);
@@ -89,7 +93,8 @@ export default function MerchantMessagesPage() {
   }, [selectedId, loadMessages]);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const container = messageListRef.current;
+    if (container) container.scrollTop = container.scrollHeight;
   }, [messages]);
 
   // WebSocket for real-time new messages
@@ -112,7 +117,7 @@ export default function MerchantMessagesPage() {
           const cid = msg.customer_id as number;
           const m = msg.message as Message;
           if (selectedId === cid) {
-            setMessages((prev) => [...prev, m]);
+            appendMessage(m);
           }
           // Update conversation list
           setConversations((prev) => {
@@ -149,7 +154,7 @@ export default function MerchantMessagesPage() {
       });
       if (!res.ok) throw new Error("Failed to send");
       const sent: Message = await res.json();
-      setMessages((prev) => [...prev, sent]);
+      appendMessage(sent);
       setNewMessage("");
     } catch (e) {
       alert(e instanceof Error ? e.message : "Send failed");

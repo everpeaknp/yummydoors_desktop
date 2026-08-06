@@ -38,7 +38,11 @@ export default function CustomerMessagesPage() {
   const [sending, setSending] = useState(false);
   
   const token = useAuthStore((s) => s.accessToken);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messageListRef = useRef<HTMLDivElement>(null);
+
+  function appendMessage(message: Message) {
+    setMessages((prev) => (prev.some((m) => m.id === message.id) ? prev : [...prev, message]));
+  }
 
   const loadConversations = useCallback(async () => {
     setLoadingConvs(true);

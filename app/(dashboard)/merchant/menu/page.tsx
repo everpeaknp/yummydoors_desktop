@@ -149,6 +149,16 @@ export default function MerchantMenuPage() {
     event.preventDefault();
     if (!restaurantId || !itemName.trim() || !itemPrice) return;
     setBusy(true);
+    // The chosen category might be a platform-catalog category this
+    // restaurant hasn't linked yet — the backend only accepts category_ids
+    // already attached to the restaurant, so link it first.
+    if (categoryId && !categories.some((c) => String(c.id) === categoryId)) {
+      await apiFetch(`/merchant/restaurants/${restaurantId}/categories/link`, {
+        method: "POST",
+        auth: true,
+        body: JSON.stringify({ category_id: Number(categoryId) }),
+      });
+    }
     const payload = {
       name: itemName,
       description: itemDescription.trim() || null,
@@ -192,6 +202,16 @@ export default function MerchantMenuPage() {
   const matchingUnlinkedCatalog = searchTerm
     ? categoryCatalog.filter((c) => !linkedIds.has(c.id) && c.name.toLowerCase().includes(searchTerm))
     : [];
+  // Item picker: this restaurant's linked categories plus the rest of the
+  // platform catalog, so a merchant can put an item straight into an
+  // existing category (e.g. "Pizza") without a separate linking step first.
+  // Own categories are listed first so they stay easy to find.
+  const itemCategoryOptions = [...categories, ...categoryCatalog.filter((c) => !linkedIds.has(c.id))].sort((a, b) => {
+    const aLinked = linkedIds.has(a.id);
+    const bLinked = linkedIds.has(b.id);
+    if (aLinked !== bLinked) return aLinked ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
 
   return (
     <MerchantDashboardLayout>
@@ -314,9 +334,9 @@ export default function MerchantMenuPage() {
                 />
                 <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className="h-11 rounded border px-3 sm:col-span-2">
                   <option value="">No category</option>
-                  {categories.map((c) => (
+                  {itemCategoryOptions.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.name}
+                      {c.name}{linkedIds.has(c.id) ? "" : " 🌐"}
                     </option>
                   ))}
                 </select>

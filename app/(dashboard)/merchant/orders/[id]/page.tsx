@@ -32,6 +32,7 @@ type MerchantOrder = {
   totalPrice: number;
   items: OrderItem[];
   riderAssignedAt: string | null;
+  pickedUpAt: string | null;
   rider: { full_name: string } | null;
 };
 
@@ -184,9 +185,14 @@ export default function MerchantOrderDetailPage() {
     if (!order) {
       return [];
     }
-    return getStatusMeta(order.status).nextActions.filter(
-      (action) => action.nextStatus !== "delivered" || !order.riderAssignedAt,
-    );
+    return getStatusMeta(order.status).nextActions.filter((action) => {
+      if (action.nextStatus === "delivered" && order.riderAssignedAt) return false;
+      // Once the rider has physically picked up the food, cancelling no
+      // longer makes sense -- there's nothing left to stop, only a delivery
+      // in progress. Matches the same guard added server-side.
+      if (action.nextStatus === "cancelled" && order.pickedUpAt) return false;
+      return true;
+    });
   }, [order]);
 
   async function changeStatus(nextStatus: OrderStatus, reason?: string) {
@@ -410,10 +416,10 @@ export default function MerchantOrderDetailPage() {
                       {!order.riderAssignedAt ? <Button type="button" variant="secondary" onClick={() => void openRiderPanel()}>
                           Assign rider
                         </Button> : null}
-                      <Button type="button" variant="secondary" onClick={() => void changeStatus("cancelled")}>
-                        <CircleX className="h-4 w-4" />
-                        Cancel
-                      </Button>
+                      {!order.pickedUpAt ? <Button type="button" variant="secondary" onClick={() => void changeStatus("cancelled")}>
+                          <CircleX className="h-4 w-4" />
+                          Cancel
+                        </Button> : null}
                     </>
                   ) : order.status === "toPay" ? (
                     <Button type="button" onClick={() => void changeStatus("placed")}>

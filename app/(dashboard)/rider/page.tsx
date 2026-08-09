@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeftRight, Check, CircleX, MapPinned, RefreshCw, Users } from "lucide-react";
+import { ArrowLeftRight, Check, CircleX, MapPinned, RefreshCw, User, Users } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/use-auth";
 import { apiFetch } from "@/lib/http";
@@ -320,6 +320,13 @@ export default function RiderDashboardPage() {
             </div>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <button
+              type="button"
+              onClick={() => router.push("/rider/profile")}
+              className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[6px] border border-gray-200 px-4 text-[13px] font-semibold text-[#374151] transition hover:bg-gray-50"
+            >
+              <User className="h-3.5 w-3.5" /> Profile
+            </button>
             <button
               type="button"
               onClick={() => router.push("/")}

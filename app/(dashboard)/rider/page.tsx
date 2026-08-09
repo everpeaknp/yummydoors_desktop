@@ -54,6 +54,7 @@ export default function RiderDashboardPage() {
   const [activeTab, setActiveTab] = useState<"available" | "active" | "completed">("available");
   const [actionLoading, setActionLoading] = useState<number | null>(null);
   const [availabilityLoading, setAvailabilityLoading] = useState(false);
+  const [workModeLoading, setWorkModeLoading] = useState(false);
   const [directions, setDirections] = useState<google.maps.DirectionsResult | null>(null);
   const [invitations, setInvitations] = useState<RiderInvitation[]>([]);
   const [invitationLoading, setInvitationLoading] = useState(false);
@@ -257,6 +258,27 @@ export default function RiderDashboardPage() {
     }
   };
 
+  const updateWorkMode = async (nextMode: "freelance" | "assigned") => {
+    if (!user || workModeLoading || user.riderWorkMode === nextMode) return;
+    setWorkModeLoading(true);
+    try {
+      const res = await apiFetch("/auth/me/rider-work-mode", {
+        method: "PATCH",
+        auth: true,
+        body: JSON.stringify({ rider_work_mode: nextMode }),
+      });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok || !payload?.data) {
+        throw new Error(payload?.detail || "Failed to update rider mode");
+      }
+      setUser({ ...user, riderWorkMode: payload.data.rider_work_mode ?? nextMode });
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Failed to update rider mode");
+    } finally {
+      setWorkModeLoading(false);
+    }
+  };
+
   const filteredOrders = orders.filter((o) => {
     if (activeTab === "available") return !o.riderAssignedAt && o.status !== "cancelled";
     if (activeTab === "active") return o.riderAssignedAt && !o.deliveredAt && o.status !== "cancelled";
@@ -327,10 +349,37 @@ export default function RiderDashboardPage() {
                 />
               </span>
             </label>
+            {user && user.riderWorkMode !== "platform" ? (
+              <div className="flex items-center gap-1 rounded-[8px] border border-[#eceff3] bg-white p-1">
+                <button
+                  type="button"
+                  disabled={workModeLoading}
+                  onClick={() => void updateWorkMode("assigned")}
+                  className={`rounded-[6px] px-3 py-1.5 text-[12px] font-semibold transition ${
+                    user.riderWorkMode === "assigned" ? "bg-[#e8505b] text-white" : "text-[#6b7280] hover:bg-gray-50"
+                  }`}
+                >
+                  Assigned
+                </button>
+                <button
+                  type="button"
+                  disabled={workModeLoading}
+                  onClick={() => void updateWorkMode("freelance")}
+                  className={`rounded-[6px] px-3 py-1.5 text-[12px] font-semibold transition ${
+                    user.riderWorkMode === "freelance" ? "bg-[#e8505b] text-white" : "text-[#6b7280] hover:bg-gray-50"
+                  }`}
+                >
+                  Freelance
+                </button>
+              </div>
+            ) : null}
           </div>
         </div>
         <p className="mt-3 text-[13px] text-muted-foreground">
           Assigned restaurants can send delivery requests even while you are offline.
+          {user?.riderWorkMode === "freelance"
+            ? " Freelance mode lets you receive delivery offers from any restaurant nearby, not just your own team."
+            : ""}
         </p>
 
         <div className="mt-6 grid grid-cols-3 gap-3">

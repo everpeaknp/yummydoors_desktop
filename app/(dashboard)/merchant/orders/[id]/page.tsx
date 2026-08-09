@@ -4,16 +4,19 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { Check, CircleX, PencilLine, Send } from "lucide-react";
+import { GoogleMap, MarkerF } from "@react-google-maps/api";
 
 import { MerchantDashboardLayout } from "@/components/merchant/merchant-dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
 import { useAuth } from "@/hooks/use-auth";
+import { useGoogleMaps } from "@/hooks/use-google-maps";
 import { extractApiErrorMessage } from "@/lib/api-utils";
 import { apiFetch } from "@/lib/http";
 import { config } from "@/lib/config";
 import { loadStoredAuth } from "@/lib/auth-storage";
+import { MINIMAL_MAP_STYLE } from "@/lib/map-style";
 import type { OrderStatus } from "@/lib/order-contract";
 
 type OrderItem = {
@@ -41,9 +44,36 @@ type RiderCandidate = {
   full_name: string;
   phone: string | null;
   rider_work_mode: string;
+  assignment_type: string;
   is_accepting_offers: boolean;
   busy: boolean;
+  distance_km: number | null;
+  current_latitude: number | null;
+  current_longitude: number | null;
 };
+
+const TIER_MARKER_COLOR: Record<string, string> = {
+  rider_private: "#e9572d",
+  open: "#3b82f6",
+  platform: "#16a34a",
+};
+
+const TIER_LABEL: Record<string, string> = {
+  rider_private: "Private",
+  open: "Open pool",
+  platform: "Platform",
+};
+
+function riderMarkerIcon(color: string): google.maps.Symbol {
+  return {
+    path: "M0,0 m-7,0 a7,7 0 1,0 14,0 a7,7 0 1,0 -14,0",
+    fillColor: color,
+    fillOpacity: 1,
+    strokeColor: "#ffffff",
+    strokeWeight: 2,
+    scale: 1,
+  };
+}
 
 const STATUS_META: Record<
   OrderStatus,
@@ -112,6 +142,8 @@ export default function MerchantOrderDetailPage() {
   const [riderCandidates, setRiderCandidates] = useState<RiderCandidate[]>([]);
   const [riderPanelOpen, setRiderPanelOpen] = useState(false);
   const [loadingRiders, setLoadingRiders] = useState(false);
+  const [restaurantLocation, setRestaurantLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const { isLoaded: mapsLoaded } = useGoogleMaps();
   const [assigningRiderId, setAssigningRiderId] = useState<number | null>(null);
   const [completeReasonOpen, setCompleteReasonOpen] = useState(false);
   const [completeReason, setCompleteReason] = useState("");
@@ -236,12 +268,26 @@ export default function MerchantOrderDetailPage() {
     setLoadingRiders(true);
     setError(null);
     try {
-      const response = await apiFetch("/orders/merchant/riders", { auth: true });
-      const payload = await response.json().catch(() => null);
-      if (!response.ok) {
-        throw new Error(extractApiErrorMessage(payload, "Failed to load riders."));
+      const [ridersResponse, restaurantsResponse] = await Promise.all([
+        apiFetch("/orders/merchant/riders", { auth: true }),
+        apiFetch("/merchant/restaurants/me", { auth: true }),
+      ]);
+      const ridersPayload = await ridersResponse.json().catch(() => null);
+      if (!ridersResponse.ok) {
+        throw new Error(extractApiErrorMessage(ridersPayload, "Failed to load riders."));
       }
-      setRiderCandidates((payload as RiderCandidate[]) ?? []);
+      setRiderCandidates((ridersPayload as RiderCandidate[]) ?? []);
+
+      const restaurantsPayload = await restaurantsResponse.json().catch(() => null);
+      const activeRestaurantId = restaurantsPayload?.data?.active_restaurant_id as number | undefined;
+      if (restaurantsResponse.ok && activeRestaurantId) {
+        const profileResponse = await apiFetch(`/merchant/restaurants/${activeRestaurantId}/profile`, { auth: true });
+        const profilePayload = await profileResponse.json().catch(() => null);
+        const profileData = profilePayload?.data;
+        if (profileResponse.ok && profileData?.latitude && profileData?.longitude) {
+          setRestaurantLocation({ lat: profileData.latitude, lng: profileData.longitude });
+        }
+      }
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Failed to load riders.");
     } finally {
@@ -458,14 +504,58 @@ export default function MerchantOrderDetailPage() {
           </div>
           {riderPanelOpen ? (
             <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center">
-              <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
+              <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-lg bg-white p-6 shadow-xl">
                 <div className="flex items-center justify-between">
                   <div><h2 className="text-lg font-semibold text-[#212529]">Assign rider</h2><p className="text-sm text-[#868e96]">Choose a rider for {order.orderNumber}.</p></div>
                   <button className="text-sm text-[#868e96]" onClick={() => setRiderPanelOpen(false)}>Close</button>
                 </div>
-                <div className="mt-5 space-y-2">
-                  {loadingRiders ? <p className="py-6 text-center text-sm text-[#868e96]">Loading riders...</p> : riderCandidates.map((rider) => <div className="flex items-center justify-between rounded border border-[#e9ecef] p-3" key={rider.id}><div><p className="font-semibold text-[#495057]">{rider.full_name}</p><p className="text-xs text-[#868e96]">{rider.rider_work_mode} · {rider.phone || "No phone"} · {rider.busy ? "Busy" : rider.is_accepting_offers ? "Online" : "Offline"}</p></div><Button type="button" disabled={rider.busy || assigningRiderId !== null} onClick={() => void assignRider(rider.id)}>{assigningRiderId === rider.id ? "Assigning..." : "Assign"}</Button></div>)}
-                  {!loadingRiders && riderCandidates.length === 0 ? <p className="py-6 text-center text-sm text-[#868e96]">No eligible riders found.</p> : null}
+                <div className="mt-4 overflow-y-auto">
+                  {!loadingRiders && mapsLoaded && restaurantLocation ? (
+                    <div className="mb-4 overflow-hidden rounded-lg border border-[#e9ecef]">
+                      <GoogleMap
+                        mapContainerStyle={{ width: "100%", height: "260px" }}
+                        center={restaurantLocation}
+                        zoom={13}
+                        options={{
+                          styles: MINIMAL_MAP_STYLE,
+                          disableDefaultUI: true,
+                          zoomControl: true,
+                        }}
+                      >
+                        <MarkerF
+                          position={restaurantLocation}
+                          icon={{
+                            path: "M -6,-6 6,-6 6,6 -6,6 z",
+                            fillColor: "#212529",
+                            fillOpacity: 1,
+                            strokeColor: "#ffffff",
+                            strokeWeight: 1.5,
+                            scale: 1,
+                          }}
+                          title="Restaurant"
+                        />
+                        {riderCandidates
+                          .filter((rider) => rider.current_latitude != null && rider.current_longitude != null)
+                          .map((rider) => (
+                            <MarkerF
+                              key={rider.id}
+                              position={{ lat: rider.current_latitude as number, lng: rider.current_longitude as number }}
+                              icon={riderMarkerIcon(TIER_MARKER_COLOR[rider.assignment_type] ?? "#868e96")}
+                              title={`${rider.full_name} · ${TIER_LABEL[rider.assignment_type] ?? rider.assignment_type}`}
+                            />
+                          ))}
+                      </GoogleMap>
+                      <div className="flex items-center gap-4 border-t border-[#e9ecef] bg-[#f8f9fa] px-3 py-2 text-xs text-[#495057]">
+                        <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: TIER_MARKER_COLOR.rider_private }} />Private</span>
+                        <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: TIER_MARKER_COLOR.open }} />Open pool</span>
+                        <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: TIER_MARKER_COLOR.platform }} />Platform</span>
+                      </div>
+                    </div>
+                  ) : null}
+                  <div className="space-y-2">
+                    {loadingRiders ? <p className="py-6 text-center text-sm text-[#868e96]">Loading riders...</p> : riderCandidates.map((rider) => <div className="flex items-center justify-between rounded border border-[#e9ecef] p-3" key={rider.id}><div><p className="font-semibold text-[#495057]">{rider.full_name}</p><p className="text-xs text-[#868e96]">{TIER_LABEL[rider.assignment_type] ?? rider.rider_work_mode} · {rider.phone || "No phone"} · {rider.busy ? "Busy" : rider.is_accepting_offers ? "Online" : "Offline"}{rider.distance_km != null ? ` · ${rider.distance_km.toFixed(1)} km away` : ""}</p></div><Button type="button" disabled={rider.busy || assigningRiderId !== null} onClick={() => void assignRider(rider.id)}>{assigningRiderId === rider.id ? "Assigning..." : "Assign"}</Button></div>)}
+                    {!loadingRiders && riderCandidates.length === 0 ? <p className="py-6 text-center text-sm text-[#868e96]">No eligible riders found.</p> : null}
+                  </div>
                 </div>
               </div>
             </div>

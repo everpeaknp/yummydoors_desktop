@@ -40,7 +40,7 @@ type RiderOrder = {
 type RiderInvitation = {
   id: number;
   restaurant_name: string | null;
-  invitation_type: "private" | "preferred";
+  invitation_type: "private";
   status: string;
   notes: string | null;
 };
@@ -501,7 +501,7 @@ export default function RiderDashboardPage() {
                             <p className="mt-1 text-[13px] text-muted-foreground">{invitation.notes || "This restaurant wants to add you to its rider team."}</p>
                           </div>
                           <span className="shrink-0 rounded-full bg-[#fff1f2] px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-[#e8505b]">
-                            {invitation.invitation_type === "private" ? "Private rider" : "Preferred rider"}
+                            Private rider
                           </span>
                         </div>
                         <div className="mt-3 flex gap-2">
@@ -544,7 +544,7 @@ export default function RiderDashboardPage() {
                                 <p className="text-[12px] capitalize text-muted-foreground">Status: {invitation.status}</p>
                               </div>
                               <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
-                                {invitation.invitation_type === "private" ? "Private" : "Preferred"}
+                                Private
                               </span>
                             </div>
                           ))}

@@ -27,7 +27,6 @@ type Invitation = {
 type Profile = {
   rider_dispatch_policy: string;
   rider_private_offer_timeout_seconds: number;
-  rider_preferred_offer_timeout_seconds: number;
   rider_open_offer_timeout_seconds: number;
 };
 
@@ -40,7 +39,6 @@ export default function MerchantRidersPage() {
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [email, setEmail] = useState("");
-  const [invitationType, setInvitationType] = useState("private");
   const [notes, setNotes] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -108,7 +106,7 @@ export default function MerchantRidersPage() {
     const response = await apiFetch(`/rider-dispatch/restaurants/${restaurantId}/invitations`, {
       method: "POST",
       auth: true,
-      body: JSON.stringify({ invited_email: email.trim(), invitation_type: invitationType, notes: notes.trim() || null }),
+      body: JSON.stringify({ invited_email: email.trim(), invitation_type: "private", notes: notes.trim() || null }),
     });
     if (!response.ok) {
       setError("Failed to invite rider.");
@@ -158,9 +156,9 @@ export default function MerchantRidersPage() {
         <section className="rounded border border-[#e9ecef] bg-white p-6">
           <h2 className="text-lg font-semibold text-[#212529]">Dispatch settings</h2>
           <p className="mt-1 text-sm text-[#868e96]">Choose which rider pool receives new delivery offers.</p>
-          <label className="mt-5 block text-sm font-medium">Dispatch policy<select className="mt-2 w-full rounded border border-[#ced4da] px-3 py-2" value={profile.rider_dispatch_policy} onChange={(event) => void updateProfile({ rider_dispatch_policy: event.target.value })}><option value="ranked">Ranked: private, preferred, then open</option><option value="private_only">Private riders only</option></select></label>
-          <div className="mt-5 grid gap-4 sm:grid-cols-3">
-            {(["private", "preferred", "open"] as const).map((tier) => { const key = `rider_${tier}_offer_timeout_seconds` as keyof Profile; return <label key={tier} className="text-sm font-medium capitalize">{tier} timeout (sec)<input className="mt-2 w-full rounded border border-[#ced4da] px-3 py-2" type="number" min={1} value={profile[key] as number} onChange={(event) => setProfile({ ...profile, [key]: Number(event.target.value) })} onBlur={() => void updateProfile({ [key]: profile[key] as number })} /></label>; })}
+          <label className="mt-5 block text-sm font-medium">Dispatch policy<select className="mt-2 w-full rounded border border-[#ced4da] px-3 py-2" value={profile.rider_dispatch_policy} onChange={(event) => void updateProfile({ rider_dispatch_policy: event.target.value })}><option value="ranked">Ranked: private, then open, then platform</option><option value="private_only">Private riders only</option></select></label>
+          <div className="mt-5 grid gap-4 sm:grid-cols-2">
+            {(["private", "open"] as const).map((tier) => { const key = `rider_${tier}_offer_timeout_seconds` as keyof Profile; return <label key={tier} className="text-sm font-medium capitalize">{tier} timeout (sec)<input className="mt-2 w-full rounded border border-[#ced4da] px-3 py-2" type="number" min={1} value={profile[key] as number} onChange={(event) => setProfile({ ...profile, [key]: Number(event.target.value) })} onBlur={() => void updateProfile({ [key]: profile[key] as number })} /></label>; })}
           </div>
         </section>
 
@@ -168,7 +166,6 @@ export default function MerchantRidersPage() {
           <h2 className="text-lg font-semibold text-[#212529]">Invite a private rider</h2>
           <form className="mt-4 space-y-3" onSubmit={invite}>
             <input className="w-full rounded border border-[#ced4da] px-3 py-2 text-sm" type="email" required placeholder="rider@example.com" value={email} onChange={(event) => setEmail(event.target.value)} />
-            <select className="w-full rounded border border-[#ced4da] px-3 py-2 text-sm" value={invitationType} onChange={(event) => setInvitationType(event.target.value)}><option value="private">Private rider</option><option value="preferred">Preferred rider</option></select>
             <textarea className="w-full rounded border border-[#ced4da] px-3 py-2 text-sm" placeholder="Optional note" value={notes} onChange={(event) => setNotes(event.target.value)} />
             <button className="inline-flex items-center gap-2 rounded bg-[#e9572d] px-4 py-2 text-sm font-semibold text-white" type="submit"><UserPlus size={16} /> Send invitation</button>
           </form>

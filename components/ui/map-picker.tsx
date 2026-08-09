@@ -5,6 +5,7 @@ import { MapPin, Search } from "lucide-react";
 import { GoogleMap, MarkerF } from "@react-google-maps/api";
 
 import { useGoogleMaps } from "@/hooks/use-google-maps";
+import { MINIMAL_MAP_STYLE } from "@/lib/map-style";
 
 interface MapPickerProps {
   latitude: number | null;
@@ -373,6 +374,7 @@ export default function MapPicker({
           streetViewControl: false,
           mapTypeControl: false,
           fullscreenControl: false,
+          styles: MINIMAL_MAP_STYLE,
         }}
       >
         {position && (

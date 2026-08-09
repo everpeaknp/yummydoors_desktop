@@ -9,6 +9,7 @@ import { config } from "@/lib/config";
 import { loadStoredAuth } from "@/lib/auth-storage";
 import { DirectionsRenderer, DirectionsService, GoogleMap, MarkerF } from "@react-google-maps/api";
 import { useGoogleMaps } from "@/hooks/use-google-maps";
+import { MINIMAL_MAP_STYLE } from "@/lib/map-style";
 import type { OrderStatus } from "@/lib/order-contract";
 
 type OrderItem = { name: string; price: number; quantity: number };
@@ -586,6 +587,7 @@ export default function RiderDashboardPage() {
                   streetViewControl: false,
                   mapTypeControl: false,
                   fullscreenControl: false,
+                  styles: MINIMAL_MAP_STYLE,
                 }}
               >
                 {activeOrder?.restaurantLatitude && activeOrder?.restaurantLongitude && (

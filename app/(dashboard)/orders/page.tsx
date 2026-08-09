@@ -19,6 +19,7 @@ import { GoogleMap, MarkerF, PolylineF } from "@react-google-maps/api";
 import { SiteNavbar } from "@/components/layout/site-navbar";
 import { useAuth } from "@/hooks/use-auth";
 import { useGoogleMaps } from "@/hooks/use-google-maps";
+import { MINIMAL_MAP_STYLE } from "@/lib/map-style";
 import { apiFetch } from "@/lib/http";
 import { ORDER_EVENT_NAME, type OrderNotificationPayload } from "@/lib/web-push";
 import { FALLBACK_RESTAURANT_COVER, isUsableImageUrl } from "@/lib/restaurant-media";
@@ -229,7 +230,7 @@ function OrderTrackingMap({ order, customerLocation }: { order: CustomerOrder; c
           <p className="text-xs text-[#6b7280]">Waiting for rider GPS</p>
         )}
       </div>
-      <GoogleMap mapContainerStyle={{ width: "100%", height: "360px" }} center={center} zoom={14} onLoad={(map) => { mapRef.current = map; }} onUnmount={() => { mapRef.current = null; }} options={{ mapTypeControl: false, streetViewControl: false, fullscreenControl: true, zoomControl: true }}>
+      <GoogleMap mapContainerStyle={{ width: "100%", height: "360px" }} center={center} zoom={14} onLoad={(map) => { mapRef.current = map; }} onUnmount={() => { mapRef.current = null; }} options={{ mapTypeControl: false, streetViewControl: false, fullscreenControl: true, zoomControl: true, styles: MINIMAL_MAP_STYLE }}>
         {routePath.length > 1 ? <PolylineF path={routePath} options={{ strokeColor: "#e8505b", strokeOpacity: 0.9, strokeWeight: 5 }} /> : null}
         {restaurant ? <MarkerF position={restaurant} label="R" title="Restaurant pickup" /> : null}
         {destination ? <MarkerF position={destination} label="D" title="Customer delivery address" /> : null}
@@ -255,10 +256,17 @@ export default function CustomerOrdersPage() {
   const [expandedOrderId, setExpandedOrderId] = useState<number | null>(null);
   const [customerLocation, setCustomerLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [statusFilter, setStatusFilter] = useState<"all" | DisplayStatus>("all");
+  const [cancellingOrderId, setCancellingOrderId] = useState<number | null>(null);
+  const [cancelError, setCancelError] = useState<string | null>(null);
+  const [pendingCancelOrderId, setPendingCancelOrderId] = useState<number | null>(null);
 
   const expandedOrder = orders.find((order) => order.id === expandedOrderId) ?? null;
   const visibleOrders =
     statusFilter === "all" ? orders : orders.filter((order) => deriveDisplayStatus(order) === statusFilter);
+
+  useEffect(() => {
+    setCancelError(null);
+  }, [expandedOrderId]);
 
   useEffect(() => {
     if (!expandedOrderId || !navigator.geolocation) {
@@ -287,6 +295,34 @@ export default function CustomerOrdersPage() {
     }
     return Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : [];
   }, []);
+
+  // Customer self-service cancellation only works before the restaurant has
+  // started preparing the order (backend enforces this — see
+  // app/modules/orders/service.py:cancel_order, matches Uber Eats' policy of
+  // free cancellation only up until the merchant accepts).
+  const confirmCancelOrder = useCallback(
+    async (orderId: number) => {
+      setPendingCancelOrderId(null);
+      setCancelError(null);
+      setCancellingOrderId(orderId);
+      try {
+        const response = await apiFetch(`/orders/${orderId}/cancel`, { method: "POST", auth: true });
+        const payload = await response.json().catch(() => null);
+        if (!response.ok) {
+          throw new Error(
+            typeof payload?.detail === "string" ? payload.detail : "This order could not be cancelled.",
+          );
+        }
+        const nextOrders = await loadOrders();
+        setOrders(nextOrders);
+      } catch (caught) {
+        setCancelError(caught instanceof Error ? caught.message : "This order could not be cancelled.");
+      } finally {
+        setCancellingOrderId(null);
+      }
+    },
+    [loadOrders],
+  );
 
   useEffect(() => {
     if (!hydrated) {
@@ -665,6 +701,23 @@ export default function CustomerOrdersPage() {
                 <OrderTrackingMap order={expandedOrder} customerLocation={customerLocation} />
               ) : null}
 
+              {expandedOrder.status === "placed" || expandedOrder.status === "toPay" ? (
+                <div className="space-y-2">
+                  {cancelError ? (
+                    <p className="text-[12px] font-medium text-[#be123c]">{cancelError}</p>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => setPendingCancelOrderId(expandedOrder.id)}
+                    disabled={cancellingOrderId === expandedOrder.id}
+                    className="flex h-11 w-full items-center justify-center gap-2 rounded-[6px] border border-[#fecdd3] text-[13px] font-semibold text-[#be123c] transition hover:bg-[#fff1f2] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <X className="h-4 w-4" />
+                    {cancellingOrderId === expandedOrder.id ? "Cancelling..." : "Cancel order"}
+                  </button>
+                </div>
+              ) : null}
+
               {expandedOrder.status === "delivered" ? (
                 <Link
                   href={`/restaurants/${expandedOrder.restaurantSlug}?order_id=${expandedOrder.id}`}
@@ -674,6 +727,40 @@ export default function CustomerOrdersPage() {
                   Leave a review
                 </Link>
               ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {pendingCancelOrderId !== null ? (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            onClick={() => setPendingCancelOrderId(null)}
+          />
+          <div className="relative z-10 w-full max-w-sm rounded-[14px] bg-white p-6 shadow-[0_24px_70px_rgba(15,23,42,0.25)]">
+            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#fff1f2]">
+              <X className="h-5 w-5 text-[#be123c]" />
+            </div>
+            <h3 className="mt-4 text-[16px] font-bold text-[#111827]">Cancel this order?</h3>
+            <p className="mt-1.5 text-[13px] leading-relaxed text-muted-foreground">
+              This can&apos;t be undone. The restaurant will be notified right away.
+            </p>
+            <div className="mt-5 flex gap-2.5">
+              <button
+                type="button"
+                onClick={() => setPendingCancelOrderId(null)}
+                className="h-10 flex-1 rounded-[6px] border border-gray-200 text-[13px] font-semibold text-[#374151] transition hover:bg-gray-50"
+              >
+                Never mind
+              </button>
+              <button
+                type="button"
+                onClick={() => confirmCancelOrder(pendingCancelOrderId)}
+                className="h-10 flex-1 rounded-[6px] bg-[#be123c] text-[13px] font-semibold text-white transition hover:bg-[#9f1030]"
+              >
+                Cancel order
+              </button>
             </div>
           </div>
         </div>

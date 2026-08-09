@@ -20,6 +20,7 @@ import { SiteNavbar } from "@/components/layout/site-navbar";
 import { FavoriteToggleButton } from "@/components/customer/favorite-toggle-button";
 import { useGoogleMaps } from "@/hooks/use-google-maps";
 import { apiFetch } from "@/lib/http";
+import { MINIMAL_MAP_STYLE } from "@/lib/map-style";
 import {
   FALLBACK_RESTAURANT_COVER,
   isUsableImageUrl,
@@ -90,6 +91,7 @@ const MAP_OPTIONS: google.maps.MapOptions = {
   mapTypeControl: false,
   streetViewControl: false,
   minZoom: 10,
+  styles: MINIMAL_MAP_STYLE,
 };
 
 const sortOptions = [
@@ -520,7 +522,7 @@ export default function RestaurantsPage() {
                       {/* Top Badges */}
                       <div className="absolute left-3 top-3 z-20">
                         {restaurant.primary_cuisine_label ? (
-                          <span className="rounded-[2px] bg-white px-[6px] py-[2px] text-[11px] font-semibold text-[#333] shadow-sm">
+                          <span className="rounded-[2px] bg-white px-[5px] py-[1.5px] text-[10px] font-semibold text-[#333] shadow-sm">
                             {restaurant.primary_cuisine_label}
                           </span>
                         ) : null}
@@ -529,7 +531,7 @@ export default function RestaurantsPage() {
                       <div className="absolute right-3 top-3 z-20">
                         <div className="flex items-center gap-2">
                           {restaurant.offer_text ? (
-                            <span className="rounded-[2px] bg-[#e14b4b] px-[6px] py-[2px] text-[11px] font-semibold text-white shadow-sm">
+                            <span className="rounded-[2px] bg-[#e14b4b] px-[5px] py-[1.5px] text-[10px] font-semibold text-white shadow-sm">
                               {restaurant.offer_text}
                             </span>
                           ) : null}
@@ -544,10 +546,10 @@ export default function RestaurantsPage() {
                               )
                             }
                             compact
-                            className="relative z-30 !flex !h-[32px] !w-[32px] !min-h-[32px] !min-w-[32px] items-center justify-center !rounded-full border border-gray-300 !bg-white !p-0 shadow-sm transition hover:border-[#e8505b] hover:!bg-[#fff0f0] group/fav"
+                            className="relative z-30 !flex !h-[28px] !w-[28px] !min-h-[28px] !min-w-[28px] items-center justify-center !rounded-full border border-gray-300 !bg-white !p-0 shadow-sm transition hover:border-[#e8505b] hover:!bg-[#fff0f0] group/fav"
                           >
                             <Heart
-                              className={`h-4 w-4 transition ${
+                              className={`h-3.5 w-3.5 transition ${
                                 restaurant.is_favorited
                                   ? "fill-[#e8505b] text-[#e8505b]"
                                   : "fill-transparent text-[#555] group-hover/fav:text-[#e8505b]"
@@ -591,12 +593,12 @@ export default function RestaurantsPage() {
                         }}
                         className="flex items-center gap-1.5 text-[#6b7280] hover:text-[#111827] transition"
                       >
-                        <MapPin className="h-[14px] w-[14px]" />
-                        <span className="text-[13px]">View on Map</span>
+                        <MapPin className="h-3 w-3" />
+                        <span className="text-[11.5px]">View on Map</span>
                       </button>
                       <div className="flex items-center gap-1 text-[#111827]">
-                        <Star className="h-[14px] w-[14px] fill-[#22c55e] text-[#22c55e]" />
-                        <span className="text-[13px] font-bold">
+                        <Star className="h-3 w-3 fill-[#22c55e] text-[#22c55e]" />
+                        <span className="text-[11.5px] font-bold">
                           {restaurant.rating_average.toFixed(1)}
                         </span>
                       </div>

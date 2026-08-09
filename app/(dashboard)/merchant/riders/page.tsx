@@ -1,9 +1,12 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { UserPlus, RefreshCw } from "lucide-react";
+import { UserPlus, RefreshCw, MapPinned } from "lucide-react";
+import { GoogleMap, MarkerF } from "@react-google-maps/api";
 import { MerchantDashboardLayout } from "@/components/merchant/merchant-dashboard-layout";
 import { apiFetch } from "@/lib/http";
+import { useGoogleMaps } from "@/hooks/use-google-maps";
+import { MINIMAL_MAP_STYLE } from "@/lib/map-style";
 
 type Restaurant = { id: number; name: string };
 type Candidate = {
@@ -15,6 +18,8 @@ type Candidate = {
   is_accepting_offers: boolean;
   busy: boolean;
   distance_km: number | null;
+  current_latitude: number | null;
+  current_longitude: number | null;
 };
 type Invitation = {
   id: number;
@@ -28,7 +33,32 @@ type Profile = {
   rider_dispatch_policy: string;
   rider_private_offer_timeout_seconds: number;
   rider_open_offer_timeout_seconds: number;
+  latitude: number | null;
+  longitude: number | null;
 };
+
+const TIER_MARKER_COLOR: Record<string, string> = {
+  rider_private: "#e9572d",
+  open: "#3b82f6",
+  platform: "#16a34a",
+};
+
+const TIER_LABEL: Record<string, string> = {
+  rider_private: "Private",
+  open: "Open pool",
+  platform: "Platform",
+};
+
+function markerIcon(color: string): google.maps.Symbol {
+  return {
+    path: "M0,0 m-7,0 a7,7 0 1,0 14,0 a7,7 0 1,0 -14,0",
+    fillColor: color,
+    fillOpacity: 1,
+    strokeColor: "#ffffff",
+    strokeWeight: 2,
+    scale: 1,
+  };
+}
 
 const unwrap = <T,>(payload: any): T => payload?.data ?? payload;
 
@@ -43,6 +73,7 @@ export default function MerchantRidersPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const { isLoaded: mapsLoaded } = useGoogleMaps();
 
   const load = useCallback(async (id: number) => {
     setLoading(true);
@@ -172,8 +203,63 @@ export default function MerchantRidersPage() {
         </section>
 
         <section className="rounded border border-[#e9ecef] bg-white p-6 lg:col-span-2">
-          <h2 className="text-lg font-semibold text-[#212529]">Available riders</h2>
-          <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-3">{candidates.map((rider) => <div className="rounded border border-[#e9ecef] p-4" key={rider.id}><div className="flex justify-between"><span className="font-semibold">{rider.full_name}</span><span className={rider.is_accepting_offers ? "text-green-600" : "text-[#868e96]"}>{rider.is_accepting_offers ? "Online" : "Offline"}</span></div><p className="mt-1 text-sm text-[#868e96]">{rider.phone || "No phone"} · {rider.assignment_type.replace("rider_", "")}</p><p className="mt-2 text-xs text-[#868e96]">{rider.busy ? "Currently busy" : "Available"}{rider.distance_km != null ? ` · ${rider.distance_km.toFixed(1)} km away` : ""}</p>{rider.assignment_type !== "open" ? <button className="mt-3 text-xs font-semibold text-red-600 hover:underline" onClick={() => void removeRider(rider.id)}>Remove from team</button> : null}</div>)}</div>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#fff1f2] text-[#e8505b]">
+                <MapPinned className="h-4 w-4" />
+              </span>
+              <div>
+                <h2 className="text-lg font-semibold text-[#212529]">Available riders</h2>
+                <p className="mt-1 text-sm text-[#868e96]">Live positions of your team, plus open-pool and platform riders nearby.</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 text-xs font-medium text-[#495057]">
+              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: TIER_MARKER_COLOR.rider_private }} />Private</span>
+              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: TIER_MARKER_COLOR.open }} />Open pool</span>
+              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: TIER_MARKER_COLOR.platform }} />Platform</span>
+            </div>
+          </div>
+
+          <div className="mt-4 h-[360px] overflow-hidden rounded-[10px] border border-[#eceff3]">
+            {!mapsLoaded ? (
+              <div className="flex h-full items-center justify-center text-sm text-[#868e96]">Loading map...</div>
+            ) : (
+              <GoogleMap
+                mapContainerStyle={{ width: "100%", height: "100%" }}
+                center={
+                  profile.latitude && profile.longitude
+                    ? { lat: profile.latitude, lng: profile.longitude }
+                    : { lat: 28.2096, lng: 83.9856 }
+                }
+                zoom={13}
+                options={{
+                  streetViewControl: false,
+                  mapTypeControl: false,
+                  fullscreenControl: false,
+                  styles: MINIMAL_MAP_STYLE,
+                }}
+              >
+                {profile.latitude && profile.longitude && (
+                  <MarkerF position={{ lat: profile.latitude, lng: profile.longitude }} label="R" title="Your restaurant" />
+                )}
+                {candidates
+                  .filter((rider) => rider.current_latitude != null && rider.current_longitude != null)
+                  .map((rider) => (
+                    <MarkerF
+                      key={rider.id}
+                      position={{ lat: rider.current_latitude!, lng: rider.current_longitude! }}
+                      icon={markerIcon(TIER_MARKER_COLOR[rider.assignment_type] ?? TIER_MARKER_COLOR.open)}
+                      title={`${rider.full_name} — ${TIER_LABEL[rider.assignment_type] ?? rider.assignment_type}${rider.busy ? " (busy)" : ""}`}
+                    />
+                  ))}
+              </GoogleMap>
+            )}
+          </div>
+          {candidates.some((rider) => rider.current_latitude == null) && (
+            <p className="mt-2 text-xs text-[#868e96]">Riders without a recent GPS fix aren&apos;t shown on the map, only in the list below.</p>
+          )}
+
+          <div className="mt-5 grid gap-3 md:grid-cols-2 lg:grid-cols-3">{candidates.map((rider) => <div className="rounded border border-[#e9ecef] p-4" key={rider.id}><div className="flex justify-between"><span className="font-semibold">{rider.full_name}</span><span className={rider.is_accepting_offers ? "text-green-600" : "text-[#868e96]"}>{rider.is_accepting_offers ? "Online" : "Offline"}</span></div><p className="mt-1 text-sm text-[#868e96]">{rider.phone || "No phone"} · {TIER_LABEL[rider.assignment_type] ?? rider.assignment_type.replace("rider_", "")}</p><p className="mt-2 text-xs text-[#868e96]">{rider.busy ? "Currently busy" : "Available"}{rider.distance_km != null ? ` · ${rider.distance_km.toFixed(1)} km away` : ""}</p>{rider.assignment_type !== "open" && rider.assignment_type !== "platform" ? <button className="mt-3 text-xs font-semibold text-red-600 hover:underline" onClick={() => void removeRider(rider.id)}>Remove from team</button> : null}</div>)}</div>
           {!candidates.length && <p className="mt-4 text-sm text-[#868e96]">No riders are currently available for this restaurant.</p>}
         </section>
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, Award, Bolt, Check, ChevronRight, Info, Leaf, Lock, Percent, Trophy, Wallet } from "lucide-react";
+import { ArrowLeft, Award, Bolt, Check, ChevronRight, Info, Leaf, Lock, Percent, Star, Trophy, Wallet } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/http";
 
@@ -28,6 +28,8 @@ type RiderProfile = {
   paidEarnings: number;
   walletBalance: number | null;
   canAcceptOffers: boolean;
+  averageRating: number | null;
+  totalReviews: number;
   recentDeliveries: RiderPayout[];
 };
 
@@ -74,6 +76,17 @@ function RiderStandingCard({ profile }: { profile: RiderProfile }) {
         </span>
         <div className="flex-1">
           <div className="text-[19px] font-extrabold text-[#111827]">{tier.label} Rider</div>
+          {profile.totalReviews > 0 ? (
+            <div className="mt-1 flex items-center gap-1">
+              <Star className="h-3.5 w-3.5 fill-[#f59e0b]" style={{ color: "#f59e0b" }} />
+              <span className="text-[12.5px] font-bold text-[#111827]">{profile.averageRating?.toFixed(1)}</span>
+              <span className="text-[11px] text-muted-foreground">
+                ({profile.totalReviews} {profile.totalReviews === 1 ? "review" : "reviews"})
+              </span>
+            </div>
+          ) : (
+            <div className="mt-1 text-[11px] text-muted-foreground">No reviews yet</div>
+          )}
         </div>
         <div className="text-right">
           <div className="text-[22px] font-extrabold" style={{ color: ACCENT }}>

@@ -409,14 +409,14 @@ export default function RiderDashboardPage() {
       <main className="mx-auto grid max-w-[1280px] gap-6 px-6 py-6 lg:px-10 lg:py-8 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.8fr)]">
         <div className="space-y-5">
           <div className="sticky top-0 z-10 -mx-6 bg-[#fafafb]/95 px-6 pb-2 pt-2 backdrop-blur-sm sm:mx-0 sm:px-0">
-            <div className="flex rounded-full border border-[#eceff3] bg-white p-1 shadow-sm">
+            <div className="flex rounded-[10px] border border-[#eceff3] bg-[#f6f7fb] p-1">
               {(["available", "active", "completed"] as const).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
-                  className={`flex-1 rounded-full py-2 text-[13px] font-semibold transition-colors ${
+                  className={`flex-1 rounded-[8px] py-2 text-[13px] font-semibold transition-colors ${
                     activeTab === tab
-                      ? "bg-[#e8505b] text-white shadow-sm"
+                      ? "bg-[#e8505b] text-white"
                       : "text-muted-foreground hover:text-[#111827]"
                   }`}
                 >
@@ -440,7 +440,7 @@ export default function RiderDashboardPage() {
           ) : (
             <div className="space-y-3">
               {filteredOrders.map((order) => (
-                <div key={order.id} className="rounded-[10px] border border-[#eceff3] bg-white p-5 shadow-sm">
+                <div key={order.id} className="rounded-[10px] border border-[#eceff3] bg-white p-5">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                       <div>
                         <h3 className="text-[14px] font-bold text-[#111827]">Order #{order.orderNumber}</h3>
@@ -515,7 +515,7 @@ export default function RiderDashboardPage() {
             </div>
           )}
 
-          <section className="rounded-[10px] border border-[#eceff3] bg-white shadow-sm">
+          <section className="rounded-[10px] border border-[#eceff3] bg-white">
             <div className="flex flex-col gap-3 border-b border-[#eceff3] px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-2.5">
                 <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#fff1f2] text-[#e8505b]">
@@ -615,7 +615,7 @@ export default function RiderDashboardPage() {
         </div>
 
         <div className="min-h-0 xl:sticky xl:top-6 xl:self-start">
-          <div className="h-[520px] overflow-hidden rounded-[10px] border border-[#eceff3] bg-white shadow-sm sm:h-[620px]">
+          <div className="h-[520px] overflow-hidden rounded-[10px] border border-[#eceff3] bg-white sm:h-[620px]">
             <div className="flex items-center justify-between border-b border-[#eceff3] px-6 py-4">
               <div className="flex items-center gap-2.5">
                 <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#fff1f2] text-[#e8505b]">

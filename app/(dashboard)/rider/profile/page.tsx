@@ -87,7 +87,7 @@ export default function RiderProfilePage() {
           <div className="rounded-[10px] border border-[#fecdd3] bg-[#fff1f2] py-10 text-center text-sm text-[#be123c]">{error}</div>
         ) : profile ? (
           <>
-            <section className="rounded-[10px] border border-[#eceff3] bg-white p-6 shadow-sm">
+            <section className="rounded-[10px] border border-[#eceff3] bg-white p-6">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <span
                   className="inline-flex items-center rounded-full px-3 py-1.5 text-[12px] font-bold"
@@ -110,15 +110,15 @@ export default function RiderProfilePage() {
             </section>
 
             <section className="grid grid-cols-3 gap-3">
-              <div className="rounded-[10px] border border-[#eceff3] bg-white p-5 shadow-sm">
+              <div className="rounded-[10px] border border-[#eceff3] bg-white p-5">
                 <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Total earnings</div>
                 <div className="mt-1.5 text-xl font-bold text-[#111827]">Rs. {profile.totalEarnings.toFixed(0)}</div>
               </div>
-              <div className="rounded-[10px] border border-[#eceff3] bg-white p-5 shadow-sm">
+              <div className="rounded-[10px] border border-[#eceff3] bg-white p-5">
                 <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Pending</div>
                 <div className="mt-1.5 text-xl font-bold text-[#e8505b]">Rs. {profile.pendingEarnings.toFixed(0)}</div>
               </div>
-              <div className="rounded-[10px] border border-[#eceff3] bg-white p-5 shadow-sm">
+              <div className="rounded-[10px] border border-[#eceff3] bg-white p-5">
                 <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Paid out</div>
                 <div className="mt-1.5 text-xl font-bold text-[#16a34a]">Rs. {profile.paidEarnings.toFixed(0)}</div>
               </div>
@@ -126,7 +126,7 @@ export default function RiderProfilePage() {
 
             {profile.walletBalance != null ? (
               <section
-                className={`rounded-[10px] border p-6 shadow-sm ${
+                className={`rounded-[10px] border p-6 ${
                   profile.canAcceptOffers ? "border-[#eceff3] bg-white" : "border-[#fecdd3] bg-[#fff1f2]"
                 }`}
               >
@@ -147,7 +147,7 @@ export default function RiderProfilePage() {
               </section>
             ) : null}
 
-            <section className="rounded-[10px] border border-[#eceff3] bg-white shadow-sm">
+            <section className="rounded-[10px] border border-[#eceff3] bg-white">
               <div className="border-b border-[#eceff3] px-6 py-4">
                 <h2 className="text-[15px] font-bold text-[#111827]">Recent deliveries</h2>
               </div>

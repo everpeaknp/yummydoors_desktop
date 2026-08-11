@@ -16,6 +16,7 @@ import {
   Mail,
   Menu,
   PanelTop,
+  Percent,
   Search,
   Settings,
   ShoppingBag,
@@ -345,6 +346,7 @@ export function MerchantDashboardLayout({ children }: { children: React.ReactNod
           <SidebarLink href="/merchant/menu" icon={PanelTop} label="Menu catalog" active={pathname === "/merchant/menu"} />
           <SidebarLink href="/merchant/reservations" icon={CalendarDays} label="Reservation queue" active={pathname === "/merchant/reservations"} />
           <SidebarLink href="/merchant/tables" icon={Table2} label="Reservation tables" active={pathname === "/merchant/tables"} />
+          <SidebarLink href="/merchant/coupons" icon={Percent} label="Coupons" active={pathname === "/merchant/coupons"} />
         </nav>
 
         {/* Operating Context & Exit */}
